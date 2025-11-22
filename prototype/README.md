@@ -75,7 +75,7 @@ prototype/
 ├── my-progress.html         # My Progress (aggregated stats)
 ├── leaderboard.html        # Team leaderboard
 ├── reflection.html         # Weekly reflection form
-├── content-list.html       # Content pages list
+├── resource-list.html      # Resource pages list
 ├── content-page.html       # Individual content page
 ├── admin-login.html        # Admin login page
 ├── admin-dashboard.html    # Admin dashboard
@@ -86,7 +86,6 @@ prototype/
 │   ├── navigation.json
 │   ├── nutrition-tips.json
 │   ├── mental-performance.json
-│   ├── resources.json
 │   ├── training-guidance.json
 │   └── workout-plan.json
 ├── js/

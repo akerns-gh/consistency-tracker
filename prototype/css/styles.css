@@ -363,14 +363,14 @@ input, textarea, select {
 .btn-primary {
     background-color: var(--true-green);
     color: var(--white);
-    padding: var(--spacing-md) var(--spacing-xl);
+    padding: var(--spacing-sm) var(--spacing-lg);
     border-radius: var(--radius-md);
     font-weight: var(--font-weight-semibold);
-    font-size: 1rem;
+    font-size: 0.875rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 44px;
+    min-height: 36px;
     box-shadow: var(--shadow-sm);
 }
 
@@ -1145,6 +1145,34 @@ input, textarea, select {
     margin: 0 auto;
 }
 
+.content-card {
+    background-color: var(--white);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    box-shadow: var(--shadow-md);
+    margin-bottom: var(--spacing-2xl);
+    transition: all var(--transition-base);
+}
+
+.content-card:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+}
+
+.content-card h3 {
+    font-size: 1.25rem;
+    font-weight: var(--font-weight-semibold);
+    color: var(--true-dark);
+    margin-bottom: var(--spacing-md);
+}
+
+.content-card p {
+    font-size: 0.9375rem;
+    color: var(--dark-gray);
+    margin-bottom: var(--spacing-lg);
+    line-height: 1.5;
+}
+
 .content-category {
     margin-bottom: var(--spacing-2xl);
 }
@@ -1197,13 +1225,14 @@ input, textarea, select {
 }
 
 .content-page-container {
-    max-width: 900px;
+    max-width: 1200px;
     margin: 0 auto;
 }
 
-/* Wider container for workout pages */
-.content-page-container:has(.workout-tracker) {
-    max-width: 1400px;
+/* Ensure workout table container matches */
+#workoutTableContainer {
+    max-width: 1200px;
+    margin: 0 auto;
 }
 
 .content-body {
@@ -1353,6 +1382,13 @@ input, textarea, select {
     font-weight: var(--font-weight-medium);
 }
 
+/* Default style for all table row headers */
+tr[class*="section-header"] td,
+tr[class*="row-header"] td {
+    text-transform: uppercase;
+    font-weight: var(--font-weight-bold);
+}
+
 .workout-section-header {
     background-color: var(--section-bg);
     color: var(--true-dark);
@@ -1366,6 +1402,8 @@ input, textarea, select {
     border-bottom: 2px solid var(--border-light);
     color: var(--true-dark);
     line-height: 1.6;
+    text-transform: uppercase;
+    font-weight: var(--font-weight-bold);
 }
 
 
@@ -1375,7 +1413,7 @@ input, textarea, select {
     padding: var(--spacing-sm) var(--spacing-md);
     border: 2px solid var(--light-gray);
     border-radius: var(--radius-md);
-    font-size: 1rem;
+    font-size: 1.0625rem;
     text-align: center;
     font-weight: var(--font-weight-semibold);
     color: var(--true-dark);
@@ -1389,8 +1427,9 @@ input, textarea, select {
 }
 
 .workout-reps-input::placeholder {
-    color: var(--medium-gray);
-    font-size: 0.75rem;
+    color: #6B7280;
+    font-size: 0.9375rem;
+    font-weight: var(--font-weight-normal);
 }
 
 .youtube-link {
@@ -1427,8 +1466,12 @@ input, textarea, select {
         width: 50%;
     }
     
-    /* Wider container for workout pages on mobile */
-    .content-page-container:has(.workout-tracker) {
+    /* Ensure workout table container is full width on mobile */
+    #workoutTableContainer {
+        max-width: 100%;
+    }
+    
+    .content-page-container {
         max-width: 100%;
     }
 }

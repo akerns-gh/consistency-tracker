@@ -58,7 +58,7 @@ class App {
                 this.currentController = new ReflectionController();
                 this.currentController.init();
                 break;
-            case 'content-list':
+            case 'resource-list':
             case 'content-page':
                 this.currentController = new ContentController();
                 await this.currentController.init();

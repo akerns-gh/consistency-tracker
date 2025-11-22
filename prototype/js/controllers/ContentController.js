@@ -14,7 +14,6 @@ class ContentController extends BaseController {
         await Promise.all([
             this.contentModel.loadNutritionTips(),
             this.contentModel.loadMentalPerformance(),
-            this.contentModel.loadResources(),
             this.contentModel.loadTrainingGuidance(),
             this.contentModel.loadNavigation(),
             this.contentModel.loadWorkoutPlan()
@@ -26,11 +25,14 @@ class ContentController extends BaseController {
         const id = params.id;
         const slug = params.slug;
 
-        if (category) {
+        if (category && id) {
+            // Individual content page by category and id
+            this.renderContentPageById(category, id);
+        } else if (category) {
             // Content list page
             this.renderContentList(category);
         } else if (slug) {
-            // Individual content page
+            // Individual content page by slug
             if (slug === 'weekly-workout-plan') {
                 await this.renderWorkoutPlan();
             } else {
@@ -45,9 +47,17 @@ class ContentController extends BaseController {
         this.view.renderContentList(content, category);
     }
 
-    // Render individual content page
+    // Render individual content page by slug
     renderContentPage(slug) {
         const content = this.contentModel.getContentBySlug(slug);
+        if (content) {
+            this.view.renderContentPage(content);
+        }
+    }
+
+    // Render individual content page by category and id
+    renderContentPageById(category, id) {
+        const content = this.contentModel.getContentById(category, id);
         if (content) {
             this.view.renderContentPage(content);
         }

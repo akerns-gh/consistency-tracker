@@ -15,7 +15,6 @@ class AdminController extends BaseController {
         await Promise.all([
             this.contentModel.loadNutritionTips(),
             this.contentModel.loadMentalPerformance(),
-            this.contentModel.loadResources(),
             this.contentModel.loadTrainingGuidance()
         ]);
 

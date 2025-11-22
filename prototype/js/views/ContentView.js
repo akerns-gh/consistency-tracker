@@ -27,12 +27,26 @@ class ContentView extends BaseView {
     renderContentPage(content) {
         const titleEl = document.getElementById('contentTitle');
         const contentEl = document.getElementById('contentBody');
+        const lastUpdatedEl = document.getElementById('lastUpdated');
 
         if (titleEl && content) {
             titleEl.textContent = content.title;
         }
         if (contentEl && content) {
             contentEl.innerHTML = content.content || '';
+        }
+        if (lastUpdatedEl && content) {
+            if (content.updatedAt) {
+                const date = new Date(content.updatedAt);
+                const formattedDate = date.toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                });
+                lastUpdatedEl.textContent = `Last Updated: ${formattedDate}`;
+            } else {
+                lastUpdatedEl.textContent = 'Last Updated: -';
+            }
         }
     }
 
@@ -90,7 +104,8 @@ class ContentView extends BaseView {
                                            data-activity="${activity.activityId}" 
                                            data-set="1"
                                            value="${progress[1] || ''}" 
-                                           placeholder="0">
+                                           placeholder="reps"
+                                           min="0">
                                 </td>
                                 <td>
                                     <input type="number" 
@@ -98,7 +113,8 @@ class ContentView extends BaseView {
                                            data-activity="${activity.activityId}" 
                                            data-set="2"
                                            value="${progress[2] || ''}" 
-                                           placeholder="0">
+                                           placeholder="reps"
+                                           min="0">
                                 </td>
                                 <td>
                                     <input type="number" 
@@ -106,7 +122,8 @@ class ContentView extends BaseView {
                                            data-activity="${activity.activityId}" 
                                            data-set="3"
                                            value="${progress[3] || ''}" 
-                                           placeholder="0">
+                                           placeholder="reps"
+                                           min="0">
                                 </td>
                             `;
                             tbody.appendChild(activityRow);

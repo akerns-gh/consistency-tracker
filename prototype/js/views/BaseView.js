@@ -3,9 +3,13 @@
 
 class BaseView {
     constructor(containerId) {
-        this.container = document.getElementById(containerId);
-        if (!this.container) {
-            console.warn(`Container not found: ${containerId}`);
+        if (containerId) {
+            this.container = document.getElementById(containerId);
+            if (!this.container) {
+                console.warn(`Container not found: ${containerId}`);
+            }
+        } else {
+            this.container = null;
         }
     }
 

@@ -504,7 +504,7 @@ const mockContentPages = [
         teamId: 'team-001',
         slug: 'team-resources',
         title: 'Team Resources',
-        category: 'resources',
+        category: 'guidance',
         htmlContent: `
             <h2>Helpful Resources</h2>
             <p>Here are some valuable resources to support your development:</p>

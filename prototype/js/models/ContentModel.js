@@ -1,11 +1,10 @@
-// Content Model - handles content data operations (nutrition, mental performance, resources, etc.)
+// Content Model - handles content data operations (nutrition, mental performance, training guidance, etc.)
 
 class ContentModel extends BaseModel {
     constructor() {
         super();
         this.nutritionTips = [];
         this.mentalPerformance = [];
-        this.resources = [];
         this.trainingGuidance = [];
         this.navigation = [];
         this.workoutPlan = null;
@@ -39,22 +38,6 @@ class ContentModel extends BaseModel {
         } catch (error) {
             console.warn('Could not load mental performance:', error);
             this.mentalPerformance = [];
-            return [];
-        }
-    }
-
-    // Load resources
-    async loadResources() {
-        try {
-            const response = await fetch('data/resources.json');
-            if (!response.ok) {
-                throw new Error(`Failed to load resources: ${response.status}`);
-            }
-            this.resources = await response.json();
-            return this.resources;
-        } catch (error) {
-            console.warn('Could not load resources:', error);
-            this.resources = [];
             return [];
         }
     }
@@ -114,8 +97,6 @@ class ContentModel extends BaseModel {
                 return this.nutritionTips;
             case 'mental-health':
                 return this.mentalPerformance;
-            case 'resources':
-                return this.resources;
             case 'guidance':
                 return this.trainingGuidance;
             default:
@@ -135,8 +116,7 @@ class ContentModel extends BaseModel {
         const categories = [
             { name: 'guidance', data: this.trainingGuidance },
             { name: 'nutrition', data: this.nutritionTips },
-            { name: 'mental-health', data: this.mentalPerformance },
-            { name: 'resources', data: this.resources }
+            { name: 'mental-health', data: this.mentalPerformance }
         ];
 
         for (const category of categories) {

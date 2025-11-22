@@ -39,8 +39,8 @@ class SharedViews {
     static buildNavUrl(item) {
         if (item.page === 'content-page' && item.slug) {
             return `content-page.html?slug=${item.slug}`;
-        } else if (item.page === 'content-list' && item.category) {
-            return `content-list.html?category=${item.category}`;
+        } else if (item.page === 'resource-list' && item.category) {
+            return `resource-list.html?category=${item.category}`;
         } else {
             return `${item.page}.html`;
         }

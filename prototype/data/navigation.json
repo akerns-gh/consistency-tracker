@@ -21,7 +21,7 @@
   },
   {
     "label": "Training Guidance",
-    "page": "content-list",
+    "page": "resource-list",
     "display": false
   },
   {
@@ -32,17 +32,18 @@
   },
   {
     "label": "Nutrition Tips",
-    "page": "content-list",
+    "page": "resource-list",
     "display": false
   },
   {
     "label": "Mental Performance",
-    "page": "content-list",
+    "page": "resource-list",
     "display": false
   },
   {
     "label": "Resources",
-    "page": "content-list",
+    "page": "resource-list",
+    "category": "guidance",
     "display": true
   }
 ]

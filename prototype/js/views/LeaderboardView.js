@@ -2,7 +2,9 @@
 
 class LeaderboardView extends BaseView {
     constructor() {
-        super('leaderboardContainer');
+        // LeaderboardView doesn't use a single container, it renders to specific elements
+        // Pass null to avoid the warning about missing container
+        super(null);
     }
 
     // Render podium (top 3)
