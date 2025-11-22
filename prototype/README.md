@@ -88,8 +88,7 @@ prototype/
 │   ├── mental-performance.json
 │   ├── resources.json
 │   ├── training-guidance.json
-│   ├── workout-plan.json
-│   └── workouts.json
+│   └── workout-plan.json
 ├── js/
 │   ├── mock-data.js        # Mock data
 │   ├── models/             # MVC Models

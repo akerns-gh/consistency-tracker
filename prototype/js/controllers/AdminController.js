@@ -16,8 +16,7 @@ class AdminController extends BaseController {
             this.contentModel.loadNutritionTips(),
             this.contentModel.loadMentalPerformance(),
             this.contentModel.loadResources(),
-            this.contentModel.loadTrainingGuidance(),
-            this.contentModel.loadWorkouts()
+            this.contentModel.loadTrainingGuidance()
         ]);
 
         this.render();

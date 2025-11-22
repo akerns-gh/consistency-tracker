@@ -26,7 +26,8 @@
   },
   {
     "label": "Workouts",
-    "page": "weekly-workout-plan",
+    "page": "content-page",
+    "slug": "weekly-workout-plan",
     "display": true
   },
   {

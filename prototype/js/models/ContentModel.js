@@ -7,7 +7,6 @@ class ContentModel extends BaseModel {
         this.mentalPerformance = [];
         this.resources = [];
         this.trainingGuidance = [];
-        this.workouts = [];
         this.navigation = [];
         this.workoutPlan = null;
     }
@@ -76,22 +75,6 @@ class ContentModel extends BaseModel {
         }
     }
 
-    // Load workouts
-    async loadWorkouts() {
-        try {
-            const response = await fetch('data/workouts.json');
-            if (!response.ok) {
-                throw new Error(`Failed to load workouts: ${response.status}`);
-            }
-            this.workouts = await response.json();
-            return this.workouts;
-        } catch (error) {
-            console.warn('Could not load workouts:', error);
-            this.workouts = [];
-            return [];
-        }
-    }
-
     // Load navigation
     async loadNavigation() {
         try {
@@ -135,8 +118,6 @@ class ContentModel extends BaseModel {
                 return this.resources;
             case 'guidance':
                 return this.trainingGuidance;
-            case 'workouts':
-                return this.workouts;
             default:
                 return [];
         }
@@ -153,7 +134,6 @@ class ContentModel extends BaseModel {
         // Check all categories
         const categories = [
             { name: 'guidance', data: this.trainingGuidance },
-            { name: 'workouts', data: this.workouts },
             { name: 'nutrition', data: this.nutritionTips },
             { name: 'mental-health', data: this.mentalPerformance },
             { name: 'resources', data: this.resources }
@@ -176,6 +156,25 @@ class ContentModel extends BaseModel {
 
     // Get workout plan
     getWorkoutPlan() {
+        if (!this.workoutPlan) return null;
+        
+        // Transform the JSON structure to match what the view expects
+        // JSON has: { workoutId, title, sections: [{ sectionName, sectionNote, activities }] }
+        // View expects: { [workoutId]: { sections: [{ name, description, activities }] } }
+        if (this.workoutPlan.workoutId) {
+            const transformed = {
+                [this.workoutPlan.workoutId]: {
+                    sections: this.workoutPlan.sections.map(section => ({
+                        name: section.sectionName || section.name,
+                        description: section.sectionNote || section.description || '',
+                        activities: section.activities || []
+                    }))
+                }
+            };
+            return transformed;
+        }
+        
+        // If already in the expected format, return as-is
         return this.workoutPlan;
     }
 }

@@ -54,7 +54,7 @@ class ContentView extends BaseView {
             <th>Duration</th>
             <th>Set 1</th>
             <th>Set 2</th>
-            <th>Link</th>
+            <th>Set 3</th>
         `;
         thead.appendChild(headerRow);
 
@@ -75,14 +75,18 @@ class ContentView extends BaseView {
                         section.activities.forEach(activity => {
                             const activityRow = this.createElement('tr');
                             const progress = workoutProgress[activity.activityId] || {};
-                            const linkIcon = activity.link ? '🔗' : '';
+                            
+                            // Make activity name clickable if it has a link
+                            const activityNameCell = activity.link 
+                                ? `<td class="workout-activity-name"><a href="${activity.link}" target="_blank" class="activity-link">${activity.name}</a></td>`
+                                : `<td class="workout-activity-name">${activity.name}</td>`;
 
                             activityRow.innerHTML = `
-                                <td class="workout-activity-name">${activity.name}</td>
+                                ${activityNameCell}
                                 <td>${activity.duration || ''}</td>
                                 <td>
                                     <input type="number" 
-                                           class="workout-rep-input" 
+                                           class="workout-reps-input" 
                                            data-activity="${activity.activityId}" 
                                            data-set="1"
                                            value="${progress[1] || ''}" 
@@ -90,14 +94,19 @@ class ContentView extends BaseView {
                                 </td>
                                 <td>
                                     <input type="number" 
-                                           class="workout-rep-input" 
+                                           class="workout-reps-input" 
                                            data-activity="${activity.activityId}" 
                                            data-set="2"
                                            value="${progress[2] || ''}" 
                                            placeholder="0">
                                 </td>
                                 <td>
-                                    ${activity.link ? `<a href="${activity.link}" target="_blank">${linkIcon}</a>` : ''}
+                                    <input type="number" 
+                                           class="workout-reps-input" 
+                                           data-activity="${activity.activityId}" 
+                                           data-set="3"
+                                           value="${progress[3] || ''}" 
+                                           placeholder="0">
                                 </td>
                             `;
                             tbody.appendChild(activityRow);
@@ -113,7 +122,7 @@ class ContentView extends BaseView {
 
         // Add event listeners for rep inputs
         if (onRepChange) {
-            const inputs = container.querySelectorAll('.workout-rep-input');
+            const inputs = container.querySelectorAll('.workout-reps-input');
             inputs.forEach(input => {
                 input.addEventListener('change', (e) => {
                     const activity = e.target.dataset.activity;

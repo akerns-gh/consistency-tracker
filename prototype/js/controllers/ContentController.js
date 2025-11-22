@@ -16,7 +16,6 @@ class ContentController extends BaseController {
             this.contentModel.loadMentalPerformance(),
             this.contentModel.loadResources(),
             this.contentModel.loadTrainingGuidance(),
-            this.contentModel.loadWorkouts(),
             this.contentModel.loadNavigation(),
             this.contentModel.loadWorkoutPlan()
         ]);
@@ -56,6 +55,21 @@ class ContentController extends BaseController {
 
     // Render workout plan
     async renderWorkoutPlan() {
+        // Set page title
+        const titleEl = document.getElementById('contentTitle');
+        if (titleEl) {
+            titleEl.textContent = 'Weekly Workout Plan';
+        }
+
+        // Show print button
+        const printButton = document.getElementById('printButton');
+        if (printButton) {
+            printButton.style.display = 'block';
+            printButton.addEventListener('click', () => {
+                window.print();
+            });
+        }
+
         const workoutPlan = this.contentModel.getWorkoutPlan();
         const workoutId = 'workout-001'; // Default workout ID
         const workoutProgress = this.workoutModel.getWorkoutProgress(workoutId);

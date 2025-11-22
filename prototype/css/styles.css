@@ -1323,17 +1323,20 @@ input, textarea, select {
 }
 
 .workout-activity-name {
+    cursor: pointer;
+}
+
+.workout-activity-name .activity-link {
     text-decoration: underline;
     text-decoration-color: var(--true-green-dark);
     text-underline-offset: 2px;
     color: var(--true-green-dark);
     transition: all var(--transition-base);
-    cursor: pointer;
 }
 
-.workout-activity-name:hover {
-    color: var(--true-green-light);
-    text-decoration-color: var(--true-green-light);
+.workout-activity-name .activity-link:hover {
+    color: var(--true-green);
+    text-decoration-color: var(--true-green);
     text-decoration-thickness: 2px;
 }
 
