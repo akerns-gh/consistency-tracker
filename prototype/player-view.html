@@ -62,7 +62,7 @@
             </div>
 
             <!-- Activity Grid -->
-            <div class="activity-grid-container">
+            <div class="activity-grid-container" id="activityGridContainer">
                 <div class="activity-grid" id="activityGrid">
                     <!-- Grid will be populated by JavaScript -->
                 </div>
@@ -116,9 +116,9 @@
 
     <!-- Activity Flyout -->
     <div id="activityFlyout" class="activity-flyout">
-        <div class="activity-flyout-overlay" onclick="closeFlyout()"></div>
-        <div class="activity-flyout-panel">
-            <button class="activity-flyout-close" onclick="closeFlyout()" aria-label="Close flyout">
+        <div class="activity-flyout-overlay" id="flyoutOverlay"></div>
+        <div class="activity-flyout-panel" id="activityFlyoutPanel">
+            <button class="activity-flyout-close" id="flyoutClose" aria-label="Close flyout">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
                     <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -130,21 +130,45 @@
         </div>
     </div>
 
+    <!-- MVC Architecture Scripts -->
     <script src="js/mock-data.js"></script>
-    <script src="js/storage.js"></script>
-    <script src="js/router.js"></script>
-    <script src="js/forms.js"></script>
-    <script src="js/app.js"></script>
-    <script>
-        // Make closeFlyout available globally
-        function closeFlyout() {
-            const flyout = document.getElementById('activityFlyout');
-            if (flyout) {
-                flyout.classList.remove('active');
-                document.body.style.overflow = '';
-            }
-        }
-    </script>
+    <script src="js/utils/storage.js"></script>
+    <script src="js/utils/router.js"></script>
+    <script src="js/utils/forms.js"></script>
+    
+    <!-- Models -->
+    <script src="js/models/BaseModel.js"></script>
+    <script src="js/models/PlayerModel.js"></script>
+    <script src="js/models/ActivityModel.js"></script>
+    <script src="js/models/TrackingModel.js"></script>
+    <script src="js/models/ReflectionModel.js"></script>
+    <script src="js/models/ContentModel.js"></script>
+    <script src="js/models/LeaderboardModel.js"></script>
+    <script src="js/models/WorkoutModel.js"></script>
+    
+    <!-- Views -->
+    <script src="js/views/BaseView.js"></script>
+    <script src="js/views/SharedViews.js"></script>
+    <script src="js/views/PlayerView.js"></script>
+    <script src="js/views/LeaderboardView.js"></script>
+    <script src="js/views/ReflectionView.js"></script>
+    <script src="js/views/ContentView.js"></script>
+    <script src="js/views/ProgressView.js"></script>
+    <script src="js/views/AdminView.js"></script>
+    
+    <!-- Controllers -->
+    <script src="js/controllers/BaseController.js"></script>
+    <script src="js/controllers/PlayerController.js"></script>
+    <script src="js/controllers/LeaderboardController.js"></script>
+    <script src="js/controllers/ReflectionController.js"></script>
+    <script src="js/controllers/ContentController.js"></script>
+    <script src="js/controllers/ProgressController.js"></script>
+    <script src="js/controllers/AdminController.js"></script>
+    
+    <!-- Core -->
+    <script src="js/core/EventBus.js"></script>
+    <script src="js/core/StateManager.js"></script>
+    <script src="js/core/App.js"></script>
 </body>
 </html>
 

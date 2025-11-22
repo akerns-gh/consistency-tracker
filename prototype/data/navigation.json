@@ -1,12 +1,12 @@
 [
   {
-    "label": "Weekly Tracker",
-    "page": "player-view",
+    "label": "My Progress",
+    "page": "my-progress",
     "display": true
   },
   {
-    "label": "My Progress",
-    "page": "my-progress",
+    "label": "Weekly Tracker",
+    "page": "player-view",
     "display": true
   },
   {

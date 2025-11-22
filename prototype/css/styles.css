@@ -2,19 +2,34 @@
 
 /* ===== CSS Variables (True Lacrosse Brand Colors) ===== */
 :root {
-    /* Primary Colors - True Lacrosse Brand */
+    /* Primary Brand Colors */
     --true-green: rgb(150, 200, 85);
+    --true-green-dark: rgb(100, 150, 50);
     --true-green-light: rgba(150, 200, 85, 0.8);
+    --true-green-alpha-10: rgba(150, 200, 85, 0.1);
+    --true-green-alpha-15: rgba(150, 200, 85, 0.15);
+    --true-green-alpha-20: rgba(150, 200, 85, 0.2);
+    --true-green-alpha-30: rgba(150, 200, 85, 0.3);
+    --true-green-alpha-40: rgba(150, 200, 85, 0.4);
+    --true-green-alpha-90: rgba(150, 200, 85, 0.9);
     --true-dark: #000000;
     --white: #FFFFFF;
+    
+    /* Background Colors */
+    --header-bg: #000000;
+    --table-header-bg: #2a2a2a;
+    --section-bg: #E8E8E8;
     
     /* Secondary Colors */
     --light-gray: #F5F5F5;
     --medium-gray: #6B7280;
     --dark-gray: #1F2937;
     
+    /* Border Colors */
+    --border-light: #E5E5E5;
+    
     /* Status Colors */
-    --success-green: rgb(150, 200, 85);
+    --success-green: var(--true-green);
     --warning-yellow: #FCD34D;
     --error-red: #EF4444;
     
@@ -118,7 +133,7 @@ input, textarea, select {
 .page-content-title {
     font-size: 2.5rem;
     font-weight: var(--font-weight-bold);
-    color: var(--true-dark);
+    color: var(--true-green-dark);
     margin: 0 0 var(--spacing-lg) 0;
     text-align: left;
     line-height: 1.2;
@@ -126,14 +141,14 @@ input, textarea, select {
 
 /* ===== Header ===== */
 .header {
-    background-color: #000000;
-    color: #FFFFFF;
+    background-color: var(--header-bg);
+    color: var(--white);
     padding: var(--spacing-md) var(--spacing-lg);
     display: flex;
     align-items: center;
     gap: var(--spacing-md);
     box-shadow: var(--shadow-md);
-    border-bottom: 1px solid #E5E5E5;
+    border-bottom: 1px solid var(--border-light);
 }
 
 .header-content {
@@ -150,7 +165,7 @@ input, textarea, select {
 .player-name {
     font-size: 1.5rem;
     font-weight: var(--font-weight-bold);
-    color: #FFFFFF;
+    color: var(--white);
     margin: 0;
     white-space: nowrap;
 }
@@ -166,7 +181,7 @@ input, textarea, select {
 .logo-true {
     font-size: 2rem;
     font-weight: 900;
-    color: #FFFFFF;
+    color: var(--white);
     letter-spacing: -0.02em;
     text-transform: uppercase;
     font-family: 'Arial Black', 'Arial Bold', Arial, sans-serif;
@@ -175,7 +190,7 @@ input, textarea, select {
 .logo-lacrosse {
     font-size: 0.875rem;
     font-weight: 700;
-    color: #FFFFFF;
+    color: var(--white);
     letter-spacing: 0.05em;
     text-transform: uppercase;
     margin-top: -2px;
@@ -185,7 +200,7 @@ input, textarea, select {
 .print-button {
     background: none;
     border: none;
-    color: #FFFFFF;
+    color: var(--white);
     padding: var(--spacing-sm);
     cursor: pointer;
     display: flex;
@@ -210,7 +225,7 @@ input, textarea, select {
 .page-title {
     font-size: 1.5rem;
     font-weight: var(--font-weight-bold);
-    color: #FFFFFF;
+    color: var(--white);
     margin: 0;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -220,16 +235,16 @@ input, textarea, select {
     display: flex;
     gap: var(--spacing-md);
     font-size: 0.875rem;
-    color: #FFFFFF;
+    color: var(--white);
 }
 
 .weekly-score {
     font-weight: var(--font-weight-semibold);
-    color: #FFFFFF;
+    color: var(--white);
 }
 
 .back-button {
-    color: #FFFFFF;
+    color: var(--white);
     font-size: 1rem;
     padding: var(--spacing-sm);
     display: inline-flex;
@@ -243,13 +258,13 @@ input, textarea, select {
 
 .last-updated {
     font-size: 0.875rem;
-    color: #FFFFFF;
+    color: var(--white);
     margin-top: var(--spacing-xs);
 }
 
 .page-subtitle {
     font-size: 0.875rem;
-    color: #FFFFFF;
+    color: var(--white);
     font-weight: var(--font-weight-normal);
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -259,7 +274,7 @@ input, textarea, select {
 .menu-toggle {
     background: none;
     border: none;
-    color: #FFFFFF;
+    color: var(--white);
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -270,7 +285,7 @@ input, textarea, select {
 .menu-toggle span {
     width: 24px;
     height: 2px;
-    background-color: #FFFFFF;
+    background-color: var(--white);
     transition: all var(--transition-base);
 }
 
@@ -292,8 +307,8 @@ input, textarea, select {
 }
 
 .nav-menu-header {
-    background-color: #000000;
-    color: #FFFFFF;
+    background-color: var(--header-bg);
+    color: var(--white);
     padding: var(--spacing-lg);
     display: flex;
     justify-content: space-between;
@@ -301,7 +316,7 @@ input, textarea, select {
 }
 
 .nav-menu-header h2 {
-    color: #FFFFFF;
+    color: var(--white);
     margin: 0;
     font-size: 1.25rem;
 }
@@ -309,7 +324,7 @@ input, textarea, select {
 .nav-close {
     background: none;
     border: none;
-    color: #FFFFFF;
+    color: var(--white);
     font-size: 2rem;
     line-height: 1;
     cursor: pointer;
@@ -341,7 +356,7 @@ input, textarea, select {
 .nav-links a:hover,
 .nav-links a.active {
     background-color: var(--light-gray);
-    color: var(--true-green);
+    color: var(--true-green-dark);
 }
 
 /* ===== Buttons ===== */
@@ -370,10 +385,10 @@ input, textarea, select {
 }
 
 .btn-secondary {
-    background-color: rgb(150, 200, 85);
+    background-color: var(--true-green);
     color: var(--white);
     padding: var(--spacing-md) var(--spacing-xl);
-    border: 2px solid rgb(150, 200, 85);
+    border: 2px solid var(--true-green);
     border-radius: var(--radius-md);
     font-weight: var(--font-weight-semibold);
     font-size: 1rem;
@@ -385,9 +400,9 @@ input, textarea, select {
 }
 
 .btn-secondary:hover {
-    background-color: rgba(150, 200, 85, 0.9);
+    background-color: var(--true-green-alpha-90);
     color: var(--white);
-    border-color: rgba(150, 200, 85, 0.9);
+    border-color: var(--true-green-alpha-90);
 }
 
 .btn-full {
@@ -457,9 +472,10 @@ input, textarea, select {
 }
 
 .activity-row-header {
-    font-weight: var(--font-weight-normal);
-    font-size: 0.875rem;
+    font-weight: var(--font-weight-medium);
+    font-size: 1rem;
     color: var(--true-dark);
+    line-height: 1.5;
     padding: var(--spacing-md);
     display: flex;
     align-items: center;
@@ -576,9 +592,9 @@ input, textarea, select {
 
 .activity-link {
     text-decoration: underline;
-    text-decoration-color: rgb(100, 150, 50);
+    text-decoration-color: var(--true-green-dark);
     text-underline-offset: 2px;
-    color: rgb(100, 150, 50);
+    color: var(--true-green-dark);
     transition: all var(--transition-base);
 }
 
@@ -591,19 +607,19 @@ input, textarea, select {
 .day-header {
     text-align: center;
     font-weight: var(--font-weight-bold);
-    color: rgb(150, 200, 85);
+    color: var(--true-green);
     padding: var(--spacing-md);
     font-size: 0.875rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    background-color: #2a2a2a;
+    background-color: var(--table-header-bg);
     border-radius: var(--radius-sm);
-    border: 1px solid rgba(150, 200, 85, 0.2);
+    border: 1px solid var(--true-green-alpha-20);
 }
 
 .activity-cell {
     aspect-ratio: 1;
-    border: 2px solid #E5E5E5;
+    border: 2px solid var(--border-light);
     border-radius: var(--radius-md);
     display: flex;
     align-items: center;
@@ -618,8 +634,8 @@ input, textarea, select {
 }
 
 .activity-cell.required {
-    background-color: rgba(150, 200, 85, 0.15);
-    border-color: rgba(150, 200, 85, 0.3);
+    background-color: var(--true-green-alpha-15);
+    border-color: var(--true-green-alpha-30);
 }
 
 .activity-cell:hover {
@@ -656,39 +672,42 @@ input, textarea, select {
     margin-top: var(--spacing-md);
     min-width: 800px;
     padding-top: var(--spacing-md);
-    border-top: 3px double #E5E5E5;
+    border-top: 3px double var(--border-light);
 }
 
 .daily-score-label {
-    font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-bold);
     color: var(--true-dark);
     padding: var(--spacing-md);
     display: flex;
     align-items: center;
+    font-size: 1rem;
+    line-height: 1.6;
 }
 
 .daily-score-cell {
     background-color: transparent;
-    color: var(--true-green);
+    color: var(--true-green-dark);
     text-align: center;
     padding: var(--spacing-md);
     font-weight: var(--font-weight-bold);
-    font-size: 1rem;
+    font-size: 1.0625rem;
+    line-height: 1.6;
 }
 
 /* ===== Weekly Total Card ===== */
 .weekly-total-card {
-    background-color: #2a2a2a;
+    background-color: var(--table-header-bg);
     border-radius: var(--radius-lg);
     padding: var(--spacing-xl);
     box-shadow: var(--shadow-md);
     margin-bottom: var(--spacing-lg);
     text-align: center;
-    border: 1px solid rgba(150, 200, 85, 0.2);
+    border: 1px solid var(--true-green-alpha-20);
 }
 
 .weekly-total-card h2 {
-    color: rgb(150, 200, 85);
+    color: var(--true-green);
     margin-bottom: var(--spacing-sm);
     font-size: 0.875rem;
     font-weight: var(--font-weight-bold);
@@ -707,12 +726,12 @@ input, textarea, select {
 .score-value {
     font-size: 2rem;
     font-weight: var(--font-weight-bold);
-    color: rgb(150, 200, 85);
+    color: var(--true-green);
 }
 
 .score-max {
     font-size: 1.125rem;
-    color: rgb(150, 200, 85);
+    color: var(--true-green);
     font-weight: var(--font-weight-medium);
     opacity: 0.8;
 }
@@ -720,14 +739,14 @@ input, textarea, select {
 .progress-bar {
     width: 100%;
     height: 8px;
-    background-color: rgba(150, 200, 85, 0.2);
+    background-color: var(--true-green-alpha-20);
     border-radius: var(--radius-md);
     overflow: hidden;
 }
 
 .progress-fill {
     height: 100%;
-    background-color: rgb(150, 200, 85);
+    background-color: var(--true-green);
     border-radius: var(--radius-md);
     transition: width var(--transition-slow);
 }
@@ -849,26 +868,26 @@ input, textarea, select {
 }
 
 .ranking-item:hover {
-    background-color: #E5E5E5;
+    background-color: var(--border-light);
 }
 
 .ranking-item.current-player {
     border: 2px solid var(--true-green);
-    background-color: rgba(150, 200, 85, 0.1);
+    background-color: var(--true-green-alpha-10);
 }
 
 .ranking-number {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background-color: #2a2a2a;
-    color: rgb(150, 200, 85);
+    background-color: var(--table-header-bg);
+    color: var(--true-green);
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: var(--font-weight-bold);
     flex-shrink: 0;
-    border: 1px solid rgba(150, 200, 85, 0.2);
+    border: 1px solid var(--true-green-alpha-20);
 }
 
 .ranking-name {
@@ -975,13 +994,13 @@ input, textarea, select {
 }
 
 .reflection-header-bar {
-    background-color: #2a2a2a;
+    background-color: var(--table-header-bg);
     padding: var(--spacing-md) var(--spacing-lg);
     width: 100%;
 }
 
 .reflection-header-title {
-    color: rgb(150, 200, 85);
+    color: var(--true-green);
     font-size: 0.875rem;
     font-weight: var(--font-weight-bold);
     margin: 0;
@@ -1003,7 +1022,7 @@ input, textarea, select {
 .reflection-form-group {
     display: flex;
     flex-direction: row;
-    border-bottom: 1px solid #E5E5E5;
+    border-bottom: 1px solid var(--border-light);
     padding: var(--spacing-lg) 0;
 }
 
@@ -1022,7 +1041,7 @@ input, textarea, select {
 
 .reflection-textarea {
     width: 60%;
-    border: 2px solid #E5E5E5;
+    border: 2px solid var(--border-light);
     outline: none;
     resize: vertical;
     font-family: inherit;
@@ -1037,7 +1056,7 @@ input, textarea, select {
 }
 
 .reflection-textarea:focus {
-    border-color: rgb(150, 200, 85);
+    border-color: var(--true-green);
     outline: none;
 }
 
@@ -1263,13 +1282,14 @@ input, textarea, select {
     padding: var(--spacing-md);
     text-align: center;
     font-weight: var(--font-weight-bold);
-    color: rgb(150, 200, 85);
+    color: var(--true-green);
     text-transform: uppercase;
-    font-size: 1rem;
+    font-size: 1.0625rem;
     letter-spacing: 0.05em;
-    background-color: #2a2a2a;
+    background-color: var(--table-header-bg);
     border-radius: var(--radius-sm);
-    border: 1px solid rgba(150, 200, 85, 0.2);
+    border: 1px solid var(--true-green-alpha-20);
+    line-height: 1.5;
 }
 
 .workout-table th:first-child {
@@ -1290,20 +1310,23 @@ input, textarea, select {
 
 .workout-table td {
     padding: var(--spacing-md);
-    border-bottom: 1px solid #E5E5E5;
-    font-size: 1rem;
+    border-bottom: 1px solid var(--border-light);
+    font-size: 1.0625rem;
+    color: var(--dark-gray);
+    line-height: 1.6;
+    font-weight: var(--font-weight-medium);
 }
 
 .workout-table td:first-child {
-    font-weight: var(--font-weight-normal);
+    font-weight: var(--font-weight-semibold);
     color: var(--true-dark);
 }
 
 .workout-activity-name {
     text-decoration: underline;
-    text-decoration-color: rgb(100, 150, 50);
+    text-decoration-color: var(--true-green-dark);
     text-underline-offset: 2px;
-    color: rgb(100, 150, 50);
+    color: var(--true-green-dark);
     transition: all var(--transition-base);
     cursor: pointer;
 }
@@ -1328,16 +1351,18 @@ input, textarea, select {
 }
 
 .workout-section-header {
-    background-color: #E8E8E8;
+    background-color: var(--section-bg);
     color: var(--true-dark);
     font-weight: var(--font-weight-bold);
-    border-top: 2px solid #E5E5E5;
+    border-top: 2px solid var(--border-light);
 }
 
 .workout-section-header td {
     padding: var(--spacing-sm) var(--spacing-md);
-    font-size: 1rem;
-    border-bottom: 2px solid #E5E5E5;
+    font-size: 1.0625rem;
+    border-bottom: 2px solid var(--border-light);
+    color: var(--true-dark);
+    line-height: 1.6;
 }
 
 
@@ -1347,16 +1372,17 @@ input, textarea, select {
     padding: var(--spacing-sm) var(--spacing-md);
     border: 2px solid var(--light-gray);
     border-radius: var(--radius-md);
-    font-size: 0.875rem;
+    font-size: 1rem;
     text-align: center;
-    font-weight: var(--font-weight-medium);
+    font-weight: var(--font-weight-semibold);
+    color: var(--true-dark);
     transition: all var(--transition-base);
 }
 
 .workout-reps-input:focus {
     outline: none;
     border-color: var(--true-green);
-    box-shadow: 0 0 0 3px rgba(150, 200, 85, 0.1);
+    box-shadow: 0 0 0 3px var(--true-green-alpha-10);
 }
 
 .workout-reps-input::placeholder {
@@ -1407,7 +1433,7 @@ input, textarea, select {
 /* ===== Admin Styles ===== */
 .login-page {
     min-height: 100vh;
-    background: #000000;
+    background: var(--header-bg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1482,7 +1508,7 @@ input, textarea, select {
 }
 
 .admin-nav {
-    background-color: #000000;
+    background-color: var(--header-bg);
     padding: 0 var(--spacing-lg);
     display: flex;
     justify-content: space-between;
@@ -1497,7 +1523,7 @@ input, textarea, select {
 
 .nav-tab {
     background: none;
-    color: #FFFFFF;
+    color: var(--white);
     padding: var(--spacing-lg) var(--spacing-xl);
     font-weight: var(--font-weight-semibold);
     text-transform: uppercase;
@@ -1518,7 +1544,7 @@ input, textarea, select {
 
 .btn-logout {
     background: none;
-    color: #FFFFFF;
+    color: var(--white);
     padding: var(--spacing-md) var(--spacing-lg);
     font-weight: var(--font-weight-medium);
     border: 1px solid rgba(255, 255, 255, 0.3);
@@ -1577,15 +1603,20 @@ input, textarea, select {
 .data-table th {
     padding: var(--spacing-md);
     text-align: left;
-    font-weight: var(--font-weight-semibold);
+    font-weight: var(--font-weight-bold);
     text-transform: uppercase;
-    font-size: 0.875rem;
+    font-size: 1rem;
     letter-spacing: 0.05em;
+    line-height: 1.5;
 }
 
 .data-table td {
     padding: var(--spacing-md);
     border-bottom: 1px solid var(--light-gray);
+    color: var(--dark-gray);
+    line-height: 1.6;
+    font-weight: var(--font-weight-medium);
+    font-size: 1rem;
 }
 
 .data-table tbody tr:hover {
@@ -1949,12 +1980,12 @@ input, textarea, select {
 }
 
 .progress-summary-cards .summary-card {
-    background-color: #2a2a2a;
+    background-color: var(--table-header-bg);
     border-radius: var(--radius-xl);
     padding: var(--spacing-xl);
     box-shadow: var(--shadow-lg);
     text-align: center;
-    border: 1px solid rgba(150, 200, 85, 0.2);
+    border: 1px solid var(--true-green-alpha-20);
     transition: all var(--transition-base);
     position: relative;
     overflow: hidden;
@@ -1967,12 +1998,12 @@ input, textarea, select {
 .progress-summary-cards .summary-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 12px 24px -4px rgba(0, 0, 0, 0.15);
-    border-color: rgba(150, 200, 85, 0.4);
+    border-color: var(--true-green-alpha-40);
 }
 
 .progress-summary-cards .summary-label {
     font-size: 0.75rem;
-    color: rgb(150, 200, 85);
+    color: var(--true-green);
     margin-bottom: var(--spacing-md);
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -1982,17 +2013,17 @@ input, textarea, select {
 .progress-summary-cards .summary-value {
     font-size: 3rem;
     font-weight: var(--font-weight-bold);
-    color: rgb(150, 200, 85);
+    color: var(--true-green);
     margin-bottom: var(--spacing-sm);
     line-height: 1;
 }
 
 .progress-summary-cards .summary-change {
     font-size: 0.875rem;
-    color: rgb(150, 200, 85);
+    color: var(--true-green);
     font-weight: var(--font-weight-medium);
     padding-top: var(--spacing-xs);
-    border-top: 1px solid rgba(150, 200, 85, 0.2);
+    border-top: 1px solid var(--true-green-alpha-20);
     margin-top: var(--spacing-sm);
 }
 
@@ -2044,7 +2075,7 @@ input, textarea, select {
     padding: var(--spacing-lg);
     background: linear-gradient(135deg, var(--light-gray) 0%, var(--white) 100%);
     border-radius: var(--radius-lg);
-    border: 1px solid rgba(150, 200, 85, 0.1);
+    border: 1px solid var(--true-green-alpha-10);
     transition: all var(--transition-base);
 }
 
@@ -2112,24 +2143,29 @@ input, textarea, select {
 }
 
 .progress-table thead {
-    background-color: #2a2a2a;
+    background-color: var(--table-header-bg);
 }
 
 .progress-table th {
     padding: var(--spacing-md);
     text-align: center;
     font-weight: var(--font-weight-bold);
-    color: rgb(150, 200, 85);
+    color: var(--true-green);
     text-transform: uppercase;
-    font-size: 0.875rem;
+    font-size: 1rem;
     letter-spacing: 0.05em;
     border-radius: var(--radius-sm);
-    border: 1px solid rgba(150, 200, 85, 0.2);
+    border: 1px solid var(--true-green-alpha-20);
+    line-height: 1.5;
 }
 
 .progress-table td {
     padding: var(--spacing-md);
-    border-bottom: 1px solid #E5E5E5;
+    border-bottom: 1px solid var(--border-light);
+    color: var(--dark-gray);
+    line-height: 1.6;
+    font-weight: var(--font-weight-medium);
+    font-size: 1rem;
 }
 
 .progress-table tbody tr:hover {
@@ -2161,16 +2197,16 @@ input, textarea, select {
 
 .trend-item {
     padding: var(--spacing-xl);
-    background-color: #2a2a2a;
+    background-color: var(--table-header-bg);
     border-radius: var(--radius-lg);
     text-align: center;
-    border: 1px solid rgba(150, 200, 85, 0.1);
+    border: 1px solid var(--true-green-alpha-10);
     transition: all var(--transition-base);
 }
 
 .trend-label {
     font-size: 0.875rem;
-    color: rgb(150, 200, 85);
+    color: var(--true-green);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-bottom: var(--spacing-sm);
@@ -2180,7 +2216,7 @@ input, textarea, select {
 .trend-value {
     font-size: 1.25rem;
     font-weight: var(--font-weight-semibold);
-    color: rgb(150, 200, 85);
+    color: var(--true-green);
     display: flex;
     align-items: center;
     justify-content: center;

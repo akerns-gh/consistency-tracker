@@ -62,7 +62,7 @@ This prototype is built with vanilla HTML, CSS, and JavaScript - no build proces
 
 ### Default Access
 
-- **Player View**: Opens automatically when you load `index.html`
+- **My Progress**: Opens automatically when you load `index.html` (redirects to my-progress.html)
 - **Admin Dashboard**: Navigate to `admin-login.html`
   - For the prototype, any email/password combination works (password must be 8+ characters)
 
@@ -70,8 +70,9 @@ This prototype is built with vanilla HTML, CSS, and JavaScript - no build proces
 
 ```
 prototype/
-├── index.html              # Landing page (redirects to player-view)
-├── player-view.html        # Main player dashboard
+├── index.html              # Landing page (redirects to my-progress)
+├── player-view.html        # Weekly Tracker (activity grid)
+├── my-progress.html         # My Progress (aggregated stats)
 ├── leaderboard.html        # Team leaderboard
 ├── reflection.html         # Weekly reflection form
 ├── content-list.html       # Content pages list
@@ -80,12 +81,51 @@ prototype/
 ├── admin-dashboard.html    # Admin dashboard
 ├── css/
 │   └── styles.css          # All styling
+├── data/                   # JSON data files
+│   ├── activity-requirements.json
+│   ├── navigation.json
+│   ├── nutrition-tips.json
+│   ├── mental-performance.json
+│   ├── resources.json
+│   ├── training-guidance.json
+│   ├── workout-plan.json
+│   └── workouts.json
 ├── js/
 │   ├── mock-data.js        # Mock data
-│   ├── app.js              # Main application logic
-│   ├── router.js           # Routing utilities
-│   ├── storage.js          # LocalStorage wrapper
-│   └── forms.js            # Form validation
+│   ├── models/             # MVC Models
+│   │   ├── BaseModel.js
+│   │   ├── PlayerModel.js
+│   │   ├── ActivityModel.js
+│   │   ├── TrackingModel.js
+│   │   ├── ReflectionModel.js
+│   │   ├── ContentModel.js
+│   │   ├── LeaderboardModel.js
+│   │   └── WorkoutModel.js
+│   ├── views/              # MVC Views
+│   │   ├── BaseView.js
+│   │   ├── SharedViews.js
+│   │   ├── PlayerView.js
+│   │   ├── ProgressView.js
+│   │   ├── LeaderboardView.js
+│   │   ├── ReflectionView.js
+│   │   ├── ContentView.js
+│   │   └── AdminView.js
+│   ├── controllers/        # MVC Controllers
+│   │   ├── BaseController.js
+│   │   ├── PlayerController.js
+│   │   ├── ProgressController.js
+│   │   ├── LeaderboardController.js
+│   │   ├── ReflectionController.js
+│   │   ├── ContentController.js
+│   │   └── AdminController.js
+│   ├── core/               # Core application logic
+│   │   ├── App.js          # Main entry point
+│   │   ├── EventBus.js
+│   │   └── StateManager.js
+│   └── utils/              # Utility functions
+│       ├── router.js       # Routing utilities
+│       ├── storage.js      # LocalStorage wrapper
+│       └── forms.js        # Form validation
 └── README.md               # This file
 ```
 
@@ -139,12 +179,25 @@ location.reload();
 ## True Lacrosse Branding
 
 The prototype uses the official True Lacrosse color scheme:
-- **Primary Navy**: `#0A1F44`
-- **Bright Blue**: `#00A8E8`
-- **Success Green**: `#10B981`
+- **Primary Green**: `rgb(150, 200, 85)` - Main brand color
+- **Dark Green**: `rgb(100, 150, 50)` - Text and accents
+- **Header Background**: Black (`#000000`)
+- **Table Headers**: Dark gray (`#2a2a2a`) with green text
 - **Warning Yellow**: `#FCD34D`
+- **Error Red**: `#EF4444`
 
 Typography uses Inter, Montserrat, or Poppins font families with a modern, athletic aesthetic.
+
+## Architecture
+
+This prototype uses a **Model-View-Controller (MVC)** architecture:
+
+- **Models** (`js/models/`): Data management and business logic
+- **Views** (`js/views/`): UI rendering and presentation
+- **Controllers** (`js/controllers/`): Coordination between models and views
+- **Core** (`js/core/`): Application initialization and shared utilities
+
+This structure makes the codebase maintainable and prepares it for migration to a React-based frontend.
 
 ## Features Demonstrated
 
@@ -188,12 +241,14 @@ Typography uses Inter, Montserrat, or Poppins font families with a modern, athle
 ## Testing the Prototype
 
 ### Player Flow
-1. Open `player-view.html`
-2. Click on activity cells to toggle completion
-3. Observe score updates in real-time
-4. Navigate to leaderboard
-5. Complete a weekly reflection
-6. Browse content pages
+1. Open `index.html` (redirects to `my-progress.html`)
+2. View aggregated progress statistics
+3. Navigate to Weekly Tracker (`player-view.html`)
+4. Click on activity cells to toggle completion
+5. Observe score updates in real-time
+6. Navigate to leaderboard
+7. Complete a weekly reflection
+8. Browse content pages
 
 ### Admin Flow
 1. Navigate to `admin-login.html`
