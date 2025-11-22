@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content - True Lacrosse</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <div class="true-lacrosse-logo">
+                <div class="logo-true">TRUE</div>
+                <div class="logo-lacrosse">LACROSSE</div>
+            </div>
+            <div class="header-spacer"></div>
+            <h1 class="player-name" id="playerName">Player Name</h1>
+        </header>
+
+        <!-- Navigation Menu -->
+        <nav class="nav-menu" id="navMenu">
+            <div class="nav-menu-header">
+                <h2>Menu</h2>
+                <button class="nav-close" id="navClose">&times;</button>
+            </div>
+            <ul class="nav-links" id="navLinks">
+                <!-- Navigation links will be dynamically rendered -->
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <h2 class="page-content-title">Training Resources</h2>
+            <div class="content-list-container">
+                <div id="contentList">
+                    <!-- Content organized by categories will be populated by JavaScript -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/mock-data.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/router.js"></script>
+    <script src="js/forms.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
+

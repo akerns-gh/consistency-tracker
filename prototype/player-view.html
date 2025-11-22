@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Tracker - True Lacrosse</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <div class="true-lacrosse-logo">
+                <div class="logo-true">TRUE</div>
+                <div class="logo-lacrosse">LACROSSE</div>
+            </div>
+            <div class="header-spacer"></div>
+            <h1 class="player-name" id="playerName">Player Name</h1>
+        </header>
+
+        <!-- Navigation Menu -->
+        <nav class="nav-menu" id="navMenu">
+            <div class="nav-menu-header">
+                <h2>Menu</h2>
+                <button class="nav-close" id="navClose">&times;</button>
+            </div>
+            <ul class="nav-links" id="navLinks">
+                <!-- Navigation links will be dynamically rendered -->
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <h2 class="page-content-title">Weekly Tracker</h2>
+            <!-- Week Information -->
+            <div class="week-header-section">
+                <div class="week-info-top">
+                    <span class="week-dates" id="weekDates">Week of Nov 18-24</span>
+                    <span class="weekly-score" id="weeklyScore">Score: 0/35</span>
+                </div>
+                <div class="week-navigation">
+                    <button class="btn-secondary" id="prevWeek">← Previous Week</button>
+                    <button class="btn-secondary" id="nextWeek">Next Week →</button>
+                </div>
+            </div>
+
+            <!-- Weekly Total Card -->
+            <div class="weekly-total-card">
+                <h2>Weekly Score</h2>
+                <div class="score-display">
+                    <span class="score-value" id="totalScore">0</span>
+                    <span class="score-max">/35</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Activity Grid -->
+            <div class="activity-grid-container">
+                <div class="activity-grid" id="activityGrid">
+                    <!-- Grid will be populated by JavaScript -->
+                </div>
+                <div class="daily-scores" id="dailyScores">
+                    <!-- Daily scores row will be populated by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Weekly Reflection Section -->
+            <div class="weekly-reflection-section">
+                <div class="reflection-header-bar">
+                    <h3 class="reflection-header-title">Reflection</h3>
+                </div>
+                <div class="reflection-form-container">
+                    <form class="reflection-form-tracker">
+                        <div class="reflection-form-group">
+                            <label class="reflection-question">What went well?</label>
+                            <textarea 
+                                id="trackerWentWell" 
+                                name="trackerWentWell" 
+                                rows="3" 
+                                placeholder=""
+                                class="reflection-textarea"
+                            ></textarea>
+                        </div>
+                        <div class="reflection-form-group">
+                            <label class="reflection-question">What can I do better?</label>
+                            <textarea 
+                                id="trackerDoBetter" 
+                                name="trackerDoBetter" 
+                                rows="3" 
+                                placeholder=""
+                                class="reflection-textarea"
+                            ></textarea>
+                        </div>
+                        <div class="reflection-form-group">
+                            <label class="reflection-question">What am I doing this week to do better?</label>
+                            <textarea 
+                                id="trackerPlanForWeek" 
+                                name="trackerPlanForWeek" 
+                                rows="3" 
+                                placeholder=""
+                                class="reflection-textarea"
+                            ></textarea>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Activity Flyout -->
+    <div id="activityFlyout" class="activity-flyout">
+        <div class="activity-flyout-overlay" onclick="closeFlyout()"></div>
+        <div class="activity-flyout-panel">
+            <button class="activity-flyout-close" onclick="closeFlyout()" aria-label="Close flyout">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+            <div id="activityFlyoutContent" class="activity-flyout-content">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script src="js/mock-data.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/router.js"></script>
+    <script src="js/forms.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        // Make closeFlyout available globally
+        function closeFlyout() {
+            const flyout = document.getElementById('activityFlyout');
+            if (flyout) {
+                flyout.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+    </script>
+</body>
+</html>
+

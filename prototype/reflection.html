@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Reflection - True Lacrosse</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <div class="true-lacrosse-logo">
+                <div class="logo-true">TRUE</div>
+                <div class="logo-lacrosse">LACROSSE</div>
+            </div>
+            <div class="header-spacer"></div>
+            <h1 class="player-name" id="playerName">Player Name</h1>
+        </header>
+
+        <!-- Navigation Menu -->
+        <nav class="nav-menu" id="navMenu">
+            <div class="nav-menu-header">
+                <h2>Menu</h2>
+                <button class="nav-close" id="navClose">&times;</button>
+            </div>
+            <ul class="nav-links" id="navLinks">
+                <!-- Navigation links will be dynamically rendered -->
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <h2 class="page-content-title">Weekly Reflection</h2>
+            <div class="reflection-container">
+                <div class="reflection-header">
+                    <h2 id="reflectionWeekTitle">Week of Nov 18-24</h2>
+                    <div class="auto-save-indicator" id="autoSaveIndicator">
+                        <span class="save-status" id="saveStatus">Saved</span>
+                    </div>
+                </div>
+
+                <form id="reflectionForm" class="reflection-form">
+                    <div class="form-group">
+                        <label for="wentWell">What went well?</label>
+                        <textarea 
+                            id="wentWell" 
+                            name="wentWell" 
+                            rows="5" 
+                            placeholder="Reflect on what went well this week..."
+                            required
+                        ></textarea>
+                        <div class="char-count">
+                            <span id="wentWellCount">0</span> characters
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="doBetter">What can I do better?</label>
+                        <textarea 
+                            id="doBetter" 
+                            name="doBetter" 
+                            rows="5" 
+                            placeholder="Think about areas for improvement..."
+                            required
+                        ></textarea>
+                        <div class="char-count">
+                            <span id="doBetterCount">0</span> characters
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="planForWeek">What am I doing this week to do better?</label>
+                        <textarea 
+                            id="planForWeek" 
+                            name="planForWeek" 
+                            rows="5" 
+                            placeholder="Set your goals and action plan for the upcoming week..."
+                            required
+                        ></textarea>
+                        <div class="char-count">
+                            <span id="planForWeekCount">0</span> characters
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">Save Reflection</button>
+                        <button type="button" class="btn-secondary" id="editBtn" style="display: none;">Edit</button>
+                    </div>
+                </form>
+
+                <!-- Display Saved Reflection -->
+                <div id="savedReflection" class="saved-reflection" style="display: none;">
+                    <h3>Your Reflection</h3>
+                    <div class="reflection-display">
+                        <div class="reflection-item">
+                            <h4>What went well?</h4>
+                            <p id="displayWentWell"></p>
+                        </div>
+                        <div class="reflection-item">
+                            <h4>What can I do better?</h4>
+                            <p id="displayDoBetter"></p>
+                        </div>
+                        <div class="reflection-item">
+                            <h4>What am I doing this week to do better?</h4>
+                            <p id="displayPlanForWeek"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/mock-data.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/router.js"></script>
+    <script src="js/forms.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
+

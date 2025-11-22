@@ -1,0 +1,23 @@
+[
+  {
+    "id": "nutrition-001",
+    "title": "Fuel Your Performance",
+    "description": "Proper nutrition is essential for peak performance on and off the field.",
+    "content": "<h2>Fuel Your Performance</h2><p>Proper nutrition is essential for peak performance on and off the field.</p><h3>Pre-Game Meals</h3><p>Eat 2-3 hours before game time. Focus on:</p><ul><li>Complex carbohydrates (pasta, rice, whole grains)</li><li>Lean protein (chicken, fish, beans)</li><li>Limit fats and fiber to avoid digestive issues</li></ul><h3>Hydration</h3><p>Stay hydrated throughout the day:</p><ul><li>Drink water consistently, not just when you're thirsty</li><li>Aim for 8-10 glasses per day</li><li>During practice/games: 4-8 oz every 15-20 minutes</li><li>Avoid sugary drinks and excessive caffeine</li></ul><h3>Post-Game Recovery</h3><p>Within 30 minutes after activity, consume:</p><ul><li>Protein for muscle repair (20-30g)</li><li>Carbohydrates to replenish glycogen stores</li><li>Electrolytes to replace what you've lost through sweat</li></ul>",
+    "imageUrl": null,
+    "displayOrder": 1,
+    "isPublished": true,
+    "updatedAt": "2024-01-15T10:00:00Z"
+  },
+  {
+    "id": "nutrition-002",
+    "title": "Meal Planning for Athletes",
+    "description": "Learn how to plan balanced meals that support your training and recovery.",
+    "content": "<h2>Meal Planning for Athletes</h2><p>Planning your meals ahead of time ensures you're getting the right nutrients when you need them most.</p><h3>Breakfast</h3><p>Start your day with a balanced breakfast:</p><ul><li>Whole grain cereal or oatmeal</li><li>Fresh fruit</li><li>Protein source (eggs, Greek yogurt, or protein shake)</li></ul><h3>Lunch</h3><p>Midday meals should be substantial but not heavy:</p><ul><li>Lean protein (chicken, turkey, fish)</li><li>Complex carbs (brown rice, quinoa, sweet potato)</li><li>Vegetables for vitamins and minerals</li></ul><h3>Dinner</h3><p>Evening meals support recovery:</p><ul><li>High-quality protein for muscle repair</li><li>Colorful vegetables for antioxidants</li><li>Healthy fats (avocado, nuts, olive oil)</li></ul>",
+    "imageUrl": null,
+    "displayOrder": 2,
+    "isPublished": true,
+    "updatedAt": "2024-01-20T10:00:00Z"
+  }
+]
+

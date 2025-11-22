@@ -1,0 +1,48 @@
+[
+  {
+    "label": "Weekly Tracker",
+    "page": "player-view",
+    "display": true
+  },
+  {
+    "label": "My Progress",
+    "page": "my-progress",
+    "display": true
+  },
+  {
+    "label": "Leaderboard",
+    "page": "leaderboard",
+    "display": true
+  },
+  {
+    "label": "Weekly Reflection",
+    "page": "reflection",
+    "display": false
+  },
+  {
+    "label": "Training Guidance",
+    "page": "content-list",
+    "display": false
+  },
+  {
+    "label": "Workouts",
+    "page": "weekly-workout-plan",
+    "display": true
+  },
+  {
+    "label": "Nutrition Tips",
+    "page": "content-list",
+    "display": false
+  },
+  {
+    "label": "Mental Performance",
+    "page": "content-list",
+    "display": false
+  },
+  {
+    "label": "Resources",
+    "page": "content-list",
+    "display": true
+  }
+]
+

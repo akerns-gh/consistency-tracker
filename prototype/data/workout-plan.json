@@ -1,0 +1,113 @@
+{
+  "workoutId": "workout-001",
+  "title": "Workout #1",
+  "sections": [
+    {
+      "sectionName": "Warm-up",
+      "activities": [
+        {
+          "activityId": "butt-kicks",
+          "name": "Butt Kicks",
+          "duration": "30 seconds",
+          "link": null
+        },
+        {
+          "activityId": "high-knees",
+          "name": "High Knees",
+          "duration": "30 seconds",
+          "link": "https://www.youtube.com/watch?v=ZNDHivUg7vA"
+        },
+        {
+          "activityId": "arm-circles",
+          "name": "Arm Circles",
+          "duration": "30 seconds",
+          "link": null
+        }
+      ]
+    },
+    {
+      "sectionName": "Exercises",
+      "sectionNote": "take 30 second break between sets | track how many you complete",
+      "activities": [
+        {
+          "activityId": "push-ups",
+          "name": "Push ups",
+          "duration": "30 seconds x 2 sets",
+          "link": null
+        },
+        {
+          "activityId": "bodyweight-squats",
+          "name": "Bodyweight Squats",
+          "duration": "30 seconds x 2 sets",
+          "link": null
+        },
+        {
+          "activityId": "lunges",
+          "name": "Lunges",
+          "duration": "30 seconds x 2 sets",
+          "link": null
+        },
+        {
+          "activityId": "planks",
+          "name": "Planks",
+          "duration": "30 seconds x 2 sets",
+          "link": null
+        },
+        {
+          "activityId": "burpees",
+          "name": "Burpees",
+          "duration": "30 seconds x 2 sets",
+          "link": null
+        },
+        {
+          "activityId": "jump-rope",
+          "name": "Jump Rope or Jumping Jacks",
+          "duration": "1 minute x 2 sets",
+          "link": null
+        },
+        {
+          "activityId": "speed-ladder",
+          "name": "Speed Ladder or Fast Feet",
+          "duration": "30 seconds x 2 sets",
+          "link": null
+        }
+      ]
+    },
+    {
+      "sectionName": "Cool-down",
+      "activities": [
+        {
+          "activityId": "hip-openers",
+          "name": "Hip Openers",
+          "duration": "30 seconds",
+          "link": null
+        },
+        {
+          "activityId": "leg-swings-front",
+          "name": "Leg Swings Front to Back",
+          "duration": "30 seconds each leg",
+          "link": null
+        },
+        {
+          "activityId": "leg-swings-side",
+          "name": "Leg Swings Side to Side",
+          "duration": "30 seconds each leg",
+          "link": null
+        },
+        {
+          "activityId": "ankle-circles",
+          "name": "Ankle Circles",
+          "duration": "30 seconds each ankle",
+          "link": null
+        },
+        {
+          "activityId": "calf-stretches",
+          "name": "Calf Stretches",
+          "duration": "30 seconds",
+          "link": null
+        }
+      ]
+    }
+  ]
+}
+
