@@ -43,14 +43,6 @@ class PlayerView extends BaseView {
             const rowHeader = this.createElement('div', 'activity-row-header activity-link');
             rowHeader.style.cursor = 'pointer';
             rowHeader.textContent = displayName;
-            
-            // Add indicator for auto-tracked activities
-            if (isAutoTracked) {
-                const indicator = this.createElement('span', 'auto-tracked-indicator');
-                indicator.textContent = ' 🔒';
-                indicator.title = 'Auto-tracked from workout completion';
-                rowHeader.appendChild(indicator);
-            }
 
             // Set up click handler
             if (activityType === 'flyout' && flyoutContent) {
