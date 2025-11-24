@@ -66,6 +66,16 @@ class PlayerController extends BaseController {
 
     // Handle activity toggle
     handleActivityToggle(activityId, dateStr) {
+        // Check if this is the bodyweight activity (auto-tracked)
+        const bodyweightActivityId = this.activityModel.getActivityIdByName('Bodyweight Training');
+        
+        if (bodyweightActivityId && activityId === bodyweightActivityId) {
+            // Prevent manual toggle of bodyweight activity
+            // Show message to user
+            alert('Bodyweight Training is automatically tracked when you complete workout plans.');
+            return;
+        }
+
         const trackingId = `${this.currentPlayerId}#${this.currentWeekId}#${dateStr}`;
         const tracking = this.trackingModel.toggleActivity(
             trackingId,
@@ -181,6 +191,16 @@ class PlayerController extends BaseController {
                 });
             }
         });
+
+        // Listen for workout completion events
+        if (window.EventBus) {
+            window.EventBus.on('workout:completed', (data) => {
+                // Refresh view if it's for current player and week
+                if (data.playerId === this.currentPlayerId && data.weekId === this.currentWeekId) {
+                    this.render();
+                }
+            });
+        }
 
         // Flyout close handlers
         const flyoutClose = document.getElementById('flyoutClose');

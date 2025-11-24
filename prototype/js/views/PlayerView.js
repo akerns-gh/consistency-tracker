@@ -27,6 +27,9 @@ class PlayerView extends BaseView {
             grid.appendChild(header);
         });
 
+        // Get bodyweight activity ID for auto-tracking indicator
+        const bodyweightActivityId = activityModel.getActivityIdByName('Bodyweight Training');
+
         // Activity rows
         activities.forEach(activity => {
             const activityReq = activityModel.getActivityRequirement(activity.activityId);
@@ -35,10 +38,19 @@ class PlayerView extends BaseView {
             const slug = activityModel.getActivitySlug(activity.activityId);
             const flyoutContent = activityModel.getFlyoutContent(activity.activityId);
             const requiredDays = activityModel.getRequiredDays(activity.activityId);
+            const isAutoTracked = bodyweightActivityId && activity.activityId === bodyweightActivityId;
 
             const rowHeader = this.createElement('div', 'activity-row-header activity-link');
             rowHeader.style.cursor = 'pointer';
             rowHeader.textContent = displayName;
+            
+            // Add indicator for auto-tracked activities
+            if (isAutoTracked) {
+                const indicator = this.createElement('span', 'auto-tracked-indicator');
+                indicator.textContent = ' 🔒';
+                indicator.title = 'Auto-tracked from workout completion';
+                rowHeader.appendChild(indicator);
+            }
 
             // Set up click handler
             if (activityType === 'flyout' && flyoutContent) {
@@ -74,6 +86,13 @@ class PlayerView extends BaseView {
                 // Check if required
                 if (requiredDays.includes(dayIndex)) {
                     this.addClass(cell, 'required');
+                }
+
+                // Check if auto-tracked (bodyweight)
+                if (isAutoTracked) {
+                    this.addClass(cell, 'auto-tracked');
+                    cell.setAttribute('title', 'Auto-tracked from workout completion');
+                    cell.style.cursor = 'not-allowed';
                 }
 
                 // Check if completed

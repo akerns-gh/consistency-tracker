@@ -167,19 +167,40 @@ const Storage = {
     },
 
     // Workout Tracking
-    saveWorkoutProgress(workoutId, activity, day, reps) {
+    saveWorkoutProgress(workoutId, activity, day, reps, dateStr = null) {
         const key = `${this.KEYS.WORKOUTS}_${workoutId}`;
         const stored = this.get(key) || {};
-        if (!stored[activity]) {
-            stored[activity] = {};
+        
+        // If dateStr is provided, store per-date; otherwise use legacy format
+        if (dateStr) {
+            if (!stored[dateStr]) {
+                stored[dateStr] = {};
+            }
+            if (!stored[dateStr][activity]) {
+                stored[dateStr][activity] = {};
+            }
+            stored[dateStr][activity][day] = reps !== '' && reps !== null ? parseInt(reps) || 0 : null;
+        } else {
+            // Legacy format for backward compatibility
+            if (!stored[activity]) {
+                stored[activity] = {};
+            }
+            stored[activity][day] = reps !== '' && reps !== null ? parseInt(reps) || 0 : null;
         }
-        stored[activity][day] = reps !== '' && reps !== null ? parseInt(reps) || 0 : null;
         return this.set(key, stored);
     },
 
-    getWorkoutProgress(workoutId) {
+    getWorkoutProgress(workoutId, dateStr = null) {
         const key = `${this.KEYS.WORKOUTS}_${workoutId}`;
-        return this.get(key) || {};
+        const stored = this.get(key) || {};
+        
+        // If dateStr is provided, return progress for that date
+        if (dateStr && stored[dateStr]) {
+            return stored[dateStr];
+        }
+        
+        // Otherwise return legacy format (all dates merged or current structure)
+        return stored;
     }
 };
 

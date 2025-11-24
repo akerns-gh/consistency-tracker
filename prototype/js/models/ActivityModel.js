@@ -4,6 +4,7 @@ class ActivityModel extends BaseModel {
     constructor() {
         super();
         this.activityRequirements = {};
+        this._bodyweightActivityIdCache = null;
     }
 
     // Load activity requirements from JSON
@@ -113,6 +114,42 @@ class ActivityModel extends BaseModel {
         }
         // Default: all days required
         return [0, 1, 2, 3, 4, 5, 6];
+    }
+
+    // Get activity ID by name (for resilience to ID changes)
+    getActivityIdByName(activityName) {
+        try {
+            // Check cache first
+            if (this._bodyweightActivityIdCache && activityName === 'Bodyweight Training') {
+                return this._bodyweightActivityIdCache;
+            }
+
+            // Search activity requirements by name
+            for (const [activityId, requirement] of Object.entries(this.activityRequirements)) {
+                if (requirement.name === activityName) {
+                    // Cache if it's Bodyweight Training
+                    if (activityName === 'Bodyweight Training') {
+                        this._bodyweightActivityIdCache = activityId;
+                    }
+                    return activityId;
+                }
+            }
+
+            // Fallback: search in mock data activities
+            if (this.mockData && this.mockData.activities) {
+                const activity = this.mockData.activities.find(a => a.name === activityName);
+                if (activity) {
+                    if (activityName === 'Bodyweight Training') {
+                        this._bodyweightActivityIdCache = activity.activityId;
+                    }
+                    return activity.activityId;
+                }
+            }
+
+            return null;
+        } catch (error) {
+            return this.handleError(error, 'getActivityIdByName');
+        }
     }
 }
 

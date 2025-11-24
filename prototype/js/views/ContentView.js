@@ -66,9 +66,9 @@ class ContentView extends BaseView {
         headerRow.innerHTML = `
             <th>Activity</th>
             <th>Duration</th>
-            <th>Set 1</th>
-            <th>Set 2</th>
-            <th>Set 3</th>
+            <th data-print-label="Day 1">Set 1</th>
+            <th data-print-label="Day 2">Set 2</th>
+            <th data-print-label="Day 3">Set 3</th>
         `;
         thead.appendChild(headerRow);
 

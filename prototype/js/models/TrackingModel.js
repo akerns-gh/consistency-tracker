@@ -151,6 +151,47 @@ class TrackingModel extends BaseModel {
             return this.handleError(error, 'getWeekDates');
         }
     }
+
+    // Add activity automatically (for workout completion tracking)
+    // This method always adds the activity if not present (no toggle)
+    addActivityAuto(playerId, weekId, activityId, dateStr) {
+        try {
+            const trackingId = `${playerId}#${weekId}#${dateStr}`;
+            let tracking = this.getTrackingForDate(playerId, weekId, dateStr);
+            
+            if (!tracking) {
+                // Create new tracking entry
+                tracking = {
+                    trackingId: trackingId,
+                    playerId: playerId,
+                    weekId: weekId,
+                    date: dateStr,
+                    completedActivities: [],
+                    dailyScore: 0,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+            }
+            
+            // Add activity if not already present (no toggle, always add)
+            if (!tracking.completedActivities.includes(activityId)) {
+                tracking.completedActivities.push(activityId);
+                
+                // Recalculate daily score
+                tracking.dailyScore = tracking.completedActivities.length;
+                tracking.updatedAt = new Date().toISOString();
+                
+                // Save to storage
+                if (this.storage) {
+                    this.storage.saveTracking(trackingId, tracking);
+                }
+            }
+            
+            return tracking;
+        } catch (error) {
+            return this.handleError(error, 'addActivityAuto');
+        }
+    }
 }
 
 // Export for use in other modules
