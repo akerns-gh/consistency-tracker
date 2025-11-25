@@ -36,52 +36,60 @@
         </nav>
 
         <!-- Main Content -->
-        <main class="main-content">
+        <main class="main-content" id="progressContainer">
             <h2 class="page-content-title">My Progress</h2>
-            <!-- Summary Cards -->
-            <div class="progress-summary-cards">
-                <div class="summary-card">
-                    <div class="summary-label">Current Week Score</div>
-                    <div class="summary-value" id="currentWeekScore">0</div>
-                    <div class="summary-change" id="currentWeekChange"></div>
-                </div>
-                <div class="summary-card">
-                    <div class="summary-label">Average Score</div>
-                    <div class="summary-value" id="averageScore">0</div>
-                    <div class="summary-change">Last 4 weeks</div>
-                </div>
-                <div class="summary-card">
-                    <div class="summary-label">Best Week</div>
-                    <div class="summary-value" id="bestWeekScore">0</div>
-                    <div class="summary-change" id="bestWeekDate"></div>
-                </div>
-                <div class="summary-card">
-                    <div class="summary-label">Consistency Streak</div>
-                    <div class="summary-value" id="consistencyStreak">0</div>
-                    <div class="summary-change">Weeks in a row</div>
-                </div>
-            </div>
-
-            <!-- Trends -->
-            <div class="trends-card">
-                <h2>Trends</h2>
-                <div class="trends-grid">
-                    <div class="trend-item">
-                        <div class="trend-label">Score Trend</div>
-                        <div class="trend-value" id="scoreTrend">
+            <!-- Summary Cards Carousel -->
+            <div class="stats-carousel-container">
+                <button class="carousel-button carousel-button-prev" aria-label="Previous stats">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg>
+                </button>
+                <div class="progress-summary-cards" id="statsCarousel">
+                    <div class="summary-card">
+                        <div class="summary-label">Current Week Score</div>
+                        <div class="summary-value" id="currentWeekScore">0</div>
+                        <div class="summary-change" id="currentWeekChange"></div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-label">Average Score</div>
+                        <div class="summary-value" id="averageScore">0</div>
+                        <div class="summary-change">Last 4 weeks</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-label">Best Week</div>
+                        <div class="summary-value" id="bestWeekScore">0</div>
+                        <div class="summary-change" id="bestWeekDate"></div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-label">Consistency Streak</div>
+                        <div class="summary-value" id="consistencyStreak">0</div>
+                        <div class="summary-change">Weeks in a row</div>
+                    </div>
+                    <!-- Trend cards -->
+                    <div class="summary-card" id="scoreTrendCard">
+                        <div class="summary-label">Score Trend</div>
+                        <div class="summary-value" id="scoreTrend">
                             <span class="trend-arrow" id="scoreTrendArrow">→</span>
-                            <span id="scoreTrendText">Stable</span>
                         </div>
+                        <div class="summary-change" id="scoreTrendText">Stable</div>
                     </div>
-                    <div class="trend-item">
-                        <div class="trend-label">Most Improved Activity</div>
-                        <div class="trend-value" id="mostImprovedActivity">-</div>
+                    <div class="summary-card" id="mostImprovedCard">
+                        <div class="summary-label">Most Improved Activity</div>
+                        <div class="summary-value" id="mostImprovedActivity">-</div>
+                        <div class="summary-change"></div>
                     </div>
-                    <div class="trend-item">
-                        <div class="trend-label">Needs Attention</div>
-                        <div class="trend-value" id="needsAttention">-</div>
+                    <div class="summary-card" id="needsAttentionCard">
+                        <div class="summary-label">Needs Attention</div>
+                        <div class="summary-value" id="needsAttention">-</div>
+                        <div class="summary-change"></div>
                     </div>
                 </div>
+                <button class="carousel-button carousel-button-next" aria-label="Next stats">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </button>
             </div>
 
             <!-- Weekly Scores Chart -->

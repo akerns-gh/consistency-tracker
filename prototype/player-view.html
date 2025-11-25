@@ -37,16 +37,12 @@
         <!-- Main Content -->
         <main class="main-content">
             <h2 class="page-content-title">Weekly Tracker</h2>
-            <!-- Week Information -->
-            <div class="week-header-section">
-                <div class="week-info-top">
-                    <span class="week-dates" id="weekDates">Week of Nov 18-24</span>
-                    <span class="weekly-score" id="weeklyScore">Score: 0/35</span>
-                </div>
-                <div class="week-navigation">
-                    <button class="btn-secondary" id="prevWeek">← Previous Week</button>
-                    <button class="btn-secondary" id="nextWeek">Next Week →</button>
-                </div>
+            <!-- Week Selector -->
+            <div class="week-selector-container">
+                <label for="weekSelector">Select Week:</label>
+                <select id="weekSelector" class="week-selector">
+                    <!-- Options populated by JavaScript -->
+                </select>
             </div>
 
             <!-- Weekly Total Card -->

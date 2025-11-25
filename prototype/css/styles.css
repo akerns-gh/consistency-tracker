@@ -601,7 +601,7 @@ input, textarea, select {
 .day-header {
     text-align: center;
     font-weight: var(--font-weight-bold);
-    color: var(--true-green-dark);
+    color: var(--true-green);
     padding: var(--spacing-md);
     font-size: 0.875rem;
     text-transform: uppercase;
@@ -700,7 +700,7 @@ input, textarea, select {
 }
 
 .weekly-total-card h2 {
-    color: var(--true-green-dark);
+    color: var(--true-green);
     margin-bottom: var(--spacing-sm);
     font-size: 0.875rem;
     font-weight: var(--font-weight-bold);
@@ -719,12 +719,12 @@ input, textarea, select {
 .score-value {
     font-size: 2rem;
     font-weight: var(--font-weight-bold);
-    color: var(--true-green-dark);
+    color: var(--true-green);
 }
 
 .score-max {
     font-size: 1.125rem;
-    color: var(--true-green-dark);
+    color: var(--true-green);
     font-weight: var(--font-weight-medium);
     opacity: 0.8;
 }
@@ -787,22 +787,29 @@ input, textarea, select {
 }
 
 .podium-card {
-    background-color: var(--white);
-    border-radius: var(--radius-lg);
-    padding: var(--spacing-lg);
-    box-shadow: var(--shadow-md);
+    background-color: var(--table-header-bg);
+    border-radius: var(--radius-xl);
+    padding: var(--spacing-xl);
+    box-shadow: var(--shadow-lg);
     text-align: center;
     position: relative;
+    border: 1px solid var(--true-green-alpha-10);
+    transition: all var(--transition-base);
+}
+
+.podium-card:hover {
+    box-shadow: 0 12px 24px -4px rgba(0, 0, 0, 0.15);
+    border-color: var(--true-green-alpha-20);
 }
 
 .podium-card.first {
     border-top: 4px solid #FFD700;
-    order: 2;
+    order: 1;
 }
 
 .podium-card.second {
     border-top: 4px solid #C0C0C0;
-    order: 1;
+    order: 2;
 }
 
 .podium-card.third {
@@ -813,21 +820,21 @@ input, textarea, select {
 .podium-rank {
     font-size: 2rem;
     font-weight: var(--font-weight-bold);
-    color: var(--true-dark);
+    color: var(--white);
     margin-bottom: var(--spacing-sm);
 }
 
 .podium-name {
     font-size: 1.25rem;
     font-weight: var(--font-weight-semibold);
-    color: var(--dark-gray);
+    color: var(--white);
     margin-bottom: var(--spacing-sm);
 }
 
 .podium-score {
     font-size: 1.5rem;
     font-weight: var(--font-weight-bold);
-    color: var(--true-green-dark);
+    color: var(--true-green);
 }
 
 .rankings-container {
@@ -911,22 +918,24 @@ input, textarea, select {
 .stat-card {
     text-align: center;
     padding: var(--spacing-lg);
-    background-color: var(--light-gray);
+    background-color: var(--table-header-bg);
     border-radius: var(--radius-md);
+    border: 1px solid var(--true-green-alpha-10);
 }
 
 .stat-label {
     font-size: 0.875rem;
-    color: var(--medium-gray);
+    color: var(--true-green);
     margin-bottom: var(--spacing-sm);
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    font-weight: var(--font-weight-bold);
 }
 
 .stat-value {
     font-size: 2rem;
     font-weight: var(--font-weight-bold);
-    color: var(--true-green-dark);
+    color: var(--true-green);
 }
 
 /* ===== Reflection Form ===== */
@@ -993,7 +1002,7 @@ input, textarea, select {
 }
 
 .reflection-header-title {
-    color: var(--true-green-dark);
+    color: var(--true-green);
     font-size: 0.875rem;
     font-weight: var(--font-weight-bold);
     margin: 0;
@@ -2040,14 +2049,32 @@ tr[class*="row-header"] td {
 }
 
 /* ===== My Progress Page ===== */
-.progress-summary-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: var(--spacing-lg);
+.stats-carousel-container {
+    position: relative;
     margin-bottom: var(--spacing-xl);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.progress-summary-cards {
+    display: flex;
+    gap: var(--spacing-lg);
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+    flex: 1;
+    padding: var(--spacing-sm) 0;
+}
+
+.progress-summary-cards::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
 }
 
 .progress-summary-cards .summary-card {
+    flex: 0 0 240px;
+    min-width: 240px;
     background-color: var(--table-header-bg);
     border-radius: var(--radius-xl);
     padding: var(--spacing-xl);
@@ -2057,6 +2084,9 @@ tr[class*="row-header"] td {
     transition: all var(--transition-base);
     position: relative;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 200px;
 }
 
 .progress-summary-cards .summary-card::before {
@@ -2083,6 +2113,18 @@ tr[class*="row-header"] td {
     color: var(--true-green);
     margin-bottom: var(--spacing-sm);
     line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs);
+    flex: 1;
+    min-height: 60px;
+}
+
+.progress-summary-cards .trend-arrow {
+    font-size: 3rem;
+    font-weight: var(--font-weight-bold);
+    line-height: 1;
 }
 
 .progress-summary-cards .summary-change {
@@ -2091,45 +2133,106 @@ tr[class*="row-header"] td {
     font-weight: var(--font-weight-medium);
     padding-top: var(--spacing-xs);
     border-top: 1px solid var(--true-green-alpha-20);
-    margin-top: var(--spacing-sm);
+    margin-top: auto;
+    min-height: 20px;
+}
+
+.carousel-button {
+    background-color: var(--table-header-bg);
+    border: 1px solid var(--true-green-alpha-20);
+    border-radius: var(--radius-md);
+    color: var(--true-green);
+    cursor: pointer;
+    padding: var(--spacing-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-base);
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+}
+
+.carousel-button:hover {
+    background-color: var(--true-green-alpha-10);
+    border-color: var(--true-green-alpha-40);
+}
+
+.carousel-button:active {
+    transform: scale(0.95);
+}
+
+.carousel-button svg {
+    width: 24px;
+    height: 24px;
+}
+
+.carousel-button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
 }
 
 .progress-chart-card {
     background-color: var(--white);
     border-radius: var(--radius-xl);
-    padding: var(--spacing-xl);
+    padding: 0;
     box-shadow: var(--shadow-lg);
     margin-bottom: var(--spacing-xl);
     border: 1px solid var(--light-gray);
+    overflow: hidden;
 }
 
 .progress-chart-card h2 {
-    margin-bottom: var(--spacing-lg);
-    color: var(--true-dark);
-    font-size: 1.5rem;
-    border-bottom: 2px solid var(--light-gray);
+    background-color: var(--table-header-bg);
+    color: var(--true-green);
+    font-size: 0.875rem;
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: var(--spacing-md) var(--spacing-lg);
+    margin: 0;
+    border-bottom: none;
     padding-bottom: var(--spacing-md);
+}
+
+.progress-chart-card > *:not(h2) {
+    padding: var(--spacing-xl);
 }
 
 .progress-chart-card canvas {
     max-height: 300px;
+    padding: 0 var(--spacing-xl);
+}
+
+.progress-chart-card > div {
+    padding: var(--spacing-xl);
 }
 
 .activity-performance-card {
     background-color: var(--white);
     border-radius: var(--radius-xl);
-    padding: var(--spacing-xl);
+    padding: 0;
     box-shadow: var(--shadow-lg);
     margin-bottom: var(--spacing-xl);
     border: 1px solid var(--light-gray);
+    overflow: hidden;
 }
 
 .activity-performance-card h2 {
-    margin-bottom: var(--spacing-lg);
-    color: var(--true-dark);
-    font-size: 1.5rem;
-    border-bottom: 2px solid var(--light-gray);
+    background-color: var(--table-header-bg);
+    color: var(--true-green);
+    font-size: 0.875rem;
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: var(--spacing-md) var(--spacing-lg);
+    margin: 0;
+    border-bottom: none;
     padding-bottom: var(--spacing-md);
+}
+
+.activity-performance-card > div {
+    padding: var(--spacing-xl);
 }
 
 .activity-stats {
@@ -2184,18 +2287,32 @@ tr[class*="row-header"] td {
 .weekly-breakdown-card {
     background-color: var(--white);
     border-radius: var(--radius-xl);
-    padding: var(--spacing-xl);
+    padding: 0;
     box-shadow: var(--shadow-lg);
     margin-bottom: var(--spacing-xl);
     border: 1px solid var(--light-gray);
+    overflow: hidden;
 }
 
 .weekly-breakdown-card h2 {
-    margin-bottom: var(--spacing-lg);
-    color: var(--true-dark);
-    font-size: 1.5rem;
-    border-bottom: 2px solid var(--light-gray);
+    background-color: var(--table-header-bg);
+    color: var(--true-green);
+    font-size: 0.875rem;
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: var(--spacing-md) var(--spacing-lg);
+    margin: 0;
+    border-bottom: none;
     padding-bottom: var(--spacing-md);
+}
+
+.weekly-breakdown-card > *:not(h2) {
+    padding: var(--spacing-xl);
+}
+
+.weekly-breakdown-card .table-container {
+    padding: var(--spacing-xl);
 }
 
 .table-container {
@@ -2242,18 +2359,28 @@ tr[class*="row-header"] td {
 .trends-card {
     background-color: var(--white);
     border-radius: var(--radius-xl);
-    padding: var(--spacing-xl);
+    padding: 0;
     box-shadow: var(--shadow-lg);
     margin-bottom: var(--spacing-xl);
     border: 1px solid var(--light-gray);
+    overflow: hidden;
 }
 
 .trends-card h2 {
-    margin-bottom: var(--spacing-lg);
-    color: var(--true-dark);
-    font-size: 1.5rem;
-    border-bottom: 2px solid var(--light-gray);
+    background-color: var(--table-header-bg);
+    color: var(--true-green);
+    font-size: 0.875rem;
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: var(--spacing-md) var(--spacing-lg);
+    margin: 0;
+    border-bottom: none;
     padding-bottom: var(--spacing-md);
+}
+
+.trends-card > div {
+    padding: var(--spacing-xl);
 }
 
 .trends-grid {
@@ -2273,7 +2400,7 @@ tr[class*="row-header"] td {
 
 .trend-label {
     font-size: 0.875rem;
-    color: var(--true-green-dark);
+    color: var(--true-green);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-bottom: var(--spacing-sm);
@@ -2283,7 +2410,7 @@ tr[class*="row-header"] td {
 .trend-value {
     font-size: 1.25rem;
     font-weight: var(--font-weight-semibold);
-    color: var(--true-green-dark);
+    color: var(--true-green);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2384,12 +2511,19 @@ tr[class*="row-header"] td {
         max-height: 95vh;
     }
     
-    .progress-summary-cards {
-        grid-template-columns: 1fr;
+    .stats-carousel-container {
+        gap: var(--spacing-sm);
     }
-    
-    .trends-grid {
-        grid-template-columns: 1fr;
+
+    .carousel-button {
+        width: 40px;
+        height: 40px;
+        padding: var(--spacing-sm);
+    }
+
+    .progress-summary-cards .summary-card {
+        flex: 0 0 200px;
+        min-width: 200px;
     }
     
     .progress-table {

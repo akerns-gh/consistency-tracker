@@ -143,29 +143,51 @@ class ProgressView extends BaseView {
         });
     }
 
-    // Render trends
+    // Render trends as summary cards
     renderTrends(trends) {
-        const scoreTrendEl = document.getElementById('scoreTrend');
+        const scoreTrendCard = document.getElementById('scoreTrendCard');
         const scoreTrendArrowEl = document.getElementById('scoreTrendArrow');
         const scoreTrendTextEl = document.getElementById('scoreTrendText');
+        const mostImprovedCard = document.getElementById('mostImprovedCard');
         const mostImprovedEl = document.getElementById('mostImprovedActivity');
+        const needsAttentionCard = document.getElementById('needsAttentionCard');
         const needsAttentionEl = document.getElementById('needsAttention');
 
-        if (scoreTrendEl && trends.scoreTrend) {
+        // Always show and populate score trend card
+        if (scoreTrendCard) {
+            scoreTrendCard.style.display = 'block';
             if (scoreTrendArrowEl) {
-                scoreTrendArrowEl.textContent = trends.scoreTrend.arrow || '→';
+                scoreTrendArrowEl.textContent = trends.scoreTrend ? (trends.scoreTrend.arrow || '→') : '→';
             }
             if (scoreTrendTextEl) {
-                scoreTrendTextEl.textContent = trends.scoreTrend.text || 'Stable';
+                scoreTrendTextEl.textContent = trends.scoreTrend ? (trends.scoreTrend.text || 'Stable') : 'Stable';
+            }
+        } else {
+            // Fallback: update elements directly if card structure changed
+            const scoreTrendArrowEl = document.getElementById('scoreTrendArrow');
+            const scoreTrendTextEl = document.getElementById('scoreTrendText');
+            if (scoreTrendArrowEl) {
+                scoreTrendArrowEl.textContent = trends.scoreTrend ? (trends.scoreTrend.arrow || '→') : '→';
+            }
+            if (scoreTrendTextEl) {
+                scoreTrendTextEl.textContent = trends.scoreTrend ? (trends.scoreTrend.text || 'Stable') : 'Stable';
             }
         }
 
-        if (mostImprovedEl) {
-            mostImprovedEl.textContent = trends.mostImproved || '-';
+        // Always show and populate most improved card
+        if (mostImprovedCard) {
+            mostImprovedCard.style.display = 'block';
+            if (mostImprovedEl) {
+                mostImprovedEl.textContent = trends.mostImproved || '-';
+            }
         }
 
-        if (needsAttentionEl) {
-            needsAttentionEl.textContent = trends.needsAttention || '-';
+        // Always show and populate needs attention card
+        if (needsAttentionCard) {
+            needsAttentionCard.style.display = 'block';
+            if (needsAttentionEl) {
+                needsAttentionEl.textContent = trends.needsAttention || '-';
+            }
         }
     }
 }

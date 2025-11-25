@@ -20,6 +20,58 @@ class ProgressController extends BaseController {
         await this.render();
     }
 
+    // Setup carousel functionality
+    setupCarousel() {
+        // Use setTimeout to ensure DOM is fully rendered
+        setTimeout(() => {
+            const carousel = document.getElementById('statsCarousel');
+            const prevButton = document.querySelector('.carousel-button-prev');
+            const nextButton = document.querySelector('.carousel-button-next');
+
+            if (!carousel) {
+                console.warn('Carousel container not found');
+                return;
+            }
+            if (!prevButton || !nextButton) {
+                console.warn('Carousel buttons not found');
+                return;
+            }
+
+            // Calculate scroll amount based on card width + gap
+            const firstCard = carousel.querySelector('.summary-card');
+            if (!firstCard) return;
+            
+            const cardWidth = firstCard.offsetWidth;
+            const gap = parseInt(getComputedStyle(carousel).gap) || 24;
+            const scrollAmount = cardWidth + gap;
+
+            const updateButtons = () => {
+                const isAtStart = carousel.scrollLeft <= 5;
+                const isAtEnd = carousel.scrollLeft >= carousel.scrollWidth - carousel.clientWidth - 5;
+                
+                prevButton.disabled = isAtStart;
+                nextButton.disabled = isAtEnd;
+            };
+
+            // Remove existing listeners if any
+            const newPrevButton = prevButton.cloneNode(true);
+            const newNextButton = nextButton.cloneNode(true);
+            prevButton.parentNode.replaceChild(newPrevButton, prevButton);
+            nextButton.parentNode.replaceChild(newNextButton, nextButton);
+
+            newPrevButton.addEventListener('click', () => {
+                carousel.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+            });
+
+            newNextButton.addEventListener('click', () => {
+                carousel.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+            });
+
+            carousel.addEventListener('scroll', updateButtons);
+            updateButtons(); // Initial state
+        }, 100);
+    }
+
     // Render progress view
     async render() {
         // Get all tracking data for player
@@ -76,6 +128,9 @@ class ProgressController extends BaseController {
 
         // Calculate and render trends
         this.calculateTrends(weeklyData);
+        
+        // Setup carousel after all content is rendered
+        this.setupCarousel();
     }
 
     // Render activity performance

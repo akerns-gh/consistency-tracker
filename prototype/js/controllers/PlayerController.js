@@ -32,8 +32,11 @@ class PlayerController extends BaseController {
             this.view.renderPlayerName(player.name);
         }
 
-        // Render view
+        // Render view first to ensure DOM is ready
         await this.render();
+
+        // Populate week selector after render
+        this.populateWeekSelector();
 
         // Setup event listeners
         this.setupEventListeners();
@@ -62,6 +65,9 @@ class PlayerController extends BaseController {
 
         // Update scores
         this.updateScores();
+
+        // Populate week selector
+        this.populateWeekSelector();
     }
 
     // Handle activity toggle
@@ -131,25 +137,89 @@ class PlayerController extends BaseController {
         }
     }
 
-    // Handle week navigation
-    handleWeekNavigation(direction) {
+    // Handle week change from dropdown
+    handleWeekChange(weekId) {
         // Save reflection before navigating
         this.saveReflection();
 
-        // Calculate new week
-        const weekDates = this.trackingModel.getWeekDates(this.currentWeekId);
-        if (weekDates) {
-            const newDate = new Date(weekDates.monday);
-            newDate.setDate(newDate.getDate() + (direction * 7));
-            const newWeekId = window.MockData && window.MockData.getWeekId ? 
-                window.MockData.getWeekId(newDate) : null;
+        if (weekId && weekId !== this.currentWeekId) {
+            this.currentWeekId = weekId;
+            Storage.setCurrentWeek(weekId);
+            this.render();
+        }
+    }
+
+    // Populate week selector dropdown
+    populateWeekSelector() {
+        const weekSelector = document.getElementById('weekSelector');
+        if (!weekSelector) {
+            console.warn('Week selector not found');
+            return;
+        }
+
+        // Get available weeks from tracking data for current player
+        const allTracking = this.trackingModel.getAllTracking();
+        const playerTracking = allTracking.filter(t => t.playerId === this.currentPlayerId);
+        
+        // Get unique weeks and sort them (newest first)
+        let weeks = [...new Set(playerTracking.map(t => t.weekId))].sort().reverse();
+
+        // Always generate weeks from mock data as fallback/backup
+        if (window.MockData && window.MockData.getWeekId) {
+            const currentWeekId = window.MockData.currentWeekId || this.currentWeekId;
+            if (currentWeekId && !weeks.includes(currentWeekId)) {
+                weeks.unshift(currentWeekId); // Add current week at the beginning
+            }
             
-            if (newWeekId) {
-                this.currentWeekId = newWeekId;
-                Storage.setCurrentWeek(newWeekId);
-                this.render();
+            // Always add previous weeks to ensure we have options
+            for (let i = 1; i <= 3; i++) {
+                const prevDate = new Date();
+                prevDate.setDate(prevDate.getDate() - (i * 7));
+                const prevWeekId = window.MockData.getWeekId(prevDate);
+                if (prevWeekId && !weeks.includes(prevWeekId)) {
+                    weeks.push(prevWeekId);
+                }
             }
         }
+
+        // Sort weeks (newest first) and remove duplicates
+        weeks = [...new Set(weeks)].sort().reverse();
+        
+        // Ensure we have at least the current week
+        if (weeks.length === 0 && this.currentWeekId) {
+            weeks.push(this.currentWeekId);
+        }
+
+        // Clear existing options
+        weekSelector.innerHTML = '';
+
+        // Add options
+        weeks.forEach(weekId => {
+            const option = document.createElement('option');
+            option.value = weekId;
+            
+            // Format week label
+            let weekDates = this.trackingModel.getWeekDates(weekId);
+            
+            // Fallback to window.MockData if trackingModel doesn't have it
+            if (!weekDates && window.MockData && window.MockData.getWeekDates) {
+                weekDates = window.MockData.getWeekDates(weekId);
+            }
+            
+            if (weekDates) {
+                const monday = new Date(weekDates.monday);
+                const sunday = new Date(weekDates.sunday);
+                const formatDate = (date) => {
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                };
+                option.textContent = `${formatDate(monday)} - ${formatDate(sunday)}`;
+            } else {
+                option.textContent = weekId;
+            }
+            
+            option.selected = weekId === this.currentWeekId;
+            weekSelector.appendChild(option);
+        });
     }
 
     // Save reflection
@@ -165,19 +235,11 @@ class PlayerController extends BaseController {
 
     // Setup event listeners
     setupEventListeners() {
-        // Week navigation
-        const prevWeekBtn = document.getElementById('prevWeek');
-        const nextWeekBtn = document.getElementById('nextWeek');
-
-        if (prevWeekBtn) {
-            this.addEventListener(prevWeekBtn, 'click', () => {
-                this.handleWeekNavigation(-1);
-            });
-        }
-
-        if (nextWeekBtn) {
-            this.addEventListener(nextWeekBtn, 'click', () => {
-                this.handleWeekNavigation(1);
+        // Week selector dropdown
+        const weekSelector = document.getElementById('weekSelector');
+        if (weekSelector) {
+            this.addEventListener(weekSelector, 'change', (e) => {
+                this.handleWeekChange(e.target.value);
             });
         }
 
