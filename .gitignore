@@ -30,7 +30,6 @@ yarn.lock
 
 # Build outputs (if any are added later)
 dist/
-build/
 *.min.js
 *.min.css
 
