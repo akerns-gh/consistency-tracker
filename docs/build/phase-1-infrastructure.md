@@ -53,7 +53,10 @@ Set up the project structure, AWS CDK infrastructure, and core AWS services (Dyn
 - Set up email verification
 - Create app client for web application
 - Configure JWT token expiration (1 hour access, 30 day refresh)
+- Create Cognito User Group for administrators (e.g., "Admins")
+- Configure group-based role assignment (admin vs regular user)
+- Set up custom attributes or group membership to identify admin users
 
 **Key implementation:**
-- `cdk/stacks/auth_stack.py` - Cognito User Pool with proper policies
+- `cdk/stacks/auth_stack.py` - Cognito User Pool with proper policies and admin user group
 

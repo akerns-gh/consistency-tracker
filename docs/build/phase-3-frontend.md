@@ -22,7 +22,7 @@ Set up React application, create shared components, build API service layer, and
 - Create reusable UI components matching True Lacrosse branding
 - Button components (primary, secondary)
 - Card components
-- Navigation components
+- Navigation components with conditional admin links
 - Loading states and skeletons
 - Error boundaries
 
@@ -31,6 +31,7 @@ Set up React application, create shared components, build API service layer, and
 - `frontend/src/components/ui/Card.tsx`
 - `frontend/src/components/ui/Loading.tsx`
 - `frontend/src/components/ui/ErrorBoundary.tsx`
+- `frontend/src/components/navigation/NavigationMenu.tsx` - Navigation menu that conditionally shows admin links based on user role
 - `frontend/src/styles/globals.css` - Global styles with True Lacrosse theme
 
 ## 3.3 API Service Layer
@@ -38,12 +39,14 @@ Set up React application, create shared components, build API service layer, and
 - Set up interceptors for error handling
 - Create service functions for all API endpoints
 - Handle authentication token management
+- Add user role checking service (check if user is admin)
 
 **Files to create:**
 - `frontend/src/services/api.ts` - Axios instance and base config
 - `frontend/src/services/playerApi.ts` - Player endpoint functions
 - `frontend/src/services/adminApi.ts` - Admin endpoint functions
 - `frontend/src/services/contentApi.ts` - Content endpoint functions
+- `frontend/src/services/authApi.ts` - Authentication and role checking functions
 
 ## 3.4 My Progress View
 - Aggregated week-over-week statistics for individual players

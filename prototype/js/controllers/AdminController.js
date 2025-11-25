@@ -49,14 +49,88 @@ class AdminController extends BaseController {
 
     // Setup event listeners
     setupEventListeners() {
+        // Hamburger menu toggle
+        const hamburgerMenu = document.getElementById('hamburgerMenu');
+        const menuOverlay = document.getElementById('menuOverlay');
+        const menuDrawer = document.getElementById('menuDrawer');
+        const menuClose = document.getElementById('menuClose');
+
+        const toggleMenu = () => {
+            hamburgerMenu?.classList.toggle('active');
+            menuOverlay?.classList.toggle('active');
+            menuDrawer?.classList.toggle('active');
+        };
+
+        const closeMenu = () => {
+            hamburgerMenu?.classList.remove('active');
+            menuOverlay?.classList.remove('active');
+            menuDrawer?.classList.remove('active');
+        };
+
+        hamburgerMenu?.addEventListener('click', toggleMenu);
+        menuClose?.addEventListener('click', closeMenu);
+        menuOverlay?.addEventListener('click', closeMenu);
+
+        // Tab navigation (from menu drawer)
+        const menuTabs = document.querySelectorAll('.menu-tab');
+        menuTabs.forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const tabName = e.target.dataset.tab;
+                this.switchTab(tabName);
+                closeMenu();
+            });
+        });
+
+        // Set initial active tab
+        const firstTab = document.querySelector('.menu-tab[data-tab="players"]');
+        if (firstTab) {
+            firstTab.classList.add('active');
+        }
+
         // Delegate player actions
-        const playersList = document.getElementById('playersList');
+        const playersList = document.getElementById('playersTableBody');
         if (playersList) {
             this.delegateEvent(playersList, 'button[data-action]', 'click', (e) => {
                 const action = e.target.dataset.action;
                 const id = e.target.dataset.id;
                 this.handlePlayerAction(action, id);
             });
+        }
+
+        // Logout button
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => {
+                // Navigate to login page
+                window.location.href = 'admin-login.html';
+            });
+        }
+    }
+
+    // Switch between tabs
+    switchTab(tabName) {
+        // Hide all tabs
+        const allTabs = document.querySelectorAll('.tab-content');
+        allTabs.forEach(tab => {
+            tab.style.display = 'none';
+        });
+
+        // Remove active class from all menu tab buttons
+        const allMenuTabs = document.querySelectorAll('.menu-tab');
+        allMenuTabs.forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+        // Show selected tab
+        const selectedTab = document.getElementById(`${tabName}Tab`);
+        if (selectedTab) {
+            selectedTab.style.display = 'block';
+        }
+
+        // Add active class to selected menu tab button
+        const selectedMenuTab = document.querySelector(`.menu-tab[data-tab="${tabName}"]`);
+        if (selectedMenuTab) {
+            selectedMenuTab.classList.add('active');
         }
     }
 }

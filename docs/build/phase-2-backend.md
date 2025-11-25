@@ -47,6 +47,8 @@ Develop all Lambda functions for player and admin endpoints, configure API Gatew
 - Week management (advance week)
 - Coach invitation (Cognito integration)
 - Navigation menu management (update navigation.json structure)
+- **User role verification**: Check if authenticated user has admin role (via Cognito groups)
+- **Authorization middleware**: Validate admin role before processing admin endpoint requests
 
 **Lambda functions to create:**
 - `cdk/lambda/admin/players.py` - List, create, update, deactivate players
@@ -59,6 +61,10 @@ Develop all Lambda functions for player and admin endpoints, configure API Gatew
 - `cdk/lambda/admin/export.py` - Export week data (CSV)
 - `cdk/lambda/admin/week_advance.py` - Advance to next week
 - `cdk/lambda/admin/reflections.py` - View all player reflections
+- `cdk/lambda/admin/check_role.py` - Verify user's admin role (for frontend navigation)
+
+**Shared utilities:**
+- `cdk/lambda/shared/auth_utils.py` - Helper functions to extract user info from JWT, check Cognito group membership, verify admin role
 
 ## 2.4 API Gateway Configuration
 - Create REST API Gateway
@@ -67,9 +73,11 @@ Develop all Lambda functions for player and admin endpoints, configure API Gatew
 - Set up request/response models
 - Configure API Gateway integrations with Lambda functions
 - Set up proper error handling and response formatting
+- Pass Cognito user groups/claims to Lambda functions for role verification
 
 **Key implementation:**
 - `cdk/stacks/api_stack.py` - API Gateway with all routes and authorizers
+- Ensure Cognito authorizer passes user groups/claims in request context to Lambda functions
 
 ## 2.5 Storage Stack (S3 & CloudFront)
 - Create S3 bucket for React frontend hosting (private)

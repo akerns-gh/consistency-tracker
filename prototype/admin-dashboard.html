@@ -11,19 +11,50 @@
     <div id="app">
         <!-- Top Navigation -->
         <nav class="admin-nav">
-            <div class="true-lacrosse-logo">
-                <div class="logo-true">TRUE</div>
-                <div class="logo-lacrosse">LACROSSE</div>
+            <div class="nav-left">
+                <button class="hamburger-menu" id="hamburgerMenu" aria-label="Toggle menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <div class="true-lacrosse-logo">
+                    <div class="logo-true">TRUE</div>
+                    <div class="logo-lacrosse">LACROSSE</div>
+                </div>
             </div>
-            <div class="admin-nav-links">
-                <button class="nav-tab" data-tab="players">PLAYERS</button>
-                <button class="nav-tab" data-tab="activities">ACTIVITIES</button>
-                <button class="nav-tab" data-tab="content">CONTENT</button>
-                <button class="nav-tab" data-tab="overview">OVERVIEW</button>
-                <button class="nav-tab" data-tab="settings">SETTINGS</button>
+            <div class="nav-right">
+                <button class="btn-logout" id="logoutBtn">Logout</button>
             </div>
-            <button class="btn-logout" id="logoutBtn">Logout</button>
         </nav>
+
+        <!-- Hamburger Menu Overlay -->
+        <div class="menu-overlay" id="menuOverlay"></div>
+        <div class="menu-drawer" id="menuDrawer">
+            <div class="menu-header">
+                <h3>Navigation</h3>
+                <button class="menu-close" id="menuClose">&times;</button>
+            </div>
+            <div class="menu-content">
+                <div class="menu-section">
+                    <h4>App Pages</h4>
+                    <a href="index.html" class="menu-link">Home</a>
+                    <a href="player-view.html" class="menu-link">Player View</a>
+                    <a href="my-progress.html" class="menu-link">My Progress</a>
+                    <a href="leaderboard.html" class="menu-link">Leaderboard</a>
+                    <a href="reflection.html" class="menu-link">Reflection</a>
+                    <a href="resource-list.html" class="menu-link">Resources</a>
+                    <a href="content-page.html" class="menu-link">Content</a>
+                </div>
+                <div class="menu-section">
+                    <h4>Admin Dashboard</h4>
+                    <button class="menu-tab" data-tab="players">Players</button>
+                    <button class="menu-tab" data-tab="activities">Activities</button>
+                    <button class="menu-tab" data-tab="content">Content</button>
+                    <button class="menu-tab" data-tab="overview">Overview</button>
+                    <button class="menu-tab" data-tab="settings">Settings</button>
+                </div>
+            </div>
+        </div>
 
         <!-- Tab Content -->
         <main class="admin-content">

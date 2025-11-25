@@ -73,6 +73,18 @@ The prototype validates all requirements and provides a solid foundation for the
 3. Follow phases sequentially, as each builds on the previous one
 4. Refer to individual phase documents for detailed implementation steps
 
+## Key Requirements
+
+### Admin Role Detection & Navigation
+- **User role determination**: The app must determine if a user is an administrator (via Cognito groups)
+- **Conditional navigation**: Admin navigation links should only be displayed to authenticated admin users
+- **Navigation rendering**: Main navigation component checks user role and conditionally renders admin links
+- **Implementation phases**: 
+  - Phase 1: Set up Cognito user groups for admin role
+  - Phase 2: Backend authorization and role checking endpoints
+  - Phase 3: Frontend navigation components with role-based rendering
+  - Phase 4: Admin dashboard with integrated navigation menu
+
 ## Key Learnings from Phase 0 (Prototype)
 
 The completed prototype has validated the following features and design decisions:
@@ -85,6 +97,7 @@ The completed prototype has validated the following features and design decision
 - ✅ **Auto-save Reflections**: Saves every 30 seconds automatically
 - ✅ **Content Management**: WYSIWYG editor with publish/unpublish functionality
 - ✅ **Leaderboard**: Top 3 podium visualization with full rankings
+- ✅ **Admin Navigation**: Hamburger menu with app navigation and admin dashboard tabs
 
 ### Design Decisions
 - **Color Scheme**: True Lacrosse green-based palette (`rgb(150, 200, 85)`) confirmed

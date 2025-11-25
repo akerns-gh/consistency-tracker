@@ -123,19 +123,25 @@ class App {
 
     // Setup admin login
     setupAdminLogin() {
-        const form = document.getElementById('adminLoginForm');
+        const form = document.getElementById('loginForm');
         if (form) {
             form.addEventListener('submit', (e) => {
                 e.preventDefault();
-                const email = document.getElementById('adminEmail').value;
-                const password = document.getElementById('adminPassword').value;
+                const email = document.getElementById('email')?.value;
+                const password = document.getElementById('password')?.value;
                 
                 // Simple validation for prototype
-                if (password.length >= 8) {
+                if (email && password && password.length >= 8) {
                     Storage.setAdminAuth({ email, loggedIn: true });
                     window.location.href = 'admin-dashboard.html';
                 } else {
-                    alert('Password must be at least 8 characters');
+                    const errorDiv = document.getElementById('loginError');
+                    if (errorDiv) {
+                        errorDiv.textContent = 'Please enter a valid email and password (min 8 characters)';
+                        errorDiv.style.display = 'block';
+                    } else {
+                        alert('Please enter a valid email and password (min 8 characters)');
+                    }
                 }
             });
         }
