@@ -11,8 +11,8 @@ Set up the project structure, AWS CDK infrastructure, and core AWS services (Dyn
 - Initialize package.json and Python virtual environment
 
 **Files to create:**
-- `cdk/` - AWS CDK infrastructure code
-- `frontend/` - React application
+- `aws/` - AWS CDK infrastructure code
+- `app/` - React application
 - `README.md` - Project overview and setup instructions
 - `.gitignore` - Exclude node_modules, __pycache__, .env files, CDK artifacts
 
@@ -23,15 +23,15 @@ Set up the project structure, AWS CDK infrastructure, and core AWS services (Dyn
 - Create stack structure: `stacks/` directory with separate stack files
 
 **Files to create:**
-- `cdk/app.py` - CDK app entry point
-- `cdk/cdk.json` - CDK configuration
-- `cdk/requirements.txt` - Python dependencies (aws-cdk-lib, constructs, boto3)
-- `cdk/stacks/__init__.py`
-- `cdk/stacks/database_stack.py` - DynamoDB tables
-- `cdk/stacks/auth_stack.py` - Cognito User Pool
-- `cdk/stacks/api_stack.py` - API Gateway and Lambda functions
-- `cdk/stacks/storage_stack.py` - S3 buckets and CloudFront
-- `cdk/stacks/dns_stack.py` - Route 53 configuration
+- `aws/app.py` - CDK app entry point
+- `aws/cdk.json` - CDK configuration
+- `aws/requirements.txt` - Python dependencies (aws-cdk-lib, constructs, boto3)
+- `aws/stacks/__init__.py`
+- `aws/stacks/database_stack.py` - DynamoDB tables
+- `aws/stacks/auth_stack.py` - Cognito User Pool
+- `aws/stacks/api_stack.py` - API Gateway and Lambda functions
+- `aws/stacks/storage_stack.py` - S3 buckets and CloudFront
+- `aws/stacks/dns_stack.py` - Route 53 configuration
 
 ## 1.3 Database Stack (DynamoDB)
 - Create all 5 DynamoDB tables with proper schemas:
@@ -45,7 +45,7 @@ Set up the project structure, AWS CDK infrastructure, and core AWS services (Dyn
 - Set on-demand billing mode
 
 **Key implementation:**
-- `cdk/stacks/database_stack.py` - Define all tables with proper key schemas and GSIs
+- `aws/stacks/database_stack.py` - Define all tables with proper key schemas and GSIs
 
 ## 1.4 Authentication Stack (Cognito)
 - Create Cognito User Pool for coach/admin authentication
@@ -58,5 +58,5 @@ Set up the project structure, AWS CDK infrastructure, and core AWS services (Dyn
 - Set up custom attributes or group membership to identify admin users
 
 **Key implementation:**
-- `cdk/stacks/auth_stack.py` - Cognito User Pool with proper policies and admin user group
+- `aws/stacks/auth_stack.py` - Cognito User Pool with proper policies and admin user group
 

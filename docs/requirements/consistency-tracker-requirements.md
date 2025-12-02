@@ -893,7 +893,7 @@ pip install aws-cdk-lib constructs
 
 **CDK Stack Structure:**
 ```
-cdk/
+aws/
 ├── app.py                          # CDK app entry point
 ├── requirements.txt                # Python dependencies
 ├── cdk.json                        # CDK configuration
@@ -966,7 +966,7 @@ cdk/
 npm install -g aws-cdk
 
 # Install Python dependencies
-cd cdk
+cd aws
 pip install -r requirements.txt
 
 # Bootstrap CDK (first time only)
@@ -987,7 +987,7 @@ cdk destroy --all
 
 **Environment Configuration:**
 ```python
-# cdk/app.py
+# aws/app.py
 import aws_cdk as cdk
 from stacks.storage_stack import StorageStack
 from stacks.database_stack import DatabaseStack
@@ -1038,7 +1038,7 @@ app.synth()
 **Frontend Build & Deploy:**
 ```bash
 # Build React app
-cd frontend
+cd app
 npm run build
 
 # Deploy to S3 (CDK can automate this with BucketDeployment construct)

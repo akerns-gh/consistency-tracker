@@ -43,3 +43,27 @@ dist/
 *.temp
 .cache/
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+*.egg-info/
+dist/
+build/
+
+# CDK
+cdk.out/
+cdk.context.json
+*.pyc
+
+# AWS
+.aws-sam/
+
+# Custom files
+.condarc
