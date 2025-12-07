@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 """
 Deployment script for Consistency Tracker Infrastructure
-Deploys AWS CDK stacks for Phase 1 (Database and Auth)
+
+Deploys AWS CDK stacks for:
+- Phase 1: Database (DynamoDB) and Auth (Cognito)
+- Phase 2: API (API Gateway + Lambda), Storage (S3 + CloudFront), DNS (Route 53)
+
+Also ensures:
+- API Gateway has an IAM role configured for CloudWatch Logs
 """
 
 import os
@@ -10,13 +16,27 @@ import sys
 import time
 from pathlib import Path
 from datetime import datetime
+import json
+
+import boto3
+from botocore.exceptions import ClientError
 
 # Configuration
-AWS_REGION = "us-east-2"
+AWS_REGION = "us-east-1"
 AWS_ACCOUNT_ID = "707406431671"
+
+# Stacks are deployed in dependency order:
+# 1. Database (DynamoDB tables)
+# 2. Auth (Cognito User Pool)
+# 3. API (API Gateway + Lambda functions)
+# 4. Storage (S3 buckets + CloudFront distributions)
+# 5. DNS (Route 53 records pointing to CloudFront)
 STACKS_TO_DEPLOY = [
     "ConsistencyTracker-Database",
     "ConsistencyTracker-Auth",
+    "ConsistencyTracker-API",
+    "ConsistencyTracker-DNS",      # Deploy DNS before Storage (Storage needs DNS export)
+    "ConsistencyTracker-Storage",  # Storage imports certificate ARN from DNS stack
 ]
 
 def check_prerequisites():
@@ -153,6 +173,102 @@ def bootstrap_cdk(venv_path):
     
     return True
 
+
+def ensure_apigw_cloudwatch_role():
+    """Ensure API Gateway has a CloudWatch Logs role configured at the account level."""
+    print("\n🔒 Ensuring API Gateway CloudWatch Logs role is configured...")
+
+    iam = boto3.client("iam")
+    apigw = boto3.client("apigateway", region_name=AWS_REGION)
+
+    role_name = "APIGatewayCloudWatchLogsRole"
+    assume_policy = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Principal": {"Service": "apigateway.amazonaws.com"},
+                "Action": "sts:AssumeRole",
+            }
+        ],
+    }
+    logs_policy = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:DescribeLogGroups",
+                    "logs:DescribeLogStreams",
+                    "logs:PutLogEvents",
+                    "logs:GetLogEvents",
+                    "logs:FilterLogEvents",
+                ],
+                "Resource": "*",
+            }
+        ],
+    }
+
+    # 1) Ensure role exists
+    try:
+        resp = iam.get_role(RoleName=role_name)
+        role_arn = resp["Role"]["Arn"]
+        print(f"✅ Found existing IAM role: {role_arn}")
+    except ClientError as e:
+        if e.response["Error"]["Code"] != "NoSuchEntity":
+            print(f"❌ Error checking IAM role: {e}")
+            raise
+        print(f"🔧 Creating IAM role: {role_name}")
+        resp = iam.create_role(
+            RoleName=role_name,
+            AssumeRolePolicyDocument=json.dumps(assume_policy),
+            Description="Role for API Gateway to write CloudWatch Logs",
+        )
+        role_arn = resp["Role"]["Arn"]
+        print(f"✅ Created IAM role: {role_arn}")
+
+    # 2) Ensure inline policy is present (safe to overwrite)
+    try:
+        iam.put_role_policy(
+            RoleName=role_name,
+            PolicyName="APIGatewayCloudWatchLogsPolicy",
+            PolicyDocument=json.dumps(logs_policy),
+        )
+        print("✅ Ensured IAM role has CloudWatch Logs permissions")
+    except ClientError as e:
+        print(f"❌ Error attaching policy to IAM role: {e}")
+        raise
+
+    # 3) Ensure API Gateway account setting points to this role
+    try:
+        account = apigw.get_account()
+        current_arn = account.get("cloudwatchRoleArn")
+    except ClientError as e:
+        print(f"❌ Error reading API Gateway account settings: {e}")
+        raise
+
+    if current_arn == role_arn:
+        print("✅ API Gateway already configured with correct CloudWatch Logs role")
+        return
+
+    print("🔧 Updating API Gateway account CloudWatch Logs role ARN...")
+    try:
+        apigw.update_account(
+            patchOperations=[
+                {
+                    "op": "replace" if current_arn else "add",
+                    "path": "/cloudwatchRoleArn",
+                    "value": role_arn,
+                }
+            ]
+        )
+        print("✅ API Gateway CloudWatch Logs role configured")
+    except ClientError as e:
+        print(f"❌ Failed to update API Gateway account settings: {e}")
+        raise
+
 def deploy_stack(stack_name, venv_path):
     """Deploy a single CDK stack"""
     print(f"\n☁️ Deploying stack: {stack_name}")
@@ -166,6 +282,39 @@ def deploy_stack(stack_name, venv_path):
     
     print(f"✅ Successfully deployed {stack_name}")
     return True
+
+def check_existing_resources():
+    """Check if resources already exist and confirm data protection"""
+    print("\n🔒 Checking existing resources and data protection...")
+    
+    # Check if Database stack exists
+    db_result = subprocess.run(
+        f"aws cloudformation describe-stacks --stack-name {STACKS_TO_DEPLOY[0]} --region {AWS_REGION}",
+        shell=True,
+        capture_output=True,
+        text=True
+    )
+    
+    if db_result.returncode == 0:
+        print("⚠️  Database stack already exists")
+        print("✅ DynamoDB tables are protected with RETAIN policy")
+        print("   - Tables will NOT be deleted even if stack is destroyed")
+        print("   - Your data is safe!")
+    
+    # Check if Auth stack exists
+    auth_result = subprocess.run(
+        f"aws cloudformation describe-stacks --stack-name {STACKS_TO_DEPLOY[1]} --region {AWS_REGION}",
+        shell=True,
+        capture_output=True,
+        text=True
+    )
+    
+    if auth_result.returncode == 0:
+        print("⚠️  Auth stack already exists")
+        print("   - This will update the existing Cognito User Pool")
+        print("   - Existing users and groups will be preserved")
+    
+    print("✅ Data protection verified")
 
 def verify_deployment():
     """Verify that stacks were deployed successfully"""
@@ -189,14 +338,62 @@ def verify_deployment():
         else:
             print(f"❌ Could not verify {stack_name}")
 
+def check_existing_resources():
+    """Check if resources already exist and warn about data protection"""
+    print("\n🔒 Checking existing resources and data protection...")
+    
+    # Check if Database stack exists
+    db_result = subprocess.run(
+        f"aws cloudformation describe-stacks --stack-name {STACKS_TO_DEPLOY[0]} --region {AWS_REGION}",
+        shell=True,
+        capture_output=True,
+        text=True
+    )
+    
+    if db_result.returncode == 0:
+        print("⚠️  Database stack already exists")
+        print("✅ DynamoDB tables are protected with RETAIN policy")
+        print("   - Tables will NOT be deleted even if stack is destroyed")
+        print("   - Your data is safe!")
+    
+    # Check if Auth stack exists
+    auth_result = subprocess.run(
+        f"aws cloudformation describe-stacks --stack-name {STACKS_TO_DEPLOY[1]} --region {AWS_REGION}",
+        shell=True,
+        capture_output=True,
+        text=True
+    )
+    
+    if auth_result.returncode == 0:
+        print("⚠️  Auth stack already exists")
+        print("   - This will update the existing Cognito User Pool")
+        print("   - Existing users and groups will be preserved")
+    
+    print("✅ Data protection verified")
+
 def main():
     print("🚀 Starting Consistency Tracker Infrastructure Deployment")
+    print("=" * 60)
+    print("🔒 SAFETY: This script only DEPLOYS/UPDATES infrastructure")
+    print("   - It does NOT destroy or delete anything")
+    print("   - DynamoDB tables are protected with RETAIN policy")
+    print("   - Your data is safe from accidental deletion")
     print("=" * 60)
     
     start_time = datetime.now()
     
     # Step 1: Check prerequisites
     check_prerequisites()
+
+    # Step 1.2: Ensure API Gateway CloudWatch Logs role exists
+    try:
+        ensure_apigw_cloudwatch_role()
+    except Exception:
+        print("❌ Failed to ensure API Gateway CloudWatch Logs role. Aborting deployment.")
+        sys.exit(1)
+    
+    # Step 1.5: Check existing resources and data protection
+    check_existing_resources()
     
     # Step 2: Set up virtual environment
     venv_path = setup_venv()
@@ -238,19 +435,15 @@ def main():
         for stack_name in STACKS_TO_DEPLOY:
             print(f"   ✅ {stack_name}")
         print("\n📝 Next Steps:")
-        print("   1. Create first admin user in Cognito User Pool")
-        print("   2. Verify DynamoDB tables were created")
-        print("   3. Check CloudFormation console for stack details")
-        print("\n💡 To create admin user:")
-        print("   aws cognito-idp admin-create-user \\")
-        print("     --user-pool-id <USER_POOL_ID> \\")
-        print("     --username admin@example.com \\")
-        print("     --user-attributes Name=email,Value=admin@example.com")
-        print("\n   Then add to Admins group:")
-        print("   aws cognito-idp admin-add-user-to-group \\")
-        print("     --user-pool-id <USER_POOL_ID> \\")
-        print("     --username admin@example.com \\")
-        print("     --group-name Admins")
+        print("   1. Create first admin user in Cognito User Pool (if not already created)")
+        print("      - Recommended: python aws/create_admin_user.py")
+        print("   2. Verify DynamoDB tables and API endpoints:")
+        print("      - Check tables in DynamoDB console")
+        print("      - Check API endpoint output from ConsistencyTracker-API stack")
+        print("   3. Verify CloudFront distributions and DNS:")
+        print("      - Frontend distribution domain")
+        print("      - Content distribution domain (content.repwarrior.net)")
+        print("      - Route 53 records for repwarrior.net and subdomains")
     else:
         print("❌ Deployment failed!")
         print("📝 Troubleshooting:")

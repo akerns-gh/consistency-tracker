@@ -67,10 +67,8 @@ class AuthStack(Stack):
 
         # Admin User Group
         # This group identifies users with admin privileges
-        self.admin_group = cognito.CfnUserGroup(
-            self,
-            "AdminGroup",
-            user_pool_id=self.user_pool.user_pool_id,
+        self.admin_group = self.user_pool.add_group(
+            "Admins",
             group_name="Admins",
             description="Administrators with full access to the Consistency Tracker",
             precedence=1,  # Lower number = higher precedence

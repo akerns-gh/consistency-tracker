@@ -29,7 +29,7 @@ class DatabaseStack(Stack):
                 name="playerId", type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            point_in_time_recovery=True,
+            point_in_time_recovery=True,  # Note: Deprecated but still works. Will update when CDK provides correct API.
             removal_policy=RemovalPolicy.RETAIN,  # Retain on stack deletion
         )
 

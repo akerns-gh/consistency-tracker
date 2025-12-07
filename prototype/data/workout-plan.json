@@ -21,7 +21,7 @@
           "activityId": "arm-circles",
           "name": "Arm Circles",
           "duration": "30 seconds",
-          "link": null
+          "link": "https://www.youtube.com/watch?v=vOsm1Sdgxvw"
         }
       ]
     },
@@ -33,43 +33,55 @@
           "activityId": "push-ups",
           "name": "Push ups",
           "duration": "30 seconds x 2 sets",
-          "link": null
+          "link": "https://www.youtube.com/watch?v=bt5b9x9N0KU"
         },
         {
           "activityId": "bodyweight-squats",
           "name": "Bodyweight Squats",
           "duration": "30 seconds x 2 sets",
-          "link": null
+          "link": "https://www.youtube.com/watch?v=LyidZ42Iy9Q"
         },
         {
           "activityId": "lunges",
           "name": "Lunges",
           "duration": "30 seconds x 2 sets",
-          "link": null
+          "link": "https://www.youtube.com/shorts/GWt-T-V4GPE"
         },
         {
           "activityId": "planks",
           "name": "Planks",
           "duration": "30 seconds x 2 sets",
-          "link": null
+          "link": "https://www.youtube.com/watch?v=pvIjsG5Svck"
         },
         {
           "activityId": "burpees",
           "name": "Burpees",
           "duration": "30 seconds x 2 sets",
-          "link": null
+          "link": "https://www.youtube.com/watch?v=qLBImHhCXSw"
         },
         {
           "activityId": "jump-rope",
-          "name": "Jump Rope or Jumping Jacks",
+          "name": "Jump Rope",
           "duration": "1 minute x 2 sets",
-          "link": null
+          "link": "https://www.youtube.com/shorts/VLC6YO9w5iU"
+        },
+        {
+          "activityId": "jump-jacks",
+          "name": "Jump Jacks",
+          "duration": "1 minute x 2 sets",
+          "link": "https://www.youtube.com/watch?v=CWpmIW6l-YA"
         },
         {
           "activityId": "speed-ladder",
-          "name": "Speed Ladder or Fast Feet",
+          "name": "Speed Ladder",
           "duration": "30 seconds x 2 sets",
-          "link": null
+          "link": "https://www.youtube.com/shorts/EYZDUrd7EZ8"
+        },
+        {
+          "activityId": "fast-feet",
+          "name": "Fast Feet",
+          "duration": "30 seconds x 2 sets",
+          "link": "https://www.youtube.com/watch?v=fz59j4a3QMQ"
         }
       ]
     },

@@ -122,10 +122,36 @@ npm run build      # Production build
 
 ## Deployment
 
+### Quick Deployment
+
+Deploy Phase 1 infrastructure using the automated script:
+
+```bash
+./aws/deploy.sh
+```
+
+This script:
+- ✅ Only deploys/updates (never destroys)
+- ✅ Protects DynamoDB data with RETAIN policy
+- ✅ Handles all setup automatically
+- ✅ Verifies deployment success
+
+### Manual Deployment
+
 1. Deploy infrastructure: `cdk deploy --all`
 2. Create initial admin user in Cognito User Pool (via AWS Console)
 3. Build and deploy frontend: `cd app && npm run build && cdk deploy StorageStack`
 4. Configure DNS in Route 53
+
+### Data Protection
+
+**Important:** All DynamoDB tables are protected with `RETAIN` policy:
+- ✅ Tables are **NOT deleted** if stacks are destroyed
+- ✅ Data **persists** even if infrastructure is removed
+- ✅ Deployment scripts **never destroy** resources
+- ✅ Your data is **safe from accidental deletion**
+
+See [aws/DEPLOYMENT_README.md](./aws/DEPLOYMENT_README.md) for detailed data protection information.
 
 ## Documentation
 

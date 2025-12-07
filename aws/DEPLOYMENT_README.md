@@ -1,0 +1,542 @@
+# CDK Infrastructure Setup
+
+This directory contains the AWS CDK infrastructure code for the Consistency Tracker application.
+
+## Prerequisites
+
+1. **AWS CLI configured**: `aws configure`
+2. **CDK CLI installed**: `npm install -g aws-cdk`
+3. **CDK bootstrapped**: `cdk bootstrap aws://707406431671/us-east-1`
+4. **Python 3.9+** installed
+5. **Python virtual environment** (recommended)
+
+## Setup
+
+### 1. Create Virtual Environment
+
+```bash
+cd aws
+python3 -m venv .venv
+source .venv/bin/activate  # On macOS/Linux
+# On Windows: .venv\Scripts\activate
+```
+
+### 2. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+**Note**: The requirements specify `aws-cdk-lib>=2.223.0` (latest version). If you have an existing virtual environment, upgrade dependencies with:
+```bash
+pip install --upgrade -r requirements.txt
+```
+
+### 3. Verify CDK Installation
+
+```bash
+cdk --version
+```
+
+### 4. Bootstrap CDK (if not already done)
+
+```bash
+cdk bootstrap aws://707406431671/us-east-1
+```
+
+## Quick Deployment
+
+### One-Command Deployment
+
+The easiest way to deploy Phase 1 infrastructure:
+
+**Option 1: Using bash script (recommended)**
+```bash
+./aws/deploy.sh
+```
+
+**Option 2: Using Python script directly**
+```bash
+python aws/deploy.py
+```
+
+Both scripts will:
+1. Check prerequisites (AWS CLI, CDK, Python)
+2. Set up Python virtual environment (if needed)
+3. Install dependencies
+4. Bootstrap CDK (if needed)
+5. Synthesize CDK templates
+6. Deploy Phase 1 stacks (Database and Auth)
+7. Verify deployment
+
+The bash script (`deploy.sh`) automatically handles venv setup and activation, making it the simplest option.
+
+### Manual Deployment
+
+If you prefer to deploy manually:
+
+#### Synthesize CloudFormation Templates
+
+```bash
+cdk synth
+```
+
+This generates CloudFormation templates without deploying.
+
+### View Differences
+
+```bash
+cdk diff
+```
+
+Shows what changes will be made to the deployed stacks.
+
+### Deploy Stacks
+
+**Using the deployment script (recommended):**
+```bash
+python deploy.py
+```
+
+**Manual deployment:**
+```bash
+# Deploy all stacks
+cdk deploy --all
+
+# Deploy specific stack
+cdk deploy ConsistencyTracker-Database
+cdk deploy ConsistencyTracker-Auth
+```
+
+### Destroy Stacks
+
+```bash
+# Destroy all stacks
+cdk destroy --all
+
+# Destroy specific stack
+cdk destroy ConsistencyTracker-Database
+```
+
+**Warning**: DynamoDB tables are set to `RETAIN` on deletion, so they won't be automatically deleted. You'll need to delete them manually from the AWS Console if needed.
+
+## Data Protection & Safety
+
+### Deployment Script Safety
+
+The deployment scripts (`deploy.sh` and `deploy.py`) are designed with data protection as a priority:
+
+✅ **Safe Operations:**
+- **Only deploys/updates** - Never destroys or deletes resources
+- **No destroy commands** - Scripts do not include `cdk destroy`
+- **Error handling** - Failures cause rollback, not deletion
+- **Existing resource preservation** - Updates preserve all existing data
+
+### DynamoDB Table Protection
+
+All 6 DynamoDB tables are configured with `RemovalPolicy.RETAIN`:
+
+```python
+removal_policy=RemovalPolicy.RETAIN  # Retain on stack deletion
+```
+
+**What this means:**
+- ✅ Tables are **NOT deleted** if the stack is deleted
+- ✅ Data **persists** even if you run `cdk destroy`
+- ✅ Tables must be **manually deleted** from AWS Console if needed
+- ✅ Your data is **protected from accidental deletion**
+
+**Protected Tables:**
+- ConsistencyTracker-Players
+- ConsistencyTracker-Activities
+- ConsistencyTracker-Tracking
+- ConsistencyTracker-Reflections
+- ConsistencyTracker-ContentPages
+- ConsistencyTracker-Teams
+
+### What Happens on Errors
+
+**Deployment Failures:**
+- If deployment fails: CDK rolls back **new** resources only
+- Existing resources remain **unchanged**
+- Your data is **never deleted** on errors
+
+**Stack Update Failures:**
+- If stack update fails: Existing resources remain **unchanged**
+- No data loss occurs
+- You can retry the deployment
+
+**Synthesis Failures:**
+- If template synthesis fails: **Nothing is deployed**
+- No changes are made to AWS
+- Safe to fix and retry
+
+### Additional Safety Features
+
+1. **Point-in-Time Recovery**: All DynamoDB tables have point-in-time recovery enabled for additional data protection
+2. **Deployment Verification**: Scripts verify existing resources and confirm data protection before deployment
+3. **Clear Messaging**: Scripts display clear safety messages about data protection
+
+### Manual Destruction (If Needed)
+
+If you need to destroy infrastructure (not recommended for production):
+
+```bash
+# This will delete stacks but RETAIN DynamoDB tables
+cdk destroy ConsistencyTracker-Database
+cdk destroy ConsistencyTracker-Auth
+```
+
+**Important Notes:**
+- DynamoDB tables will **remain** (due to RETAIN policy)
+- You must **manually delete** tables from AWS Console if needed
+- **All data in tables will be preserved** until manually deleted
+- Cognito User Pool will be deleted (users can be exported first)
+
+### Best Practices
+
+1. ✅ **Use deployment scripts** - They're designed to be safe
+2. ✅ **Never run `cdk destroy`** in production without careful consideration
+3. ✅ **Backup important data** - Use DynamoDB exports if needed
+4. ✅ **Test in dev environment** - Verify changes before production
+5. ✅ **Review CloudFormation changes** - Use `cdk diff` before deploying
+
+## Stack Structure
+
+### Phase 1 (Current)
+
+- **DatabaseStack**: All DynamoDB tables
+  - Player table
+  - Activity table
+  - Tracking table
+  - Reflection table
+  - ContentPages table
+  - Team/Config table
+
+- **AuthStack**: Cognito User Pool
+  - User pool for admin authentication
+  - App client for web application
+  - Admin user group
+  - Custom password policy (12 chars min)
+
+### Phase 2 (Placeholders)
+
+- **ApiStack**: API Gateway and Lambda functions
+- **StorageStack**: S3 buckets and CloudFront
+- **DnsStack**: Route 53 configuration
+
+## Configuration
+
+The domain name and region are configured in `app.py`:
+- Domain: `repwarrior.net`
+- Region: `us-east-1`
+
+## CloudFront Certificate Configuration
+
+**Important**: There is a known CDK synthesis bug when using ACM certificates with CloudFront Distribution. The certificate must be added manually via AWS Console after the initial deployment.
+
+> **📋 Quick Reference Guide**: For a focused step-by-step guide with current configuration status, see **[configure_cloudfront_certificates.md](configure_cloudfront_certificates.md)**. Use this guide when:
+> - You need to configure certificates after initial deployment
+> - You want to verify current certificate/alias status
+> - You're troubleshooting certificate configuration issues
+> - You need a quick checklist format
+
+### Manual Certificate Configuration via AWS Console
+
+After deploying all stacks, follow these steps to add the certificate to your CloudFront distributions:
+
+**Note**: The detailed guide in [configure_cloudfront_certificates.md](configure_cloudfront_certificates.md) provides a more focused walkthrough with current status information.
+
+#### Step 1: Get Certificate ARN
+
+The certificate ARN is available from the DNS stack output:
+
+```bash
+aws cloudformation describe-stacks \
+  --stack-name ConsistencyTracker-DNS \
+  --region us-east-1 \
+  --query 'Stacks[0].Outputs[?OutputKey==`CertificateArn`].OutputValue' \
+  --output text
+```
+
+Or use the existing certificate ARN:
+```
+arn:aws:acm:us-east-1:707406431671:certificate/98d1bf1b-dfd3-45bb-82aa-176aedd2babe
+```
+
+#### Step 2: Configure Frontend Distribution
+
+1. Go to **AWS Console → CloudFront**
+2. Find the **frontend distribution** - Look for:
+   - **Distribution ID**: `E11CYNQ91MDSZR` (or search for description "CloudFront distribution for Consistency Tracker frontend")
+   - **Domain name**: `d346yye80fnvlo.cloudfront.net`
+   - **Note**: If you see multiple frontend distributions, use the one with ID `E11CYNQ91MDSZR` (check CloudFormation stack outputs to confirm)
+3. Click on the distribution ID to open it, then click **Edit**
+4. Scroll to **Settings** section
+5. Under **Alternate domain names (CNAMEs)**, click **Add item** and add:
+   - `repwarrior.net`
+   - `www.repwarrior.net`
+6. Under **Custom SSL certificate**, select:
+   - **Custom SSL certificate (example.com)**
+   - Choose the certificate: `repwarrior.net` (or paste the ARN: `arn:aws:acm:us-east-1:707406431671:certificate/98d1bf1b-dfd3-45bb-82aa-176aedd2babe`)
+7. Click **Save changes** at the bottom
+8. Wait for the distribution to deploy (this takes 10-15 minutes). The status will change from "In Progress" to "Deployed"
+
+#### Step 3: Configure Content Distribution
+
+1. In the same CloudFront console, find the **content distribution** - Look for:
+   - **Distribution ID**: `E1986A93DSMC7O` (note: letter O, not zero - or search for description "CloudFront distribution for Consistency Tracker content images")
+   - **Domain name**: `d1rt8gejjf42oo.cloudfront.net`
+   - **Note**: If you see multiple content distributions, use the one with ID `E1986A93DSMC7O` (check CloudFormation stack outputs to confirm)
+2. Click on the distribution ID to open it, then click **Edit**
+3. Scroll to **Settings** section
+4. Under **Alternate domain names (CNAMEs)**, click **Add item** and add:
+   - `content.repwarrior.net`
+5. Under **Custom SSL certificate**, select:
+   - **Custom SSL certificate (example.com)**
+   - Choose the same certificate: `repwarrior.net` (or paste the ARN: `arn:aws:acm:us-east-1:707406431671:certificate/98d1bf1b-dfd3-45bb-82aa-176aedd2babe`)
+6. Click **Save changes** at the bottom
+7. Wait for the distribution to deploy (10-15 minutes). The status will change from "In Progress" to "Deployed"
+
+**Note**: If you see duplicate distributions (old ones from previous deployments), you can identify the correct ones by checking the CloudFormation stack outputs:
+```bash
+aws cloudformation describe-stacks --stack-name ConsistencyTracker-Storage --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`FrontendDistributionId` || OutputKey==`ContentDistributionDomainName`]'
+```
+
+**Current Active Distributions:**
+- **Frontend**: `E11CYNQ91MDSZR` (domain: `d346yye80fnvlo.cloudfront.net`)
+- **Content**: `E1986A93DSMC7O` (domain: `d1rt8gejjf42oo.cloudfront.net`)
+
+#### Step 4: Verify Configuration
+
+After configuring both distributions, verify everything is set up correctly:
+
+> **💡 Tip**: You can also use the verification script from [configure_cloudfront_certificates.md](configure_cloudfront_certificates.md) which provides a quick status summary.
+
+**Verify CloudFront Distributions:**
+```bash
+# Check frontend distribution (should show repwarrior.net and www.repwarrior.net)
+aws cloudfront get-distribution-config \
+  --id E11CYNQ91MDSZR \
+  --region us-east-1 \
+  --query 'DistributionConfig.{Aliases:Aliases.Items,Certificate:ViewerCertificate.ACMCertificateArn}' \
+  --output json
+
+# Check content distribution (should show content.repwarrior.net)
+aws cloudfront get-distribution-config \
+  --id E1986A93DSMC7O \
+  --region us-east-1 \
+  --query 'DistributionConfig.{Aliases:Aliases.Items,Certificate:ViewerCertificate.ACMCertificateArn}' \
+  --output json
+```
+
+**Verify Route 53 Records:**
+
+The DNS stack should have already created Route 53 A records pointing to your CloudFront distributions. Verify they exist:
+
+```bash
+aws route53 list-resource-record-sets \
+  --hosted-zone-id Z0224155HV050F02RZE0 \
+  --query 'ResourceRecordSets[?Type==`A` && (Name==`repwarrior.net.` || Name==`www.repwarrior.net.` || Name==`content.repwarrior.net.`)]' \
+  --output table
+```
+
+Expected results:
+- `repwarrior.net` → `d346yye80fnvlo.cloudfront.net` (frontend)
+- `www.repwarrior.net` → `d346yye80fnvlo.cloudfront.net` (frontend)
+- `content.repwarrior.net` → `d1rt8gejjf42oo.cloudfront.net` (content)
+
+**Test Domain Access:**
+```bash
+# Test HTTPS access (should work after distributions deploy)
+curl -I https://repwarrior.net
+curl -I https://www.repwarrior.net
+curl -I https://content.repwarrior.net
+```
+
+If the Route 53 records don't exist, the DNS stack's `add_route53_records` method should have created them. If needed, you can manually create A records in Route 53 pointing to your CloudFront distribution domain names.
+
+#### Alternative: Using AWS CLI
+
+You can also update distributions via CLI, but this requires getting the distribution ID and creating a new distribution config. The Console method above is simpler and recommended.
+
+## Security Configuration
+
+The infrastructure includes several security measures that are automatically configured:
+
+### CORS Restrictions
+
+- **API Gateway**: CORS is restricted to `https://repwarrior.net` and `https://www.repwarrior.net` only
+- **S3 Buckets**: CORS is restricted to the same domains for image uploads
+- This prevents unauthorized cross-origin requests
+
+### API Gateway Throttling
+
+- **Rate Limit**: 1,000 requests per second per account
+- **Burst Limit**: 2,000 requests per burst
+- This prevents API abuse and DDoS attacks
+
+### CloudFront WAF (Web Application Firewall)
+
+- **Rate Limiting**: Blocks IPs exceeding 2,000 requests per 5 minutes
+- **AWS Managed Rules**: Common Rule Set protects against common exploits (SQL injection, XSS, etc.)
+- **CloudWatch Metrics**: All WAF events are logged for monitoring
+- Applied to both frontend and content distributions
+
+### S3 Bucket Security
+
+- **Private Buckets**: All S3 buckets are private with public access blocked
+- **CloudFront OAI**: Only CloudFront can access S3 buckets via Origin Access Identity
+- **No Direct Access**: Direct S3 URLs are blocked
+
+### API Authentication
+
+- **Admin Endpoints**: Protected by Cognito User Pool authentication
+- **Player Endpoints**: Public (by design for player access)
+- **IAM Roles**: Lambda functions use least-privilege IAM roles
+
+### Clean Up Old Distributions
+
+If you have old CloudFront distributions from previous deployments, you can safely delete them after verifying the new ones are working:
+
+**Identify Old Distributions:**
+```bash
+# List all distributions and identify which are old
+aws cloudfront list-distributions \
+  --query 'DistributionList.Items[?contains(Comment, `Consistency Tracker`)].{Id:Id,Domain:DomainName,Comment:Comment,Status:Status}' \
+  --output table
+```
+
+**Current Active Distributions (DO NOT DELETE):**
+- `E11CYNQ91MDSZR` - Frontend (d346yye80fnvlo.cloudfront.net)
+- `E1986A93DSMC7O` - Content (d1rt8gejjf42oo.cloudfront.net)
+
+**Old Distributions (Safe to Delete):**
+- `E1DD2PQWY0P8ES` - Old frontend (djg551w466uwn.cloudfront.net)
+- `E17RBWRSIUG3PC` - Old content (d1i5t1dkk2vdm1.cloudfront.net)
+
+**To Delete Old Distributions:**
+
+1. **Disable the distribution** (required before deletion):
+   - Go to CloudFront console
+   - Select the old distribution
+   - Click **Disable** and wait 15-20 minutes for it to be disabled
+
+2. **Delete the distribution**:
+   - Once disabled, click **Delete**
+   - Confirm deletion
+
+**Note**: CloudFront distributions must be disabled before deletion, which takes 15-20 minutes. You can disable multiple distributions at once, then delete them all after they're disabled.
+
+## After Deployment
+
+### Create First Admin User
+
+After deploying the AuthStack, create the first admin user:
+
+**Option 1: Using Python script (recommended)**
+```bash
+# Edit configuration at top of script first
+python aws/create_admin_user.py
+```
+
+The script will:
+1. Automatically get the User Pool ID from CloudFormation stack
+2. Create the admin user with your configured email and password
+3. Add the user to the Admins group
+4. Handle errors gracefully (e.g., user already exists)
+
+**Option 2: Using AWS Console**
+1. Go to AWS Console → Cognito → User Pools
+2. Select "ConsistencyTracker-AdminPool"
+3. Create a new user
+4. Add the user to the "Admins" group
+
+**Option 3: Using AWS CLI**
+```bash
+# First, get the User Pool ID
+USER_POOL_ID=$(aws cloudformation describe-stacks \
+  --stack-name ConsistencyTracker-Auth \
+  --region us-east-1 \
+  --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
+  --output text)
+
+# Create the admin user
+aws cognito-idp admin-create-user \
+  --user-pool-id $USER_POOL_ID \
+  --username admin@example.com \
+  --user-attributes Name=email,Value=admin@example.com \
+  --temporary-password <TEMP_PASSWORD> \
+  --message-action SUPPRESS \
+  --region us-east-2
+
+# Add to Admins group
+aws cognito-idp admin-add-user-to-group \
+  --user-pool-id $USER_POOL_ID \
+  --username admin@example.com \
+  --group-name Admins \
+  --region us-east-2
+```
+
+**Note**: The admin user creation script only needs to be run once (or when creating additional admin users). It does NOT need to be run on every deployment.
+
+### Verify Tables
+
+Check that all DynamoDB tables were created:
+- ConsistencyTracker-Players
+- ConsistencyTracker-Activities
+- ConsistencyTracker-Tracking
+- ConsistencyTracker-Reflections
+- ConsistencyTracker-ContentPages
+- ConsistencyTracker-Teams
+
+## Notes
+
+### Password Policy
+
+The Cognito User Pool is configured with:
+- Minimum 12 characters
+- Requires uppercase, lowercase, and numbers
+- Password history (prevents reuse)
+
+**Note**: The "no repeating characters" requirement cannot be enforced directly by Cognito. This would require a Lambda trigger (can be added in Phase 2).
+
+### Multi-Tenant Support
+
+All tables include `teamId` for multi-tenant isolation:
+- Each table has a GSI on `teamId` for efficient team-based queries
+- Data is isolated per team
+- Team configuration stored in Team/Config table
+
+### Point-in-Time Recovery
+
+All DynamoDB tables have point-in-time recovery enabled for additional data protection:
+- Enables point-in-time restore to any second within the last 35 days
+- Protects against accidental writes or deletes
+- Works in conjunction with RETAIN policy for comprehensive data protection
+- No additional cost (included with DynamoDB on-demand pricing)
+
+## Troubleshooting
+
+### CDK Bootstrap Error
+
+If you get an authentication error, verify your AWS credentials:
+```bash
+aws sts get-caller-identity
+```
+
+### Import Errors
+
+Make sure you're in the virtual environment and dependencies are installed:
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Stack Deployment Errors
+
+Check CloudFormation console for detailed error messages. Common issues:
+- Insufficient IAM permissions
+- Resource name conflicts
+- Region-specific service availability
+

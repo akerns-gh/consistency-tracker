@@ -12,7 +12,8 @@ from stacks.dns_stack import DnsStack
 
 # Configuration
 DOMAIN_NAME = "repwarrior.net"
-AWS_REGION = "us-east-2"
+AWS_REGION = "us-east-1"
+HOSTED_ZONE_ID = "Z0224155HV050F02RZE0"  # Route 53 hosted zone ID for repwarrior.net
 
 app = cdk.App()
 
@@ -44,6 +45,7 @@ api_stack = ApiStack(
     "ConsistencyTracker-API",
     database_stack=database_stack,
     auth_stack=auth_stack,
+    domain_name=DOMAIN_NAME,  # Pass domain name for CORS configuration
     env=cdk.Environment(
         account=app.node.try_get_context("account") or None,
         region=AWS_REGION,
@@ -51,10 +53,31 @@ api_stack = ApiStack(
     description="API Gateway and Lambda functions",
 )
 
+# DNS Stack - Route 53 configuration (Phase 2)
+# Create DNS stack first to get the certificate (certificate doesn't need Storage)
+dns_stack = DnsStack(
+    app,
+    "ConsistencyTracker-DNS",
+    domain_name=DOMAIN_NAME,
+    hosted_zone_id=HOSTED_ZONE_ID,
+    env=cdk.Environment(
+        account=app.node.try_get_context("account") or None,
+        region=AWS_REGION,
+    ),
+    description="Route 53 DNS configuration",
+)
+
 # Storage Stack - S3 buckets and CloudFront (Phase 2)
+# IMPORTANT: There is a known CDK bug (TypeError) when using certificates with CloudFront Distribution
+# during synthesis. The certificate configuration is ready in StorageStack, but must be added
+# after initial deployment. See DEPLOYMENT_README.md for instructions.
 storage_stack = StorageStack(
     app,
     "ConsistencyTracker-Storage",
+    domain_name=DOMAIN_NAME,
+    # certificate_arn will be added manually via AWS Console after deployment
+    # See DEPLOYMENT_README.md for manual certificate configuration instructions
+    # certificate_arn="arn:aws:acm:us-east-1:707406431671:certificate/98d1bf1b-dfd3-45bb-82aa-176aedd2babe",
     env=cdk.Environment(
         account=app.node.try_get_context("account") or None,
         region=AWS_REGION,
@@ -62,18 +85,8 @@ storage_stack = StorageStack(
     description="S3 buckets and CloudFront distribution",
 )
 
-# DNS Stack - Route 53 configuration (Phase 2)
-dns_stack = DnsStack(
-    app,
-    "ConsistencyTracker-DNS",
-    domain_name=DOMAIN_NAME,
-    storage_stack=storage_stack,
-    env=cdk.Environment(
-        account=app.node.try_get_context("account") or None,
-        region=AWS_REGION,
-    ),
-    description="Route 53 DNS configuration",
-)
+# Now add Route 53 records to DNS stack (after Storage is created)
+dns_stack.add_route53_records(storage_stack)
 
 app.synth()
 
