@@ -18,6 +18,7 @@ export interface Activity {
   scope?: 'club' | 'team'
   activityType?: 'flyout' | 'link'
   contentSlug?: string
+  flyoutContent?: string
 }
 
 export interface DailyTracking {

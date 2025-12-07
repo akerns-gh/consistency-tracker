@@ -17,12 +17,47 @@ export default function ReflectionView() {
   const [wentWell, setWentWell] = useState('')
   const [doBetter, setDoBetter] = useState('')
   const [planForWeek, setPlanForWeek] = useState('')
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
 
   useEffect(() => {
     if (!uniqueLink) return
     
     loadData()
   }, [uniqueLink])
+
+  // Auto-save effect - saves every 30 seconds if there are changes
+  useEffect(() => {
+    if (!uniqueLink || !weekData) return
+
+    // Don't auto-save if all fields are empty
+    if (!wentWell && !doBetter && !planForWeek) return
+
+    const autoSaveInterval = setInterval(async () => {
+      try {
+        setAutoSaveStatus('saving')
+        await saveReflection(
+          uniqueLink,
+          weekData.weekId,
+          wentWell,
+          doBetter,
+          planForWeek
+        )
+        setLastSaved(new Date())
+        setAutoSaveStatus('saved')
+        
+        // Clear saved status after 2 seconds
+        setTimeout(() => {
+          setAutoSaveStatus('idle')
+        }, 2000)
+      } catch (err: any) {
+        console.error('Auto-save failed:', err)
+        setAutoSaveStatus('idle')
+      }
+    }, 30000) // 30 seconds
+
+    return () => clearInterval(autoSaveInterval)
+  }, [uniqueLink, weekData, wentWell, doBetter, planForWeek])
 
   const loadData = async () => {
     try {
@@ -59,7 +94,11 @@ export default function ReflectionView() {
         doBetter,
         planForWeek
       )
-      alert('Reflection saved successfully!')
+      setLastSaved(new Date())
+      setAutoSaveStatus('saved')
+      setTimeout(() => {
+        setAutoSaveStatus('idle')
+      }, 2000)
     } catch (err: any) {
       alert('Failed to save reflection. Please try again.')
       console.error('Failed to save reflection:', err)
@@ -81,6 +120,14 @@ export default function ReflectionView() {
             <h1 className="text-2xl font-bold text-gray-800">Weekly Reflection</h1>
             {weekData && (
               <p className="text-sm text-gray-600">Week {weekData.weekId}</p>
+            )}
+            {autoSaveStatus === 'saving' && (
+              <p className="text-xs text-gray-500 mt-1">Auto-saving...</p>
+            )}
+            {autoSaveStatus === 'saved' && lastSaved && (
+              <p className="text-xs text-green-600 mt-1">
+                Saved at {lastSaved.toLocaleTimeString()}
+              </p>
             )}
           </div>
           <button
