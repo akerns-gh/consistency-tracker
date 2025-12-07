@@ -354,11 +354,83 @@ curl -I https://www.repwarrior.net
 curl -I https://content.repwarrior.net
 ```
 
+**Note**: If you see `403 Access Denied` errors when testing the frontend domain (`repwarrior.net` or `www.repwarrior.net`), this is **expected** until frontend files are uploaded to the S3 bucket. The infrastructure (buckets, CloudFront, certificates, DNS) is correctly configured, but the bucket is empty. See the "What's Included in This Deployment" section below for details.
+
+#### Quick Verification Script
+
+For a comprehensive verification of CloudFront configuration, you can use the verification script:
+
+```bash
+/tmp/verify-config.sh
+```
+
+This script checks:
+- CloudFront distribution aliases and certificates
+- Route 53 DNS records
+- Provides a summary of configuration status
+
+Expected output when fully configured:
+```
+✅ Frontend distribution: Configured
+✅ Content distribution: Configured
+```
+
+The script displays detailed information about:
+- Distribution aliases (custom domain names)
+- SSL certificate ARNs
+- Distribution status (enabled/disabled)
+- Route 53 A records pointing to CloudFront
+
+If the verification script is not available, you can run the individual verification commands from Step 4 above.
+
 If the Route 53 records don't exist, the DNS stack's `add_route53_records` method should have created them. If needed, you can manually create A records in Route 53 pointing to your CloudFront distribution domain names.
 
 #### Alternative: Using AWS CLI
 
 You can also update distributions via CLI, but this requires getting the distribution ID and creating a new distribution config. The Console method above is simpler and recommended.
+
+## What's Included in This Deployment
+
+This infrastructure deployment phase includes:
+
+✅ **Infrastructure Resources:**
+- S3 buckets (frontend and content images)
+- CloudFront distributions with WAF protection
+- Route 53 DNS records
+- ACM SSL/TLS certificates
+- API Gateway with Lambda functions
+- DynamoDB tables
+- Cognito User Pool
+
+✅ **Configuration:**
+- Security settings (WAF, CORS, throttling)
+- CloudFront Origin Access Identity (OAI)
+- Bucket policies and permissions
+- Error handling (404/403 → index.html for React routing)
+
+❌ **Not Included (Separate Deployment Steps):**
+- **Frontend application files** - The S3 buckets are created but empty. You need to upload your frontend build files separately.
+- **Application code updates** - Lambda function code updates are separate from infrastructure deployment.
+
+**Expected Behavior After Infrastructure Deployment:**
+
+- ✅ DNS records resolve correctly
+- ✅ HTTPS certificates are configured
+- ✅ CloudFront distributions are active
+- ⚠️ Frontend domain returns `403 Access Denied` until files are uploaded
+- ✅ Content domain may return bucket listing (XML) if bucket is empty
+
+**To Deploy Frontend Files:**
+
+After infrastructure deployment, upload your frontend build to the S3 bucket:
+
+```bash
+# Build your frontend application first
+# Then upload to the frontend bucket
+aws s3 sync ./frontend/build s3://consistency-tracker-frontend-us-east-1/ --delete
+```
+
+The frontend will be accessible via CloudFront once files are uploaded.
 
 ## Security Configuration
 
