@@ -6,7 +6,7 @@ Publish/unpublish content page.
 import json
 from datetime import datetime
 from shared.response import success_response, error_response, cors_preflight_response
-from shared.auth_utils import require_admin
+from shared.auth_utils import require_admin, get_club_id_from_user
 from shared.db_utils import get_table
 
 
@@ -20,6 +20,11 @@ def lambda_handler(event, context):
     try:
         # Require admin authentication
         user_info = require_admin(event)
+        club_id = get_club_id_from_user(event)
+        
+        if not club_id:
+            return error_response("User not associated with a club", status_code=403)
+        
         user_email = user_info.get("email") or user_info.get("username")
         
         path_params = event.get("pathParameters") or {}
@@ -42,6 +47,11 @@ def lambda_handler(event, context):
         existing = table.get_item(Key={"pageId": content_id})
         if "Item" not in existing:
             return error_response("Content page not found", status_code=404)
+        
+        existing_content = existing["Item"]
+        # Validate content belongs to coach's club
+        if existing_content.get("clubId") != club_id:
+            return error_response("Content page not found or access denied", status_code=403)
         
         # Update publish status
         table.update_item(

@@ -17,6 +17,7 @@ from shared.db_utils import (
     get_table,
     get_content_pages_by_team,
     get_content_pages_by_club,
+    get_all_content_pages_by_club,
     get_team_by_id,
 )
 from shared.html_sanitizer import sanitize_html
@@ -70,8 +71,7 @@ def lambda_handler(event, context):
                 return success_response({"content": content})
             else:
                 # List all content pages in club (club-wide + team-specific)
-                club_content = get_content_pages_by_club(club_id, published_only=False)
-                content_pages = club_content  # Can be filtered by team if needed
+                content_pages = get_all_content_pages_by_club(club_id, published_only=False)
                 
                 # Format response (exclude full HTML content from list view)
                 content_list = []
@@ -87,6 +87,9 @@ def lambda_handler(event, context):
                         "updatedAt": page.get("updatedAt"),
                         "createdBy": page.get("createdBy"),
                         "lastEditedBy": page.get("lastEditedBy"),
+                        "clubId": page.get("clubId"),
+                        "teamId": page.get("teamId"),
+                        "scope": page.get("scope"),
                     })
                 
                 return success_response({"content": content_list, "total": len(content_list)})
@@ -128,13 +131,13 @@ def lambda_handler(event, context):
             # Sanitize HTML content
             sanitized_html = sanitize_html(html_content)
             
-            # Get max displayOrder to append new content
-            existing_content = get_content_pages_by_club(club_id, published_only=False)
+            # Get max displayOrder to append new content (check against all club content)
+            existing_content = get_all_content_pages_by_club(club_id, published_only=False)
             if display_order == 999 and existing_content:
                 max_order = max(c.get("displayOrder", 0) for c in existing_content)
                 display_order = max_order + 1
             
-            # Check if slug already exists
+            # Check if slug already exists (check against all club content)
             for content in existing_content:
                 if content.get("slug") == slug:
                     return error_response(f"Slug '{slug}' already exists", status_code=400)
@@ -204,15 +207,35 @@ def lambda_handler(event, context):
                 expression_attribute_values[":htmlContent"] = sanitized_html
             
             if "slug" in body:
-                # Check if new slug already exists
+                # Check if new slug already exists (check against all club content)
                 new_slug = body["slug"]
-                existing_content_list = get_content_pages_by_team(team_id, published_only=False)
+                existing_content_list = get_all_content_pages_by_club(club_id, published_only=False)
                 for content in existing_content_list:
                     if content.get("pageId") != content_id and content.get("slug") == new_slug:
                         return error_response(f"Slug '{new_slug}' already exists", status_code=400)
                 
                 update_expression_parts.append("slug = :slug")
                 expression_attribute_values[":slug"] = new_slug
+            
+            if "scope" in body:
+                # Allow changing scope, but validate
+                new_scope = body["scope"]
+                new_team_id = body.get("teamId")  # Can be null for club scope
+                
+                if new_scope == "team":
+                    if not new_team_id:
+                        return error_response("Missing teamId for team-scoped content update", status_code=400)
+                    new_team = get_team_by_id(new_team_id)
+                    if not new_team or new_team.get("clubId") != club_id:
+                        return error_response("New target team not found or access denied", status_code=403)
+                    update_expression_parts.append("teamId = :teamId")
+                    expression_attribute_values[":teamId"] = new_team_id
+                else:  # new_scope == "club"
+                    update_expression_parts.append("teamId = :teamId")
+                    expression_attribute_values[":teamId"] = None  # Set teamId to null for club-wide
+                
+                update_expression_parts.append("scope = :scope")
+                expression_attribute_values[":scope"] = new_scope
             
             if "displayOrder" in body:
                 update_expression_parts.append("displayOrder = :displayOrder")
@@ -272,4 +295,3 @@ def lambda_handler(event, context):
             return error_response(error_msg, status_code=403)
         print(f"Error in admin/content: {e}")
         return error_response(f"Internal server error: {str(e)}", status_code=500)
-

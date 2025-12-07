@@ -259,6 +259,43 @@ def get_content_pages_by_club(club_id: str, published_only: bool = True) -> List
         return []
 
 
+def get_all_content_pages_by_club(club_id: str, published_only: bool = True) -> List[Dict[str, Any]]:
+    """Get ALL content pages for a club (both club-wide and team-specific).
+    
+    This function returns all content pages for a club regardless of scope,
+    unlike get_content_pages_by_club() which only returns club-wide content.
+    Use this for slug validation and other operations that need to check
+    against all content in a club.
+    
+    Args:
+        club_id: The club ID
+        published_only: If True, only return published content
+    
+    Returns:
+        List of content page dictionaries, sorted by displayOrder
+    """
+    try:
+        table = get_table(CONTENT_PAGES_TABLE)
+        response = table.query(
+            IndexName="clubId-index",
+            KeyConditionExpression="clubId = :clubId",
+            ExpressionAttributeValues={":clubId": club_id},
+        )
+        pages = response.get("Items", [])
+        
+        # No filtering by teamId - includes both club-wide and team-specific
+        
+        if published_only:
+            pages = [p for p in pages if p.get("isPublished", False)]
+        
+        # Sort by displayOrder
+        pages.sort(key=lambda x: x.get("displayOrder", 999))
+        return pages
+    except ClientError as e:
+        print(f"Error getting all content pages for club {club_id}: {e}")
+        return []
+
+
 def create_tracking_record(
     player_id: str,
     week_id: str,

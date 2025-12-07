@@ -43,7 +43,7 @@ Develop all Lambda functions for player and admin endpoints, configure API Gatew
 - **Team management**: CRUD operations (requires clubId, validates access)
 - Player management: CRUD operations (filters by club, validates team belongs to club)
 - Activity management: CRUD operations (supports club-wide and team-specific, validates club access)
-- Content management: CRUD, publish/unpublish, reorder (supports club-wide and team-specific)
+- Content management: CRUD, publish/unpublish, reorder (supports club-wide and team-specific, validates club ownership on all operations)
 - Image upload: Pre-signed S3 URL generation
 - Club overview and analytics (charts, reflection highlights)
 - Week management (advance week for all teams in club)

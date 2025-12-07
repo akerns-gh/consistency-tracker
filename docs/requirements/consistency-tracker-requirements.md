@@ -244,7 +244,9 @@ Cognito stores:
 ```
 {
   pageId: string (UUID, primary key),
-  teamId: string (GSI for querying all team pages),
+  clubId: string (GSI for querying all club pages - primary isolation),
+  teamId: string (GSI for querying team pages, can be null for club-wide content),
+  scope: string ("club" or "team" - indicates if content is club-wide or team-specific),
   slug: string (URL-friendly identifier, e.g., "nutrition-guide"),
   title: string,
   category: string (guidance, workouts, nutrition, mental-health, etc.),

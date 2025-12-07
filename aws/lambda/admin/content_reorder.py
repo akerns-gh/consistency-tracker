@@ -7,7 +7,7 @@ import json
 from datetime import datetime
 from shared.response import success_response, error_response, cors_preflight_response
 from shared.auth_utils import require_admin, get_club_id_from_user
-from shared.db_utils import get_table, get_content_pages_by_team
+from shared.db_utils import get_table
 
 
 def lambda_handler(event, context):
@@ -40,6 +40,20 @@ def lambda_handler(event, context):
         
         table = get_table("ConsistencyTracker-ContentPages")
         now = datetime.utcnow().isoformat() + "Z"
+        
+        # Validate all pages belong to coach's club before updating
+        for item in reorder_list:
+            page_id = item.get("pageId")
+            if not page_id:
+                continue
+            
+            existing = table.get_item(Key={"pageId": page_id})
+            if "Item" not in existing:
+                return error_response(f"Content page {page_id} not found", status_code=404)
+            
+            existing_content = existing["Item"]
+            if existing_content.get("clubId") != club_id:
+                return error_response(f"Access denied to reorder content page {page_id}", status_code=403)
         
         # Update display order for each content page
         updated_pages = []
