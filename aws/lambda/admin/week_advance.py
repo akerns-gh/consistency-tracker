@@ -5,8 +5,8 @@ Advance to next week (update team configuration).
 
 import json
 from shared.response import success_response, error_response, cors_preflight_response
-from shared.auth_utils import require_admin, get_team_id_from_user
-from shared.db_utils import get_table
+from shared.auth_utils import require_admin, get_club_id_from_user
+from shared.db_utils import get_table, get_teams_by_club
 from shared.week_utils import get_current_week_id, get_week_id
 from datetime import datetime, timedelta
 
@@ -21,7 +21,10 @@ def lambda_handler(event, context):
     try:
         # Require admin authentication
         require_admin(event)
-        team_id = get_team_id_from_user(event) or "default-team"
+        club_id = get_club_id_from_user(event)
+        
+        if not club_id:
+            return error_response("User not associated with a club", status_code=403)
         
         table = get_table("ConsistencyTracker-Teams")
         
@@ -32,47 +35,36 @@ def lambda_handler(event, context):
         next_week_date = datetime.utcnow() + timedelta(weeks=1)
         next_week_id = get_week_id(next_week_date)
         
-        # Get or create team config
-        try:
-            response = table.get_item(Key={"teamId": team_id})
-            if "Item" in response:
-                team_config = response["Item"]
-            else:
-                # Create default team config
-                team_config = {
-                    "teamId": team_id,
-                    "teamName": "Default Team",
-                    "currentWeekId": current_week_id,
-                    "settings": {
-                        "weekStartDay": "Monday",
-                        "autoAdvanceWeek": False,
-                        "scoringMethod": "points",
+        # Get all teams in the club
+        teams = get_teams_by_club(club_id)
+        
+        if not teams:
+            return error_response("No teams found for club", status_code=404)
+        
+        # Update current week for all teams in the club
+        updated_teams = []
+        for team in teams:
+            team_id = team.get("teamId")
+            try:
+                table.update_item(
+                    Key={"teamId": team_id},
+                    UpdateExpression="SET currentWeekId = :nextWeekId, updatedAt = :updatedAt",
+                    ExpressionAttributeValues={
+                        ":nextWeekId": next_week_id,
+                        ":updatedAt": datetime.utcnow().isoformat() + "Z",
                     },
-                }
-                table.put_item(Item=team_config)
-        except Exception as e:
-            print(f"Error getting team config: {e}")
-            return error_response("Error accessing team configuration", status_code=500)
-        
-        # Update current week
-        table.update_item(
-            Key={"teamId": team_id},
-            UpdateExpression="SET currentWeekId = :nextWeekId, updatedAt = :updatedAt",
-            ExpressionAttributeValues={
-                ":nextWeekId": next_week_id,
-                ":updatedAt": datetime.utcnow().isoformat() + "Z",
-            },
-            ReturnValues="ALL_NEW",
-        )
-        
-        # Get updated config
-        updated = table.get_item(Key={"teamId": team_id})
+                    ReturnValues="ALL_NEW",
+                )
+                updated_teams.append(team_id)
+            except Exception as e:
+                print(f"Error updating team {team_id}: {e}")
         
         return success_response({
-            "message": "Week advanced successfully",
+            "message": "Week advanced successfully for all teams in club",
             "previousWeekId": current_week_id,
             "currentWeekId": next_week_id,
-            "teamConfig": updated.get("Item"),
+            "teamsUpdated": updated_teams,
+            "totalTeams": len(teams),
         })
         
     except Exception as e:

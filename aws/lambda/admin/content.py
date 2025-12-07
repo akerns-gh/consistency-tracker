@@ -12,8 +12,13 @@ import uuid
 import re
 from datetime import datetime
 from shared.response import success_response, error_response, cors_preflight_response
-from shared.auth_utils import require_admin, get_team_id_from_user
-from shared.db_utils import get_table, get_content_pages_by_team
+from shared.auth_utils import require_admin, get_club_id_from_user
+from shared.db_utils import (
+    get_table,
+    get_content_pages_by_team,
+    get_content_pages_by_club,
+    get_team_by_id,
+)
 from shared.html_sanitizer import sanitize_html
 
 
@@ -37,7 +42,11 @@ def lambda_handler(event, context):
     try:
         # Require admin authentication
         user_info = require_admin(event)
-        team_id = get_team_id_from_user(event) or "default-team"
+        club_id = get_club_id_from_user(event)
+        
+        if not club_id:
+            return error_response("User not associated with a club", status_code=403)
+        
         user_email = user_info.get("email") or user_info.get("username")
         
         http_method = event.get("httpMethod")
@@ -54,10 +63,15 @@ def lambda_handler(event, context):
                     return error_response("Content page not found", status_code=404)
                 
                 content = response["Item"]
+                # Validate content belongs to coach's club
+                if content.get("clubId") != club_id:
+                    return error_response("Content page not found or access denied", status_code=403)
+                
                 return success_response({"content": content})
             else:
-                # List all content pages
-                content_pages = get_content_pages_by_team(team_id, published_only=False)
+                # List all content pages in club (club-wide + team-specific)
+                club_content = get_content_pages_by_club(club_id, published_only=False)
+                content_pages = club_content  # Can be filtered by team if needed
                 
                 # Format response (exclude full HTML content from list view)
                 content_list = []
@@ -90,15 +104,32 @@ def lambda_handler(event, context):
             slug = body.get("slug") or slugify(title)
             display_order = body.get("displayOrder", 999)
             is_published = body.get("isPublished", False)
+            scope = body.get("scope", "team")  # "club" or "team"
+            team_id = body.get("teamId")  # Required if scope is "team"
             
             if not title:
                 return error_response("Missing required field: title", status_code=400)
+            
+            # Validate scope and team
+            if scope == "team":
+                if not team_id:
+                    return error_response("Missing required field: teamId for team-specific content", status_code=400)
+                # Validate team belongs to coach's club
+                team = get_team_by_id(team_id)
+                if not team:
+                    return error_response("Team not found", status_code=404)
+                if team.get("clubId") != club_id:
+                    return error_response("Team not found or access denied", status_code=403)
+            elif scope == "club":
+                team_id = None  # Club-wide content
+            else:
+                return error_response("Invalid scope (must be 'club' or 'team')", status_code=400)
             
             # Sanitize HTML content
             sanitized_html = sanitize_html(html_content)
             
             # Get max displayOrder to append new content
-            existing_content = get_content_pages_by_team(team_id, published_only=False)
+            existing_content = get_content_pages_by_club(club_id, published_only=False)
             if display_order == 999 and existing_content:
                 max_order = max(c.get("displayOrder", 0) for c in existing_content)
                 display_order = max_order + 1
@@ -114,7 +145,9 @@ def lambda_handler(event, context):
             
             content = {
                 "pageId": page_id,
-                "teamId": team_id,
+                "clubId": club_id,
+                "teamId": team_id,  # None for club-wide, teamId for team-specific
+                "scope": scope,
                 "slug": slug,
                 "title": title,
                 "category": category,
@@ -147,6 +180,10 @@ def lambda_handler(event, context):
                 return error_response("Content page not found", status_code=404)
             
             existing_content = existing["Item"]
+            
+            # Validate content belongs to coach's club
+            if existing_content.get("clubId") != club_id:
+                return error_response("Content page not found or access denied", status_code=403)
             
             # Update allowed fields
             update_expression_parts = []
@@ -215,6 +252,11 @@ def lambda_handler(event, context):
             existing = table.get_item(Key={"pageId": content_id})
             if "Item" not in existing:
                 return error_response("Content page not found", status_code=404)
+            
+            existing_content = existing["Item"]
+            # Validate content belongs to coach's club
+            if existing_content.get("clubId") != club_id:
+                return error_response("Content page not found or access denied", status_code=403)
             
             # Delete content
             table.delete_item(Key={"pageId": content_id})

@@ -7,6 +7,7 @@ from shared.response import success_response, error_response, cors_preflight_res
 from shared.db_utils import (
     get_player_by_unique_link,
     get_activities_by_team,
+    get_activities_by_club,
     get_tracking_by_player_week,
     get_reflection_by_player_week,
 )
@@ -47,11 +48,29 @@ def lambda_handler(event, context):
         if not player.get("isActive", True):
             return error_response("Player is inactive", status_code=403)
         
+        club_id = player.get("clubId")
         team_id = player.get("teamId")
         player_id = player.get("playerId")
         
-        # Get activities for the team (as they were in that week)
-        activities = get_activities_by_team(team_id, active_only=True)
+        if not club_id or not team_id:
+            return error_response("Player missing clubId or teamId", status_code=500)
+        
+        # Get club-wide activities
+        club_activities = get_activities_by_club(club_id, active_only=True)
+        
+        # Get team-specific activities
+        team_activities = get_activities_by_team(team_id, active_only=True)
+        
+        # Combine activities and deduplicate by activityId
+        activity_map = {}
+        for activity in club_activities + team_activities:
+            activity_id = activity.get("activityId")
+            if activity_id and activity_id not in activity_map:
+                activity_map[activity_id] = activity
+        
+        activities = list(activity_map.values())
+        # Sort by displayOrder
+        activities.sort(key=lambda x: x.get("displayOrder", 999))
         
         # Get tracking data for the week
         tracking_records = get_tracking_by_player_week(player_id, week_id)
@@ -78,6 +97,8 @@ def lambda_handler(event, context):
                 "monday": week_dates[0].isoformat(),
                 "sunday": week_dates[1].isoformat(),
             },
+            "clubId": club_id,
+            "teamId": team_id,
             "activities": activities,
             "dailyTracking": daily_tracking,
             "weeklyScore": weekly_score,

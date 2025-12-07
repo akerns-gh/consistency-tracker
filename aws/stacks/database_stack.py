@@ -18,6 +18,21 @@ class DatabaseStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
+        # Club Table
+        # Partition Key: clubId
+        # No GSI needed (single partition key lookup)
+        self.club_table = dynamodb.Table(
+            self,
+            "ClubTable",
+            table_name="ConsistencyTracker-Clubs",
+            partition_key=dynamodb.Attribute(
+                name="clubId", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery=True,
+            removal_policy=RemovalPolicy.RETAIN,
+        )
+
         # Player Table
         # Partition Key: playerId
         # GSI: teamId (for querying all players in a team)
@@ -41,6 +56,14 @@ class DatabaseStack(Stack):
             ),
         )
 
+        # GSI: clubId for querying players by club
+        self.player_table.add_global_secondary_index(
+            index_name="clubId-index",
+            partition_key=dynamodb.Attribute(
+                name="clubId", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
         # Activity Table
         # Partition Key: activityId
         # GSI: teamId (for querying all activities for a team)
@@ -61,6 +84,14 @@ class DatabaseStack(Stack):
             index_name="teamId-index",
             partition_key=dynamodb.Attribute(
                 name="teamId", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
+        # GSI: clubId for querying activities by club
+        self.activity_table.add_global_secondary_index(
+            index_name="clubId-index",
+            partition_key=dynamodb.Attribute(
+                name="clubId", type=dynamodb.AttributeType.STRING
             ),
         )
 
@@ -103,6 +134,14 @@ class DatabaseStack(Stack):
             ),
         )
 
+        # GSI: clubId for querying all tracking records for a club
+        self.tracking_table.add_global_secondary_index(
+            index_name="clubId-index",
+            partition_key=dynamodb.Attribute(
+                name="clubId", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
         # Reflection Table
         # Partition Key: reflectionId (composite: playerId#weekId)
         # GSIs: playerId, teamId (for querying reflections)
@@ -134,6 +173,14 @@ class DatabaseStack(Stack):
             ),
         )
 
+        # GSI: clubId for querying all reflections for a club
+        self.reflection_table.add_global_secondary_index(
+            index_name="clubId-index",
+            partition_key=dynamodb.Attribute(
+                name="clubId", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
         # ContentPages Table
         # Partition Key: pageId
         # GSI: teamId (for querying all content pages for a team)
@@ -157,9 +204,17 @@ class DatabaseStack(Stack):
             ),
         )
 
+        # GSI: clubId for querying content pages by club
+        self.content_pages_table.add_global_secondary_index(
+            index_name="clubId-index",
+            partition_key=dynamodb.Attribute(
+                name="clubId", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
         # Team/Config Table
         # Partition Key: teamId
-        # No GSI needed (single partition key lookup)
+        # GSI: clubId (for querying all teams in a club)
         self.team_table = dynamodb.Table(
             self,
             "TeamTable",
@@ -170,5 +225,13 @@ class DatabaseStack(Stack):
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             point_in_time_recovery=True,
             removal_policy=RemovalPolicy.RETAIN,
+        )
+
+        # GSI: clubId for querying teams by club
+        self.team_table.add_global_secondary_index(
+            index_name="clubId-index",
+            partition_key=dynamodb.Attribute(
+                name="clubId", type=dynamodb.AttributeType.STRING
+            ),
         )
 

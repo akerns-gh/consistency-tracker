@@ -6,7 +6,7 @@ Update display order of content pages.
 import json
 from datetime import datetime
 from shared.response import success_response, error_response, cors_preflight_response
-from shared.auth_utils import require_admin, get_team_id_from_user
+from shared.auth_utils import require_admin, get_club_id_from_user
 from shared.db_utils import get_table, get_content_pages_by_team
 
 
@@ -20,7 +20,10 @@ def lambda_handler(event, context):
     try:
         # Require admin authentication
         user_info = require_admin(event)
-        team_id = get_team_id_from_user(event) or "default-team"
+        club_id = get_club_id_from_user(event)
+        
+        if not club_id:
+            return error_response("User not associated with a club", status_code=403)
         user_email = user_info.get("email") or user_info.get("username")
         
         # Parse request body

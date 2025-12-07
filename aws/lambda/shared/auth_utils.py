@@ -131,12 +131,88 @@ def require_admin(event: Dict[str, Any]) -> Dict[str, Any]:
     return user_info
 
 
+def get_club_id_from_user(event: Dict[str, Any]) -> Optional[str]:
+    """
+    Extract clubId from authenticated user (from JWT token claims).
+
+    Args:
+        event: API Gateway Lambda event
+
+    Returns:
+        clubId or None
+    """
+    request_context = event.get("requestContext", {})
+    authorizer = request_context.get("authorizer", {})
+    claims = authorizer.get("claims", {})
+    
+    if not claims:
+        return None
+    
+    # Try custom:clubId attribute first
+    club_id = claims.get("custom:clubId")
+    if club_id:
+        return club_id
+    
+    # Try extracting from group name (e.g., "club-{clubId}-admins")
+    user_info = extract_user_info_from_event(event)
+    if user_info:
+        groups = user_info.get("groups", [])
+        for group in groups:
+            if group.startswith("club-") and group.endswith("-admins"):
+                # Extract clubId from group name
+                club_id = group.replace("club-", "").replace("-admins", "")
+                return club_id
+            elif group.startswith("club-") and group.endswith("-coaches"):
+                # Extract clubId from group name
+                club_id = group.replace("club-", "").replace("-coaches", "")
+                return club_id
+    
+    return None
+
+
+def get_team_ids_from_user(event: Dict[str, Any]) -> List[str]:
+    """
+    Extract teamIds from authenticated user (from JWT token claims).
+
+    Args:
+        event: API Gateway Lambda event
+
+    Returns:
+        List of teamIds user has access to
+    """
+    request_context = event.get("requestContext", {})
+    authorizer = request_context.get("authorizer", {})
+    claims = authorizer.get("claims", {})
+    
+    if not claims:
+        return []
+    
+    # Try custom:teamIds (comma-separated)
+    team_ids_str = claims.get("custom:teamIds", "")
+    if team_ids_str:
+        return [tid.strip() for tid in team_ids_str.split(",") if tid.strip()]
+    
+    # Try extracting from group names (e.g., "team-{teamId}-coaches")
+    user_info = extract_user_info_from_event(event)
+    if not user_info:
+        return []
+    
+    groups = user_info.get("groups", [])
+    team_ids = []
+    for group in groups:
+        if group.startswith("team-") and group.endswith("-coaches"):
+            team_id = group.replace("team-", "").replace("-coaches", "")
+            team_ids.append(team_id)
+    
+    return team_ids
+
+
 def get_team_id_from_user(event: Dict[str, Any]) -> Optional[str]:
     """
-    Extract teamId from authenticated user (future: from user attributes or groups).
+    Extract teamId from authenticated user (deprecated - use get_club_id_from_user).
 
-    For now, returns None (single team mode).
-    In multi-tenant mode, this would extract teamId from user attributes.
+    For backward compatibility, returns None.
+    In club-based multi-tenancy, use get_club_id_from_user() instead.
 
     Args:
         event: API Gateway Lambda event
@@ -144,9 +220,6 @@ def get_team_id_from_user(event: Dict[str, Any]) -> Optional[str]:
     Returns:
         teamId or None
     """
-    # TODO: In Phase 7 (multi-tenancy), extract teamId from:
-    # - User attributes (custom:teamId)
-    # - User groups (team-specific groups)
-    # - Default team for now
-    return None  # Single team mode for now
+    # Deprecated: Use get_club_id_from_user() for club-based multi-tenancy
+    return None
 

@@ -10,10 +10,12 @@ import json
 import uuid
 from datetime import datetime
 from shared.response import success_response, error_response, cors_preflight_response
-from shared.auth_utils import require_admin, get_team_id_from_user
+from shared.auth_utils import require_admin, get_club_id_from_user
 from shared.db_utils import (
     get_table,
     get_activities_by_team,
+    get_activities_by_club,
+    get_team_by_id,
 )
 
 
@@ -27,7 +29,10 @@ def lambda_handler(event, context):
     try:
         # Require admin authentication
         user_info = require_admin(event)
-        team_id = get_team_id_from_user(event) or "default-team"
+        club_id = get_club_id_from_user(event)
+        
+        if not club_id:
+            return error_response("User not associated with a club", status_code=403)
         
         http_method = event.get("httpMethod")
         path_params = event.get("pathParameters") or {}
@@ -36,8 +41,11 @@ def lambda_handler(event, context):
         table = get_table("ConsistencyTracker-Activities")
         
         if http_method == "GET":
-            # List all activities
-            activities = get_activities_by_team(team_id, active_only=False)
+            # List all activities in coach's club (club-wide + team-specific)
+            club_activities = get_activities_by_club(club_id, active_only=False)
+            # Note: For team-specific activities, we'd need to query by teamId
+            # For now, return club-wide activities. Team-specific can be filtered client-side.
+            activities = club_activities
             
             # Format response
             activity_list = []
@@ -66,12 +74,29 @@ def lambda_handler(event, context):
             frequency = body.get("frequency", "daily")
             point_value = body.get("pointValue", 1)
             display_order = body.get("displayOrder", 999)
+            scope = body.get("scope", "team")  # "club" or "team"
+            team_id = body.get("teamId")  # Required if scope is "team"
             
             if not name:
                 return error_response("Missing required field: name", status_code=400)
             
+            # Validate scope and team
+            if scope == "team":
+                if not team_id:
+                    return error_response("Missing required field: teamId for team-specific activity", status_code=400)
+                # Validate team belongs to coach's club
+                team = get_team_by_id(team_id)
+                if not team:
+                    return error_response("Team not found", status_code=404)
+                if team.get("clubId") != club_id:
+                    return error_response("Team not found or access denied", status_code=403)
+            elif scope == "club":
+                team_id = None  # Club-wide activity
+            else:
+                return error_response("Invalid scope (must be 'club' or 'team')", status_code=400)
+            
             # Get max displayOrder to append new activity
-            existing_activities = get_activities_by_team(team_id, active_only=False)
+            existing_activities = get_activities_by_club(club_id, active_only=False)
             if display_order == 999 and existing_activities:
                 max_order = max(a.get("displayOrder", 0) for a in existing_activities)
                 display_order = max_order + 1
@@ -87,7 +112,9 @@ def lambda_handler(event, context):
                 "frequency": frequency,
                 "pointValue": point_value,
                 "displayOrder": display_order,
-                "teamId": team_id,
+                "clubId": club_id,
+                "teamId": team_id,  # None for club-wide, teamId for team-specific
+                "scope": scope,
                 "isActive": True,
                 "createdAt": now,
             }
@@ -110,6 +137,11 @@ def lambda_handler(event, context):
             existing = table.get_item(Key={"activityId": activity_id})
             if "Item" not in existing:
                 return error_response("Activity not found", status_code=404)
+            
+            existing_activity = existing["Item"]
+            # Validate activity belongs to coach's club
+            if existing_activity.get("clubId") != club_id:
+                return error_response("Activity not found or access denied", status_code=403)
             
             # Update allowed fields
             update_expression_parts = []
@@ -177,6 +209,11 @@ def lambda_handler(event, context):
             existing = table.get_item(Key={"activityId": activity_id})
             if "Item" not in existing:
                 return error_response("Activity not found", status_code=404)
+            
+            existing_activity = existing["Item"]
+            # Validate activity belongs to coach's club
+            if existing_activity.get("clubId") != club_id:
+                return error_response("Activity not found or access denied", status_code=403)
             
             # Delete activity
             table.delete_item(Key={"activityId": activity_id})

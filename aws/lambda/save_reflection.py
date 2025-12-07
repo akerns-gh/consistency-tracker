@@ -46,8 +46,12 @@ def lambda_handler(event, context):
         if not player.get("isActive", True):
             return error_response("Player is inactive", status_code=403)
         
+        club_id = player.get("clubId")
         team_id = player.get("teamId")
         player_id = player.get("playerId")
+        
+        if not club_id or not team_id:
+            return error_response("Player missing clubId or teamId", status_code=500)
         
         # Use current week if not specified
         if not week_id:
@@ -61,6 +65,7 @@ def lambda_handler(event, context):
             do_better=do_better,
             plan_for_week=plan_for_week,
             team_id=team_id,
+            club_id=club_id,
         )
         
         # Build response

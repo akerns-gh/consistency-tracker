@@ -14,6 +14,7 @@ TRACKING_TABLE = os.environ.get("TRACKING_TABLE", "ConsistencyTracker-Tracking")
 REFLECTION_TABLE = os.environ.get("REFLECTION_TABLE", "ConsistencyTracker-Reflections")
 CONTENT_PAGES_TABLE = os.environ.get("CONTENT_PAGES_TABLE", "ConsistencyTracker-ContentPages")
 TEAM_TABLE = os.environ.get("TEAM_TABLE", "ConsistencyTracker-Teams")
+CLUB_TABLE = os.environ.get("CLUB_TABLE", "ConsistencyTracker-Clubs")
 
 # Initialize DynamoDB client
 dynamodb = boto3.resource("dynamodb")
@@ -153,6 +154,111 @@ def get_content_page_by_slug(team_id: str, slug: str) -> Optional[Dict[str, Any]
         return None
 
 
+def get_club_by_id(club_id: str) -> Optional[Dict[str, Any]]:
+    """Get a club by clubId."""
+    try:
+        table = get_table(CLUB_TABLE)
+        response = table.get_item(Key={"clubId": club_id})
+        return response.get("Item")
+    except ClientError as e:
+        print(f"Error getting club {club_id}: {e}")
+        return None
+
+
+def get_team_by_id(team_id: str) -> Optional[Dict[str, Any]]:
+    """Get a team by teamId."""
+    try:
+        table = get_table(TEAM_TABLE)
+        response = table.get_item(Key={"teamId": team_id})
+        return response.get("Item")
+    except ClientError as e:
+        print(f"Error getting team {team_id}: {e}")
+        return None
+
+
+def get_teams_by_club(club_id: str) -> List[Dict[str, Any]]:
+    """Get all teams for a club."""
+    try:
+        table = get_table(TEAM_TABLE)
+        response = table.query(
+            IndexName="clubId-index",
+            KeyConditionExpression="clubId = :clubId",
+            ExpressionAttributeValues={":clubId": club_id},
+        )
+        return response.get("Items", [])
+    except ClientError as e:
+        print(f"Error getting teams for club {club_id}: {e}")
+        return []
+
+
+def get_players_by_club(club_id: str, active_only: bool = True) -> List[Dict[str, Any]]:
+    """Get all players for a club."""
+    try:
+        table = get_table(PLAYER_TABLE)
+        response = table.query(
+            IndexName="clubId-index",
+            KeyConditionExpression="clubId = :clubId",
+            ExpressionAttributeValues={":clubId": club_id},
+        )
+        players = response.get("Items", [])
+        if active_only:
+            players = [p for p in players if p.get("isActive", True)]
+        return players
+    except ClientError as e:
+        print(f"Error getting players for club {club_id}: {e}")
+        return []
+
+
+def get_activities_by_club(club_id: str, active_only: bool = True) -> List[Dict[str, Any]]:
+    """Get all club-wide activities (where teamId is null or empty)."""
+    try:
+        table = get_table(ACTIVITY_TABLE)
+        response = table.query(
+            IndexName="clubId-index",
+            KeyConditionExpression="clubId = :clubId",
+            ExpressionAttributeValues={":clubId": club_id},
+        )
+        activities = response.get("Items", [])
+        
+        # Filter to club-wide only (teamId is null or empty)
+        activities = [a for a in activities if not a.get("teamId")]
+        
+        if active_only:
+            activities = [a for a in activities if a.get("isActive", True)]
+        
+        # Sort by displayOrder
+        activities.sort(key=lambda x: x.get("displayOrder", 999))
+        return activities
+    except ClientError as e:
+        print(f"Error getting activities for club {club_id}: {e}")
+        return []
+
+
+def get_content_pages_by_club(club_id: str, published_only: bool = True) -> List[Dict[str, Any]]:
+    """Get all club-wide content pages (where teamId is null or empty)."""
+    try:
+        table = get_table(CONTENT_PAGES_TABLE)
+        response = table.query(
+            IndexName="clubId-index",
+            KeyConditionExpression="clubId = :clubId",
+            ExpressionAttributeValues={":clubId": club_id},
+        )
+        pages = response.get("Items", [])
+        
+        # Filter to club-wide only (teamId is null or empty)
+        pages = [p for p in pages if not p.get("teamId")]
+        
+        if published_only:
+            pages = [p for p in pages if p.get("isPublished", False)]
+        
+        # Sort by displayOrder
+        pages.sort(key=lambda x: x.get("displayOrder", 999))
+        return pages
+    except ClientError as e:
+        print(f"Error getting content pages for club {club_id}: {e}")
+        return []
+
+
 def create_tracking_record(
     player_id: str,
     week_id: str,
@@ -160,6 +266,7 @@ def create_tracking_record(
     completed_activities: List[str],
     daily_score: int,
     team_id: str,
+    club_id: str,
 ) -> Dict[str, Any]:
     """Create or update a tracking record."""
     try:
@@ -177,6 +284,7 @@ def create_tracking_record(
             "completedActivities": completed_activities,
             "dailyScore": daily_score,
             "teamId": team_id,
+            "clubId": club_id,
             "updatedAt": now,
         }
         
@@ -201,6 +309,7 @@ def create_or_update_reflection(
     do_better: str,
     plan_for_week: str,
     team_id: str,
+    club_id: str,
 ) -> Dict[str, Any]:
     """Create or update a reflection."""
     try:
@@ -222,6 +331,7 @@ def create_or_update_reflection(
             "doBetter": do_better,
             "planForWeek": plan_for_week,
             "teamId": team_id,
+            "clubId": club_id,
             "createdAt": created_at,
             "updatedAt": now,
         }

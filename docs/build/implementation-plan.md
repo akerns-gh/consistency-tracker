@@ -79,10 +79,14 @@ The prototype validates all requirements and provides a solid foundation for the
 ## Key Requirements
 
 ### Multi-Tenancy Support
-- **Multiple teams**: Application supports multiple teams with complete data isolation
-- **Team context resolution**: Team identification from player records and coach JWT tokens
-- **Data isolation**: All queries filtered by `teamId` to ensure team separation
-- **Security**: Never trust client-provided `teamId` - always derive from authenticated user
+- **Multiple clubs**: Application supports multiple clubs with complete data isolation
+- **Club > Team > Player hierarchy**: Players belong to both a club and a team
+- **Club context resolution**: Club identification from player records and coach JWT tokens
+- **Data isolation**: All queries filtered by `clubId` to ensure club separation (primary isolation)
+- **Team filtering**: Optional filtering by `teamId` for team-specific views within a club
+- **Content scope**: Content and activities can be club-wide (visible to all teams) or team-specific
+- **Leaderboard scope**: Leaderboards support both club-wide and team-specific views
+- **Security**: Never trust client-provided `clubId` or `teamId` - always derive from authenticated user
 - **Implementation**: Integrated across Phases 1-6 (see [Phase 7: Multi-Tenancy](./phase-7-multi-tenancy.md) for details)
 
 ### Admin Role Detection & Navigation

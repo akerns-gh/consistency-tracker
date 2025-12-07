@@ -35,8 +35,13 @@ def lambda_handler(event, context):
         if not player.get("isActive", True):
             return error_response("Player is inactive", status_code=403)
         
+        club_id = player.get("clubId")
+        team_id = player.get("teamId")
         player_id = player.get("playerId")
         current_week_id = get_current_week_id()
+        
+        if not club_id or not team_id:
+            return error_response("Player missing clubId or teamId", status_code=500)
         
         # Get last 4 weeks of data
         weeks_data = []
@@ -71,6 +76,8 @@ def lambda_handler(event, context):
             "player": {
                 "playerId": player_id,
                 "name": player.get("name"),
+                "clubId": club_id,
+                "teamId": team_id,
             },
             "weeks": weeks_data,
             "statistics": {

@@ -40,16 +40,18 @@ Set up React application, create shared components, build API service layer, and
 - Create service functions for all API endpoints
 - Handle authentication token management
 - Add user role checking service (check if user is admin)
+- **Club/Team Context**: API functions handle club and team context implicitly (extracted from player data or JWT token)
 
 **Files to create:**
 - `frontend/src/services/api.ts` - Axios instance and base config
-- `frontend/src/services/playerApi.ts` - Player endpoint functions
-- `frontend/src/services/adminApi.ts` - Admin endpoint functions
-- `frontend/src/services/contentApi.ts` - Content endpoint functions
+- `frontend/src/services/playerApi.ts` - Player endpoint functions (returns clubId and teamId)
+- `frontend/src/services/adminApi.ts` - Admin endpoint functions (club context from auth)
+- `frontend/src/services/contentApi.ts` - Content endpoint functions (supports club-wide and team-specific)
 - `frontend/src/services/authApi.ts` - Authentication and role checking functions
 
 ## 3.4 My Progress View
 - Aggregated week-over-week statistics for individual players
+- Display club name and team name in player profile/header
 - Summary cards carousel with:
   - Current Week Score
   - Average Weekly Score
@@ -60,16 +62,20 @@ Set up React application, create shared components, build API service layer, and
 - Weekly breakdown table showing daily scores
 - Week navigation (previous/next week buttons)
 - Activity-specific progress indicators
+- Compare against club or team averages (if data available)
 
 **Files to create:**
-- `frontend/src/pages/MyProgressView.tsx` - My Progress page
+- `frontend/src/pages/MyProgressView.tsx` - My Progress page (includes club/team info)
 - `frontend/src/components/progress/SummaryCards.tsx` - Summary cards carousel
 - `frontend/src/components/progress/ProgressChart.tsx` - Weekly scores chart
 - `frontend/src/components/progress/WeeklyBreakdown.tsx` - Weekly breakdown table
 
 ## 3.5 Player View - Activity Tracking
 - Main player dashboard with weekly grid view
+- Display club name and team name in header/profile
 - Activity grid component (7 days × N activities)
+- Show both club-wide and team-specific activities
+- Visual indicator for activity scope (club vs team) - badge or icon
 - Daily check-in functionality (toggle activities)
 - Daily score calculation and display (bottom row of grid)
 - Weekly total score display with progress bar
@@ -80,22 +86,27 @@ Set up React application, create shared components, build API service layer, and
 - Visual feedback: green for completed, yellow for frequency warnings
 
 **Files to create:**
-- `frontend/src/pages/PlayerView.tsx` - Main player dashboard
+- `frontend/src/pages/PlayerView.tsx` - Main player dashboard (includes club/team info)
 - `frontend/src/components/player/ActivityGrid.tsx` - Weekly activity grid
 - `frontend/src/components/player/ActivityCell.tsx` - Individual activity cell
 - `frontend/src/components/player/WeeklyScore.tsx` - Score display
-- `frontend/src/components/player/NavigationMenu.tsx` - Side navigation
+- `frontend/src/components/player/NavigationMenu.tsx` - Side navigation (includes club/team info)
 
 ## 3.6 Leaderboard View
-- Team leaderboard display
+- **Scope Selector**: Toggle between Team and Club leaderboard views
+- Default to team scope
+- Team leaderboard: Shows only players from the same team
+- Club leaderboard: Shows all players from the same club (across all teams)
 - Top 3 podium visualization (special styling for 1st, 2nd, 3rd place)
 - Full rankings list below podium
 - Week selector dropdown
 - Current player highlighting (bright border/background)
-- Stats summary (team average, most improved, perfect weeks)
+- Stats summary: Team average vs Club average (based on selected scope)
+- Most improved, perfect weeks statistics
 
 **Files to create:**
-- `frontend/src/pages/LeaderboardView.tsx` - Leaderboard page
+- `frontend/src/pages/LeaderboardView.tsx` - Leaderboard page with scope selector
+- `frontend/src/components/leaderboard/ScopeSelector.tsx` - Team/Club toggle component
 - `frontend/src/components/leaderboard/Podium.tsx` - Top 3 display
 - `frontend/src/components/leaderboard/RankingsList.tsx` - Full rankings
 
@@ -110,14 +121,18 @@ Set up React application, create shared components, build API service layer, and
 
 ## 3.8 Content Pages (Player View)
 - Content list view (`/resource-list`) by category
+- Display both club-wide and team-specific content
+- Group or filter content by scope (club vs team)
+- Visual indicator for content scope (badge or icon)
 - Individual content page display (`/content-page/:slug`)
+- Display content scope indicator on individual pages
 - Mobile-responsive HTML content rendering
 - Client-side HTML sanitization with DOMPurify
 - Category filtering via navigation menu
 - Back navigation to return to previous page
 
 **Files to create:**
-- `frontend/src/pages/ContentListView.tsx` - List of content by category
-- `frontend/src/pages/ContentPageView.tsx` - Individual content page
+- `frontend/src/pages/ContentListView.tsx` - List of content by category (includes club/team content)
+- `frontend/src/pages/ContentPageView.tsx` - Individual content page (shows scope)
 - `frontend/src/components/content/ContentDisplay.tsx` - HTML content renderer
 

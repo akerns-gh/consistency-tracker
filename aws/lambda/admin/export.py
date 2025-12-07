@@ -8,12 +8,13 @@ import io
 import base64
 from datetime import datetime
 from shared.response import success_response, error_response, cors_preflight_response
-from shared.auth_utils import require_admin, get_team_id_from_user
+from shared.auth_utils import require_admin, get_club_id_from_user
 from shared.db_utils import (
     get_table,
     get_tracking_by_week,
     get_player_by_id,
     get_activities_by_team,
+    get_activities_by_club,
 )
 from shared.week_utils import get_week_dates
 
@@ -28,7 +29,10 @@ def lambda_handler(event, context):
     try:
         # Require admin authentication
         require_admin(event)
-        team_id = get_team_id_from_user(event) or "default-team"
+        club_id = get_club_id_from_user(event)
+        
+        if not club_id:
+            return error_response("User not associated with a club", status_code=403)
         
         # Extract weekId from path parameters
         week_id = event.get("pathParameters", {}).get("weekId")
@@ -44,15 +48,15 @@ def lambda_handler(event, context):
         
         # Get tracking records for the week
         tracking_records = get_tracking_by_week(week_id)
-        team_tracking = [t for t in tracking_records if t.get("teamId") == team_id]
+        club_tracking = [t for t in tracking_records if t.get("clubId") == club_id]
         
-        # Get activities
-        activities = get_activities_by_team(team_id, active_only=True)
-        activity_map = {a.get("activityId"): a.get("name") for a in activities}
+        # Get activities (club-wide + team-specific)
+        club_activities = get_activities_by_club(club_id, active_only=True)
+        activity_map = {a.get("activityId"): a.get("name") for a in club_activities}
         
         # Aggregate by player
         player_data = {}
-        for record in team_tracking:
+        for record in club_tracking:
             player_id = record.get("playerId")
             date = record.get("date")
             completed_activities = record.get("completedActivities", [])

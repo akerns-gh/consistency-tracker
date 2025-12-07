@@ -32,18 +32,42 @@ def lambda_handler(event, context):
         except Exception:
             return error_response("Invalid weekId format (expected YYYY-WW)", status_code=400)
         
-        # Get uniqueLink from query parameters (for context, not required)
+        # Get uniqueLink and scope from query parameters
         query_params = event.get("queryStringParameters") or {}
         unique_link = query_params.get("uniqueLink")
+        scope = query_params.get("scope", "team")  # Default to "team", can be "club"
         current_player_id = None
+        club_id = None
+        team_id = None
         
         if unique_link:
             player = get_player_by_unique_link(unique_link)
             if player:
                 current_player_id = player.get("playerId")
+                club_id = player.get("clubId")
+                team_id = player.get("teamId")
         
         # Get all tracking records for the week
         tracking_records = get_tracking_by_week(week_id)
+        
+        # Filter by scope if player context is available
+        if scope == "club" and club_id:
+            # Filter to players in same club
+            filtered_records = [
+                r for r in tracking_records 
+                if r.get("clubId") == club_id
+            ]
+        elif scope == "team" and team_id:
+            # Filter to players in same team
+            filtered_records = [
+                r for r in tracking_records 
+                if r.get("teamId") == team_id
+            ]
+        else:
+            # No filtering (show all) if no context or invalid scope
+            filtered_records = tracking_records
+        
+        tracking_records = filtered_records
         
         # Aggregate scores by player
         player_scores = {}
@@ -88,6 +112,7 @@ def lambda_handler(event, context):
                 "monday": week_dates[0].isoformat(),
                 "sunday": week_dates[1].isoformat(),
             },
+            "scope": scope,
             "leaderboard": leaderboard,
             "totalPlayers": len(leaderboard),
         }

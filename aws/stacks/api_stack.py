@@ -110,6 +110,7 @@ class ApiStack(Stack):
             "REFLECTION_TABLE": self.database_stack.reflection_table.table_name,
             "CONTENT_PAGES_TABLE": self.database_stack.content_pages_table.table_name,
             "TEAM_TABLE": self.database_stack.team_table.table_name,
+            "CLUB_TABLE": self.database_stack.club_table.table_name,
             "COGNITO_USER_POOL_ID": self.auth_stack.user_pool.user_pool_id,
             "COGNITO_REGION": self.region,
         }
@@ -133,6 +134,7 @@ class ApiStack(Stack):
         self.database_stack.reflection_table.grant_read_write_data(player_role)
         self.database_stack.content_pages_table.grant_read_data(player_role)
         self.database_stack.team_table.grant_read_data(player_role)
+        self.database_stack.club_table.grant_read_data(player_role)
 
         # Player endpoint functions
         player_functions_config = [
@@ -184,6 +186,7 @@ class ApiStack(Stack):
             "REFLECTION_TABLE": self.database_stack.reflection_table.table_name,
             "CONTENT_PAGES_TABLE": self.database_stack.content_pages_table.table_name,
             "TEAM_TABLE": self.database_stack.team_table.table_name,
+            "CLUB_TABLE": self.database_stack.club_table.table_name,
             "COGNITO_USER_POOL_ID": self.auth_stack.user_pool.user_pool_id,
             "COGNITO_REGION": self.region,
             "CONTENT_IMAGES_BUCKET": "consistency-tracker-content-images",  # Will be set from storage stack
@@ -208,6 +211,7 @@ class ApiStack(Stack):
         self.database_stack.reflection_table.grant_read_write_data(admin_role)
         self.database_stack.content_pages_table.grant_read_write_data(admin_role)
         self.database_stack.team_table.grant_read_write_data(admin_role)
+        self.database_stack.club_table.grant_read_write_data(admin_role)
 
         # Grant S3 permissions for image upload
         admin_role.add_to_policy(
@@ -221,6 +225,8 @@ class ApiStack(Stack):
         # Admin endpoint functions
         admin_functions_config = [
             ("check_role", "admin/check_role.py", "Verify user's admin role"),
+            ("clubs", "admin/clubs.py", "Club management (CRUD)"),
+            ("teams", "admin/teams.py", "Team management (CRUD)"),
             ("players", "admin/players.py", "Player management (CRUD)"),
             ("activities", "admin/activities.py", "Activity management (CRUD)"),
             ("content", "admin/content.py", "Content management (CRUD)"),
@@ -385,6 +391,58 @@ class ApiStack(Stack):
         check_role_resource.add_method(
             "GET",
             apigateway.LambdaIntegration(functions["check_role"]),
+            authorizer=authorizer,
+        )
+
+        # Club management endpoints
+        clubs_resource = admin_resource.add_resource("clubs")
+        clubs_resource.add_method(
+            "GET",
+            apigateway.LambdaIntegration(functions["clubs"]),
+            authorizer=authorizer,
+        )
+        clubs_resource.add_method(
+            "POST",
+            apigateway.LambdaIntegration(functions["clubs"]),
+            authorizer=authorizer,
+        )
+
+        # GET /admin/clubs/{clubId}
+        club_id_resource = clubs_resource.add_resource("{clubId}")
+        club_id_resource.add_method(
+            "GET",
+            apigateway.LambdaIntegration(functions["clubs"]),
+            authorizer=authorizer,
+        )
+        club_id_resource.add_method(
+            "PUT",
+            apigateway.LambdaIntegration(functions["clubs"]),
+            authorizer=authorizer,
+        )
+
+        # Team management endpoints
+        teams_resource = admin_resource.add_resource("teams")
+        teams_resource.add_method(
+            "GET",
+            apigateway.LambdaIntegration(functions["teams"]),
+            authorizer=authorizer,
+        )
+        teams_resource.add_method(
+            "POST",
+            apigateway.LambdaIntegration(functions["teams"]),
+            authorizer=authorizer,
+        )
+
+        # GET /admin/teams/{teamId}
+        team_id_resource = teams_resource.add_resource("{teamId}")
+        team_id_resource.add_method(
+            "GET",
+            apigateway.LambdaIntegration(functions["teams"]),
+            authorizer=authorizer,
+        )
+        team_id_resource.add_method(
+            "PUT",
+            apigateway.LambdaIntegration(functions["teams"]),
             authorizer=authorizer,
         )
 

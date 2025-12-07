@@ -60,19 +60,38 @@ def lambda_handler(event, context):
         if not player.get("isActive", True):
             return error_response("Player is inactive", status_code=403)
         
+        club_id = player.get("clubId")
         team_id = player.get("teamId")
         player_id = player.get("playerId")
         current_week_id = get_current_week_id()
         
-        # Get activities to validate activityId and calculate scores
+        if not club_id or not team_id:
+            return error_response("Player missing clubId or teamId", status_code=500)
+        
+        # Get club-wide activities
+        from shared.db_utils import get_activities_by_club
+        club_activities = get_activities_by_club(club_id, active_only=True)
+        
+        # Get team-specific activities
         activities = get_activities_by_team(team_id, active_only=True)
-        activity_map = {a.get("activityId"): a for a in activities}
+        
+        # Combine activities for validation
+        all_activities = club_activities + activities
+        activity_map = {a.get("activityId"): a for a in all_activities}
         
         if activity_id not in activity_map:
             return error_response("Activity not found", status_code=404)
         
         activity = activity_map[activity_id]
         point_value = activity.get("pointValue", 1)
+        
+        # Validate activity belongs to player's club (club-wide or team-specific)
+        activity_club_id = activity.get("clubId")
+        activity_team_id = activity.get("teamId")
+        if activity_club_id != club_id:
+            return error_response("Activity does not belong to player's club", status_code=403)
+        if activity_team_id and activity_team_id != team_id:
+            return error_response("Activity does not belong to player's team", status_code=403)
         
         # Get existing tracking record for this day
         tracking_records = get_tracking_by_player_week(player_id, current_week_id)
@@ -110,6 +129,7 @@ def lambda_handler(event, context):
             completed_activities=completed_activities,
             daily_score=daily_score,
             team_id=team_id,
+            club_id=club_id,
         )
         
         # Build response

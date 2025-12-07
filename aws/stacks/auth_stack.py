@@ -10,6 +10,7 @@ from aws_cdk import (
     CfnOutput,
     aws_cognito as cognito,
 )
+from aws_cdk.aws_cognito import CfnUserPool
 from constructs import Construct
 
 
@@ -73,6 +74,35 @@ class AuthStack(Stack):
             description="Administrators with full access to the Consistency Tracker",
             precedence=1,  # Lower number = higher precedence
         )
+
+        # Add custom attributes for club and team association
+        # Note: Custom attributes must be added before users are created
+        # Using CfnUserPool to add schema attributes
+        cfn_user_pool: CfnUserPool = self.user_pool.node.default_child
+        
+        # Get existing schema or create new list
+        existing_schema = list(cfn_user_pool.schema) if cfn_user_pool.schema else []
+        
+        # Add clubId custom attribute if not already present
+        # Note: Cognito automatically prefixes custom attributes with "custom:"
+        if not any(attr.get("name") == "clubId" for attr in existing_schema):
+            existing_schema.append({
+                "name": "clubId",
+                "attributeDataType": "String",
+                "mutable": True,
+                "required": False,
+            })
+        
+        # Add teamIds custom attribute (comma-separated list) if not already present
+        if not any(attr.get("name") == "teamIds" for attr in existing_schema):
+            existing_schema.append({
+                "name": "teamIds",
+                "attributeDataType": "String",
+                "mutable": True,
+                "required": False,
+            })
+        
+        cfn_user_pool.schema = existing_schema
 
         # Outputs
         CfnOutput(

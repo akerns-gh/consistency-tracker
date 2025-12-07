@@ -4,10 +4,11 @@ Team statistics and overview.
 """
 
 from shared.response import success_response, error_response, cors_preflight_response
-from shared.auth_utils import require_admin, get_team_id_from_user
+from shared.auth_utils import require_admin, get_club_id_from_user
 from shared.db_utils import (
     get_table,
     get_activities_by_team,
+    get_activities_by_club,
     get_tracking_by_week,
 )
 from shared.week_utils import get_current_week_id, get_week_id
@@ -24,31 +25,35 @@ def lambda_handler(event, context):
     try:
         # Require admin authentication
         require_admin(event)
-        team_id = get_team_id_from_user(event) or "default-team"
+        club_id = get_club_id_from_user(event)
+        
+        if not club_id:
+            return error_response("User not associated with a club", status_code=403)
         
         current_week_id = get_current_week_id()
         
-        # Get all players
+        # Get all players in club
         player_table = get_table("ConsistencyTracker-Players")
         players_response = player_table.query(
-            IndexName="teamId-index",
-            KeyConditionExpression="teamId = :teamId",
-            ExpressionAttributeValues={":teamId": team_id},
+            IndexName="clubId-index",
+            KeyConditionExpression="clubId = :clubId",
+            ExpressionAttributeValues={":clubId": club_id},
         )
         players = players_response.get("Items", [])
         active_players = [p for p in players if p.get("isActive", True)]
         
-        # Get activities
-        activities = get_activities_by_team(team_id, active_only=True)
+        # Get activities (club-wide + team-specific)
+        club_activities = get_activities_by_club(club_id, active_only=True)
+        activities = club_activities  # Can be filtered by team if needed
         
         # Get current week tracking
         tracking_records = get_tracking_by_week(current_week_id)
-        team_tracking = [t for t in tracking_records if t.get("teamId") == team_id]
+        club_tracking = [t for t in tracking_records if t.get("clubId") == club_id]
         
         # Calculate statistics
         # Aggregate scores by player for current week
         player_scores = {}
-        for record in team_tracking:
+        for record in club_tracking:
             player_id = record.get("playerId")
             daily_score = record.get("dailyScore", 0)
             

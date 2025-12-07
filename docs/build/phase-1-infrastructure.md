@@ -34,29 +34,35 @@ Set up the project structure, AWS CDK infrastructure, and core AWS services (Dyn
 - `aws/stacks/dns_stack.py` - Route 53 configuration
 
 ## 1.3 Database Stack (DynamoDB)
-- Create all 5 DynamoDB tables with proper schemas:
-  - Player table (playerId as partition key)
-  - Activity table (activityId as partition key)
-  - Tracking table (composite key: playerId#weekId#date)
-  - Reflection table (composite key: playerId#weekId)
-  - ContentPages table (pageId as partition key, teamId GSI)
+- Create all 7 DynamoDB tables with proper schemas:
+  - Club table (clubId as partition key) - NEW
+  - Team table (teamId as partition key, clubId GSI)
+  - Player table (playerId as partition key, clubId GSI, teamId GSI)
+  - Activity table (activityId as partition key, clubId GSI, teamId GSI)
+  - Tracking table (composite key: playerId#weekId#date, clubId GSI, teamId GSI)
+  - Reflection table (composite key: playerId#weekId, clubId GSI, teamId GSI)
+  - ContentPages table (pageId as partition key, clubId GSI, teamId GSI)
 - Configure Global Secondary Indexes (GSI) for efficient queries
 - Enable point-in-time recovery
 - Set on-demand billing mode
 
 **Key implementation:**
 - `aws/stacks/database_stack.py` - Define all tables with proper key schemas and GSIs
+- Club table is the foundation for multi-club support
+- All tables include clubId for primary data isolation
 
 ## 1.4 Authentication Stack (Cognito)
 - Create Cognito User Pool for coach/admin authentication
-- Configure password policy (min 8 chars, uppercase, lowercase, number)
+- Configure password policy (min 12 chars, uppercase, lowercase, number)
 - Set up email verification
 - Create app client for web application
 - Configure JWT token expiration (1 hour access, 30 day refresh)
 - Create Cognito User Group for administrators (e.g., "Admins")
 - Configure group-based role assignment (admin vs regular user)
-- Set up custom attributes or group membership to identify admin users
+- Add custom attributes for club and team association:
+  - `custom:clubId` (string, mutable) - Primary club association
+  - `custom:teamIds` (string, comma-separated, mutable, optional) - Specific teams
 
 **Key implementation:**
-- `aws/stacks/auth_stack.py` - Cognito User Pool with proper policies and admin user group
+- `aws/stacks/auth_stack.py` - Cognito User Pool with proper policies, admin user group, and custom attributes
 

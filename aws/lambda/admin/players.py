@@ -10,11 +10,11 @@ import json
 import uuid
 from datetime import datetime
 from shared.response import success_response, error_response, cors_preflight_response
-from shared.auth_utils import require_admin, get_team_id_from_user
+from shared.auth_utils import require_admin, get_club_id_from_user
 from shared.db_utils import (
     get_table,
     get_player_by_id,
-    get_activities_by_team,
+    get_team_by_id,
 )
 import secrets
 
@@ -29,7 +29,10 @@ def lambda_handler(event, context):
     try:
         # Require admin authentication
         user_info = require_admin(event)
-        team_id = get_team_id_from_user(event) or "default-team"
+        club_id = get_club_id_from_user(event)
+        
+        if not club_id:
+            return error_response("User not associated with a club", status_code=403)
         
         http_method = event.get("httpMethod")
         path_params = event.get("pathParameters") or {}
@@ -38,12 +41,12 @@ def lambda_handler(event, context):
         table = get_table("ConsistencyTracker-Players")
         
         if http_method == "GET":
-            # List all players
-            # Query by teamId using GSI
+            # List all players in coach's club
+            # Query by clubId using GSI
             response = table.query(
-                IndexName="teamId-index",
-                KeyConditionExpression="teamId = :teamId",
-                ExpressionAttributeValues={":teamId": team_id},
+                IndexName="clubId-index",
+                KeyConditionExpression="clubId = :clubId",
+                ExpressionAttributeValues={":clubId": club_id},
             )
             players = response.get("Items", [])
             
@@ -70,9 +73,21 @@ def lambda_handler(event, context):
             
             name = body.get("name")
             email = body.get("email", "")
+            team_id = body.get("teamId")
             
             if not name:
                 return error_response("Missing required field: name", status_code=400)
+            
+            if not team_id:
+                return error_response("Missing required field: teamId", status_code=400)
+            
+            # Validate team belongs to coach's club
+            team = get_team_by_id(team_id)
+            if not team:
+                return error_response("Team not found", status_code=404)
+            
+            if team.get("clubId") != club_id:
+                return error_response("Team not found or access denied", status_code=403)
             
             # Generate unique link (secure random token)
             unique_link = secrets.token_urlsafe(32)
@@ -86,7 +101,8 @@ def lambda_handler(event, context):
                 "name": name,
                 "email": email,
                 "uniqueLink": unique_link,
-                "teamId": team_id,
+                "clubId": club_id,  # Set from coach's club
+                "teamId": team_id,  # From request body (validated above)
                 "isActive": True,
                 "createdAt": now,
             }
@@ -109,6 +125,10 @@ def lambda_handler(event, context):
             existing = get_player_by_id(player_id)
             if not existing:
                 return error_response("Player not found", status_code=404)
+            
+            # Validate player belongs to coach's club
+            if existing.get("clubId") != club_id:
+                return error_response("Player not found or access denied", status_code=403)
             
             # Update allowed fields
             update_expression_parts = []
@@ -150,6 +170,10 @@ def lambda_handler(event, context):
             existing = get_player_by_id(player_id)
             if not existing:
                 return error_response("Player not found", status_code=404)
+            
+            # Validate player belongs to coach's club
+            if existing.get("clubId") != club_id:
+                return error_response("Player not found or access denied", status_code=403)
             
             # Update isActive flag
             table.update_item(

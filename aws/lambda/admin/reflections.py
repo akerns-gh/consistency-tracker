@@ -4,7 +4,7 @@ View all player reflections.
 """
 
 from shared.response import success_response, error_response, cors_preflight_response
-from shared.auth_utils import require_admin, get_team_id_from_user
+from shared.auth_utils import require_admin, get_club_id_from_user
 from shared.db_utils import (
     get_table,
     get_player_by_id,
@@ -21,7 +21,10 @@ def lambda_handler(event, context):
     try:
         # Require admin authentication
         require_admin(event)
-        team_id = get_team_id_from_user(event) or "default-team"
+        club_id = get_club_id_from_user(event)
+        
+        if not club_id:
+            return error_response("User not associated with a club", status_code=403)
         
         # Get weekId from query parameters (optional)
         query_params = event.get("queryStringParameters") or {}
@@ -30,22 +33,23 @@ def lambda_handler(event, context):
         reflection_table = get_table("ConsistencyTracker-Reflections")
         
         if week_id:
-            # Get reflections for specific week
-            # Scan with filter (GSI would be better, but we have teamId-index)
-            response = reflection_table.scan(
-                FilterExpression="weekId = :weekId AND teamId = :teamId",
+            # Get reflections for specific week in club
+            response = reflection_table.query(
+                IndexName="clubId-index",
+                KeyConditionExpression="clubId = :clubId",
+                FilterExpression="weekId = :weekId",
                 ExpressionAttributeValues={
+                    ":clubId": club_id,
                     ":weekId": week_id,
-                    ":teamId": team_id,
                 },
             )
             reflections = response.get("Items", [])
         else:
-            # Get all reflections for team
+            # Get all reflections for club
             response = reflection_table.query(
-                IndexName="teamId-index",
-                KeyConditionExpression="teamId = :teamId",
-                ExpressionAttributeValues={":teamId": team_id},
+                IndexName="clubId-index",
+                KeyConditionExpression="clubId = :clubId",
+                ExpressionAttributeValues={":clubId": club_id},
             )
             reflections = response.get("Items", [])
         

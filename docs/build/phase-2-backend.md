@@ -19,14 +19,14 @@ Develop all Lambda functions for player and admin endpoints, configure API Gatew
 - `cdk/lambda/shared/response.py` - API response formatting
 
 ## 2.2 Player Endpoints (No Auth Required)
-- `GET /player/{uniqueLink}` - Get player data and current week activities
-- `GET /player/{uniqueLink}/week/{weekId}` - Get specific week data
-- `GET /player/{uniqueLink}/progress` - Get aggregated progress statistics (for My Progress page)
-- `POST /player/{uniqueLink}/checkin` - Mark activity complete for a day
-- `PUT /player/{uniqueLink}/reflection` - Save/update weekly reflection
-- `GET /leaderboard/{weekId}` - Get leaderboard (validates uniqueLink in query)
-- `GET /content` - List all published content pages
-- `GET /content/{slug}` - Get specific content page by slug
+- `GET /player/{uniqueLink}` - Get player data and current week activities (returns clubId and teamId)
+- `GET /player/{uniqueLink}/week/{weekId}` - Get specific week data (returns clubId and teamId)
+- `GET /player/{uniqueLink}/progress` - Get aggregated progress statistics (returns clubId and teamId)
+- `POST /player/{uniqueLink}/checkin` - Mark activity complete for a day (validates activity belongs to player's club)
+- `PUT /player/{uniqueLink}/reflection` - Save/update weekly reflection (stores clubId and teamId)
+- `GET /leaderboard/{weekId}?scope=team|club` - Get leaderboard with scope parameter (team or club)
+- `GET /content?uniqueLink={uniqueLink}` - List all published content pages (club-wide + team-specific)
+- `GET /content/{slug}?uniqueLink={uniqueLink}` - Get specific content page by slug (checks both club-wide and team-specific)
 
 **Lambda functions to create:**
 - `cdk/lambda/get_player.py` - Get player data and current week
@@ -39,32 +39,37 @@ Develop all Lambda functions for player and admin endpoints, configure API Gatew
 - `cdk/lambda/get_content.py` - Get specific content page by slug
 
 ## 2.3 Admin Endpoints (Cognito Auth Required)
-- Player management: CRUD operations
-- Activity management: CRUD operations (including activity types: flyout/link, required days, goals)
-- Content management: CRUD, publish/unpublish, reorder
+- **Club management**: CRUD operations (restricted)
+- **Team management**: CRUD operations (requires clubId, validates access)
+- Player management: CRUD operations (filters by club, validates team belongs to club)
+- Activity management: CRUD operations (supports club-wide and team-specific, validates club access)
+- Content management: CRUD, publish/unpublish, reorder (supports club-wide and team-specific)
 - Image upload: Pre-signed S3 URL generation
-- Team overview and analytics (charts, reflection highlights)
-- Week management (advance week)
+- Club overview and analytics (charts, reflection highlights)
+- Week management (advance week for all teams in club)
 - Coach invitation (Cognito integration)
 - Navigation menu management (update navigation.json structure)
 - **User role verification**: Check if authenticated user has admin role (via Cognito groups)
-- **Authorization middleware**: Validate admin role before processing admin endpoint requests
+- **Authorization middleware**: Validate admin role and club access before processing admin endpoint requests
 
 **Lambda functions to create:**
-- `cdk/lambda/admin/players.py` - List, create, update, deactivate players
-- `cdk/lambda/admin/activities.py` - CRUD for activities
-- `cdk/lambda/admin/content.py` - CRUD for content pages
+- `cdk/lambda/admin/clubs.py` - Club CRUD operations (NEW)
+- `cdk/lambda/admin/teams.py` - Team CRUD operations (NEW)
+- `cdk/lambda/admin/players.py` - List, create, update, deactivate players (filters by club)
+- `cdk/lambda/admin/activities.py` - CRUD for activities (supports club-wide and team-specific)
+- `cdk/lambda/admin/content.py` - CRUD for content pages (supports club-wide and team-specific)
 - `cdk/lambda/admin/content_publish.py` - Publish/unpublish content
 - `cdk/lambda/admin/content_reorder.py` - Update display order
 - `cdk/lambda/admin/image_upload.py` - Generate pre-signed S3 URLs
-- `cdk/lambda/admin/overview.py` - Team statistics
-- `cdk/lambda/admin/export.py` - Export week data (CSV)
-- `cdk/lambda/admin/week_advance.py` - Advance to next week
-- `cdk/lambda/admin/reflections.py` - View all player reflections
+- `cdk/lambda/admin/overview.py` - Club statistics (filters by club)
+- `cdk/lambda/admin/export.py` - Export week data (CSV, filters by club)
+- `cdk/lambda/admin/week_advance.py` - Advance to next week (for all teams in club)
+- `cdk/lambda/admin/reflections.py` - View all player reflections (filters by club)
 - `cdk/lambda/admin/check_role.py` - Verify user's admin role (for frontend navigation)
 
 **Shared utilities:**
-- `cdk/lambda/shared/auth_utils.py` - Helper functions to extract user info from JWT, check Cognito group membership, verify admin role
+- `cdk/lambda/shared/auth_utils.py` - Helper functions to extract clubId from JWT, check Cognito group membership, verify admin role
+- `cdk/lambda/shared/db_utils.py` - Helper functions for club-aware queries (get_club_by_id, get_teams_by_club, get_players_by_club, etc.)
 
 ## 2.4 API Gateway Configuration
 - Create REST API Gateway
