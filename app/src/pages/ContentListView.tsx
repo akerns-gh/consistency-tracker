@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { listContent, getPlayer } from '../services/playerApi'
 import NavigationMenu from '../components/navigation/NavigationMenu'
 import Loading from '../components/ui/Loading'
 import Card from '../components/ui/Card'
 
 export default function ContentListView() {
-  const { uniqueLink } = useParams<{ uniqueLink: string }>()
   const [content, setContent] = useState<any[]>([])
   const [player, setPlayer] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -15,18 +14,16 @@ export default function ContentListView() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
 
   useEffect(() => {
-    if (!uniqueLink) return
-    
     loadData()
-  }, [uniqueLink])
+  }, [])
 
   const loadData = async () => {
     try {
       setLoading(true)
-      const playerData = await getPlayer(uniqueLink!)
+      const playerData = await getPlayer()
       setPlayer(playerData.player)
       
-      const contentData = await listContent(uniqueLink!)
+      const contentData = await listContent()
       setContent(contentData.content || [])
       setError(null)
     } catch (err: any) {
@@ -92,7 +89,7 @@ export default function ContentListView() {
             {filteredContent.map((page: any) => (
               <Link
                 key={page.pageId}
-                to={`/player/${uniqueLink}/content-page/${page.slug}`}
+                to={`/player/content-page/${page.slug}`}
                 className="block"
               >
                 <Card className="h-full hover:shadow-lg transition-shadow">

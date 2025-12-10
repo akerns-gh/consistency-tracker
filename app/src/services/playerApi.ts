@@ -31,6 +31,11 @@ export interface WeekData {
   activities: Activity[]
   dailyTracking: Record<string, DailyTracking>
   weeklyScore: number
+  reflection?: {
+    wentWell?: string
+    doBetter?: string
+    planForWeek?: string
+  }
 }
 
 export interface PlayerData {
@@ -94,38 +99,41 @@ export interface ContentPageDetail extends ContentPage {
 
 /**
  * Get player data and current week activities
+ * Uses JWT token to identify player
  */
-export async function getPlayer(uniqueLink: string): Promise<PlayerData> {
-  const response = await api.get(`/player/${uniqueLink}`)
+export async function getPlayer(): Promise<PlayerData> {
+  const response = await api.get('/player')
   return response.data.data
 }
 
 /**
  * Get specific week data for a player
+ * Uses JWT token to identify player
  */
-export async function getWeek(uniqueLink: string, weekId: string): Promise<WeekData & { clubId: string; teamId: string }> {
-  const response = await api.get(`/player/${uniqueLink}/week/${weekId}`)
+export async function getWeek(weekId: string): Promise<WeekData & { clubId: string; teamId: string }> {
+  const response = await api.get(`/player/week/${weekId}`)
   return response.data.data
 }
 
 /**
  * Get aggregated progress statistics
+ * Uses JWT token to identify player
  */
-export async function getProgress(uniqueLink: string): Promise<ProgressData> {
-  const response = await api.get(`/player/${uniqueLink}/progress`)
+export async function getProgress(): Promise<ProgressData> {
+  const response = await api.get('/player/progress')
   return response.data.data
 }
 
 /**
  * Mark activity complete for a day
+ * Uses JWT token to identify player
  */
 export async function checkIn(
-  uniqueLink: string,
   activityId: string,
   date: string,
   completed: boolean = true
 ): Promise<{ tracking: any; dailyScore: number; completedActivities: string[] }> {
-  const response = await api.post(`/player/${uniqueLink}/checkin`, {
+  const response = await api.post('/player/checkin', {
     activityId,
     date,
     completed,
@@ -135,15 +143,15 @@ export async function checkIn(
 
 /**
  * Save/update weekly reflection
+ * Uses JWT token to identify player
  */
 export async function saveReflection(
-  uniqueLink: string,
   weekId: string,
   wentWell: string,
   doBetter: string,
   planForWeek: string
 ): Promise<{ reflection: any }> {
-  const response = await api.put(`/player/${uniqueLink}/reflection`, {
+  const response = await api.put('/player/reflection', {
     weekId,
     wentWell,
     doBetter,
@@ -156,16 +164,14 @@ export async function saveReflection(
  * Get leaderboard for a week
  * @param weekId - Week ID in format YYYY-WW
  * @param scope - 'team' (default) or 'club'
- * @param uniqueLink - Player's unique link for context
+ * Uses JWT token for player context
  */
 export async function getLeaderboard(
   weekId: string,
-  uniqueLink: string,
   scope: 'team' | 'club' = 'team'
 ): Promise<LeaderboardData> {
   const response = await api.get(`/leaderboard/${weekId}`, {
     params: {
-      uniqueLink,
       scope,
     },
   })
@@ -174,25 +180,19 @@ export async function getLeaderboard(
 
 /**
  * List all published content pages
+ * Uses JWT token for player context
  */
-export async function listContent(uniqueLink: string): Promise<{ content: ContentPage[]; total: number }> {
-  const response = await api.get('/content', {
-    params: {
-      uniqueLink,
-    },
-  })
+export async function listContent(): Promise<{ content: ContentPage[]; total: number }> {
+  const response = await api.get('/content')
   return response.data.data
 }
 
 /**
  * Get specific content page by slug
+ * Uses JWT token for player context
  */
-export async function getContent(uniqueLink: string, slug: string): Promise<ContentPageDetail> {
-  const response = await api.get(`/content/${slug}`, {
-    params: {
-      uniqueLink,
-    },
-  })
+export async function getContent(slug: string): Promise<ContentPageDetail> {
+  const response = await api.get(`/content/${slug}`)
   return response.data.data
 }
 

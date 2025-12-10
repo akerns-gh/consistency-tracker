@@ -140,8 +140,10 @@ This script:
 
 1. Deploy infrastructure: `cdk deploy --all`
 2. Create initial admin user in Cognito User Pool (via AWS Console)
-3. Build and deploy frontend: `cd app && npm run build && cdk deploy StorageStack`
-4. Configure DNS in Route 53
+3. Deploy frontend: `./scripts/deploy-frontend.sh`
+   - This script builds the app, uploads to S3, and invalidates CloudFront cache
+   - Alternatively: `cd app && npm run build && aws s3 sync dist/ s3://consistency-tracker-frontend-us-east-1/ --delete`
+4. Configure DNS in Route 53 (if not already done)
 
 ### Data Protection
 

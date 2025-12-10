@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { getPlayer, getWeek, checkIn, Activity, DailyTracking } from '../services/playerApi'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { getPlayer, getWeek, checkIn, Activity } from '../services/playerApi'
 import NavigationMenu from '../components/navigation/NavigationMenu'
 import Loading from '../components/ui/Loading'
 import Button from '../components/ui/Button'
@@ -32,7 +32,6 @@ function getAdjacentWeekId(weekId: string, direction: 'prev' | 'next'): string {
 }
 
 export default function PlayerView() {
-  const { uniqueLink } = useParams<{ uniqueLink: string }>()
   const navigate = useNavigate()
   const [playerData, setPlayerData] = useState<any>(null)
   const [currentWeekId, setCurrentWeekId] = useState<string | null>(null)
@@ -43,21 +42,19 @@ export default function PlayerView() {
   const [flyoutActivity, setFlyoutActivity] = useState<{ name: string; content: string } | null>(null)
 
   useEffect(() => {
-    if (!uniqueLink) return
-    
     loadPlayerData()
-  }, [uniqueLink])
+  }, [])
 
   const loadPlayerData = async (weekId?: string) => {
     try {
       setLoading(true)
-      const data = await getPlayer(uniqueLink!)
+      const data = await getPlayer()
       const weekToLoad = weekId || data.currentWeek.weekId
       setCurrentWeekId(weekToLoad)
       
       // If loading a different week, fetch that week's data
       if (weekToLoad !== data.currentWeek.weekId) {
-        const weekData = await getWeek(uniqueLink!, weekToLoad)
+        const weekData = await getWeek(weekToLoad)
         setPlayerData({
           player: data.player,
           currentWeek: weekData
@@ -87,15 +84,13 @@ export default function PlayerView() {
       })
       setFlyoutOpen(true)
     } else if (activity.activityType === 'link' && activity.contentSlug) {
-      navigate(`/player/${uniqueLink}/content-page/${activity.contentSlug}`)
+      navigate(`/player/content-page/${activity.contentSlug}`)
     }
   }
 
   const handleCheckIn = async (activityId: string, date: string, completed: boolean) => {
-    if (!uniqueLink) return
-    
     try {
-      await checkIn(uniqueLink, activityId, date, completed)
+      await checkIn(activityId, date, completed)
       // Reload data to reflect changes
       await loadPlayerData()
     } catch (err: any) {
@@ -114,7 +109,7 @@ export default function PlayerView() {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-red-600 mb-4">Error</h1>
           <p className="text-gray-600 mb-4">{error}</p>
-          <Button onClick={loadPlayerData}>Retry</Button>
+          <Button onClick={() => loadPlayerData()}>Retry</Button>
         </div>
       </div>
     )
@@ -131,7 +126,6 @@ export default function PlayerView() {
   
   // Get dates for current week (simplified - would need proper date calculation)
   const today = new Date()
-  const currentDate = today.toISOString().split('T')[0]
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -179,19 +173,25 @@ export default function PlayerView() {
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleWeekNavigation('prev')}
-                disabled={loading}
-              >
-                ← Previous
-              </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.preventDefault()
+              handleWeekNavigation('prev')
+            }}
+            disabled={loading}
+          >
+            ← Previous
+          </Button>
               <h2 className="text-xl font-semibold text-gray-800">Week {currentWeek.weekId}</h2>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handleWeekNavigation('next')}
+                onClick={(e) => {
+                  e.preventDefault()
+                  handleWeekNavigation('next')
+                }}
                 disabled={loading}
               >
                 Next →
@@ -219,7 +219,6 @@ export default function PlayerView() {
                   {weekDays.map((day, idx) => {
                     const date = new Date(today)
                     date.setDate(today.getDate() - today.getDay() + 1 + idx)
-                    const dateStr = date.toISOString().split('T')[0]
                     return (
                       <th key={day} className="px-2 py-3 text-center text-xs font-semibold text-gray-700">
                         {day.substring(0, 3)}
@@ -268,7 +267,7 @@ export default function PlayerView() {
                       const isCompleted = tracking?.completedActivities?.includes(activity.activityId) || false
                       
                       return (
-                        <td key={day} className="px-2 py-3 text-center">
+                        <td key={`${activity.activityId}-${day}`} className="px-2 py-3 text-center">
                           <button
                             onClick={() => handleCheckIn(activity.activityId, dateStr, !isCompleted)}
                             className={`w-8 h-8 rounded transition-colors ${

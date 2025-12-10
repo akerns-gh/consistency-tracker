@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { getPlayer, getWeek, saveReflection } from '../services/playerApi'
 import NavigationMenu from '../components/navigation/NavigationMenu'
 import Loading from '../components/ui/Loading'
@@ -7,7 +6,6 @@ import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 
 export default function ReflectionView() {
-  const { uniqueLink } = useParams<{ uniqueLink: string }>()
   const [player, setPlayer] = useState<any>(null)
   const [weekData, setWeekData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -21,14 +19,12 @@ export default function ReflectionView() {
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
 
   useEffect(() => {
-    if (!uniqueLink) return
-    
     loadData()
-  }, [uniqueLink])
+  }, [])
 
   // Auto-save effect - saves every 30 seconds if there are changes
   useEffect(() => {
-    if (!uniqueLink || !weekData) return
+    if (!weekData) return
 
     // Don't auto-save if all fields are empty
     if (!wentWell && !doBetter && !planForWeek) return
@@ -37,7 +33,6 @@ export default function ReflectionView() {
       try {
         setAutoSaveStatus('saving')
         await saveReflection(
-          uniqueLink,
           weekData.weekId,
           wentWell,
           doBetter,
@@ -57,16 +52,16 @@ export default function ReflectionView() {
     }, 30000) // 30 seconds
 
     return () => clearInterval(autoSaveInterval)
-  }, [uniqueLink, weekData, wentWell, doBetter, planForWeek])
+  }, [weekData, wentWell, doBetter, planForWeek])
 
   const loadData = async () => {
     try {
       setLoading(true)
-      const playerData = await getPlayer(uniqueLink!)
+      const playerData = await getPlayer()
       setPlayer(playerData.player)
       
       const currentWeekId = playerData.currentWeek.weekId
-      const week = await getWeek(uniqueLink!, currentWeekId)
+      const week = await getWeek(currentWeekId)
       setWeekData(week)
       
       // Load existing reflection if available
@@ -83,12 +78,11 @@ export default function ReflectionView() {
   }
 
   const handleSave = async () => {
-    if (!uniqueLink || !weekData) return
+    if (!weekData) return
     
     try {
       setSaving(true)
       await saveReflection(
-        uniqueLink,
         weekData.weekId,
         wentWell,
         doBetter,

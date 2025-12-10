@@ -44,6 +44,132 @@ cdk --version
 cdk bootstrap aws://707406431671/us-east-1
 ```
 
+## Complete Deployment Order
+
+For a fresh deployment, follow these steps in order:
+
+### Step 1: Deploy Infrastructure (CDK Stacks)
+
+Deploy all AWS infrastructure using the automated script:
+
+```bash
+./aws/deploy.sh
+```
+
+Or manually:
+```bash
+cdk deploy --all
+```
+
+**Stack deployment order** (handled automatically by the script):
+1. `ConsistencyTracker-Database` - DynamoDB tables
+2. `ConsistencyTracker-Auth` - Cognito User Pool
+3. `ConsistencyTracker-API` - API Gateway & Lambda functions
+4. `ConsistencyTracker-DNS` - Route 53 & ACM certificates
+5. `ConsistencyTracker-Storage` - S3 buckets & CloudFront distributions
+
+**Note**: The DNS stack must deploy before Storage because Storage imports the certificate ARN from DNS.
+
+### Step 2: Configure CloudFront Certificates (Manual)
+
+After infrastructure deployment, configure CloudFront distributions with SSL certificates:
+
+See [configure_cloudfront_certificates.md](configure_cloudfront_certificates.md) for detailed steps.
+
+**Quick steps:**
+1. Add custom domain aliases to CloudFront distributions
+2. Attach ACM certificates to distributions
+3. Wait 10-15 minutes for distributions to deploy
+
+### Step 3: Create Admin User
+
+Create the first admin user in Cognito:
+
+```bash
+python aws/create_admin_user.py
+```
+
+Or via AWS Console:
+1. Go to AWS Console → Cognito → User Pools
+2. Select "ConsistencyTracker-AdminPool"
+3. Create a new user
+4. Add user to "Admins" group
+
+### Step 4: Deploy Frontend Application
+
+Build and deploy the React frontend:
+
+```bash
+./scripts/deploy-frontend.sh
+```
+
+This script:
+- Builds the React app (`npm run build`)
+- Uploads files to S3
+- Invalidates CloudFront cache
+- Verifies CloudFront origin configuration
+
+**Manual alternative:**
+```bash
+cd app
+npm run build
+aws s3 sync dist/ s3://consistency-tracker-frontend-us-east-1/ --delete
+aws cloudfront create-invalidation --distribution-id E11CYNQ91MDSZR --paths "/*"
+```
+
+### Step 5: Configure IP Allowlisting (Optional)
+
+If you want to restrict access to specific IP addresses:
+
+```bash
+./scripts/update-waf-ip-allowlist.sh
+```
+
+**When to run:**
+- After initial deployment to restrict access
+- When your IP address changes
+- To update the allowlist with new IPs
+
+**Note**: This sets WAF default action to "Block", so only your IPs can access the site.
+
+### Step 6: Post-Deployment Setup
+
+1. **Verify CloudFront origin configuration:**
+   ```bash
+   aws cloudfront get-distribution-config --id E11CYNQ91MDSZR --output json | \
+     jq '.DistributionConfig.Origins.Items[0] | {DomainName, S3OriginConfig}'
+   ```
+   Should use `s3.amazonaws.com` endpoint (not `s3-website-us-east-1.amazonaws.com`)
+
+2. **Create initial team data** (via admin dashboard):
+   - Default activities
+   - Activity configurations
+   - Content categories
+   - Navigation menu structure
+
+3. **Set up monitoring:**
+   - CloudWatch dashboards
+   - SNS alerts
+   - AWS Budget alerts
+
+### Summary: Quick Reference
+
+```bash
+# 1. Deploy infrastructure
+./aws/deploy.sh
+
+# 2. Configure CloudFront certificates (manual - see configure_cloudfront_certificates.md)
+
+# 3. Create admin user
+python aws/create_admin_user.py
+
+# 4. Deploy frontend
+./scripts/deploy-frontend.sh
+
+# 5. Configure IP allowlisting (optional)
+./scripts/update-waf-ip-allowlist.sh
+```
+
 ## Quick Deployment
 
 ### One-Command Deployment
@@ -422,15 +548,44 @@ This infrastructure deployment phase includes:
 
 **To Deploy Frontend Files:**
 
-After infrastructure deployment, upload your frontend build to the S3 bucket:
+After infrastructure deployment, build and upload your frontend application:
 
 ```bash
-# Build your frontend application first
-# Then upload to the frontend bucket
-aws s3 sync ./frontend/build s3://consistency-tracker-frontend-us-east-1/ --delete
+# Navigate to the app directory
+cd app
+
+# Build the React application
+npm run build
+
+# Upload to the S3 bucket
+aws s3 sync dist/ s3://consistency-tracker-frontend-us-east-1/ --delete
+
+# Invalidate CloudFront cache to serve new files immediately
+aws cloudfront create-invalidation \
+  --distribution-id E11CYNQ91MDSZR \
+  --paths "/*"
 ```
 
-The frontend will be accessible via CloudFront once files are uploaded.
+**Important Notes:**
+- The build output directory is `app/dist/` (not `build/`)
+- CloudFront cache invalidation takes 1-2 minutes to complete
+- After invalidation, the site will serve the new files immediately
+
+**Verify CloudFront Origin Configuration:**
+
+After deploying, verify that CloudFront is using the correct S3 origin with OAI:
+
+```bash
+aws cloudfront get-distribution-config --id E11CYNQ91MDSZR --output json | \
+  jq '.DistributionConfig.Origins.Items[0] | {DomainName, S3OriginConfig, OriginAccessIdentity}'
+```
+
+The origin should use:
+- **DomainName**: `consistency-tracker-frontend-us-east-1.s3.amazonaws.com` (NOT `s3-website-us-east-1.amazonaws.com`)
+- **S3OriginConfig**: Should be present (not null)
+- **OriginAccessIdentity**: Should reference the OAI (e.g., `origin-access-identity/cloudfront/E2FNHISS0EYDX0`)
+
+If the origin is using the website endpoint (`s3-website-us-east-1.amazonaws.com`), the distribution needs to be updated. See troubleshooting section below.
 
 ## Security Configuration
 
@@ -450,10 +605,13 @@ The infrastructure includes several security measures that are automatically con
 
 ### CloudFront WAF (Web Application Firewall)
 
+- **Geographic Restriction**: Only allows IP addresses from the United States
 - **Rate Limiting**: Blocks IPs exceeding 2,000 requests per 5 minutes
 - **AWS Managed Rules**: Common Rule Set protects against common exploits (SQL injection, XSS, etc.)
 - **CloudWatch Metrics**: All WAF events are logged for monitoring
+- **Custom Error Pages**: Blocked requests receive user-friendly error messages
 - Applied to both frontend and content distributions
+- **IP Allowlisting** (Optional): Additional IP allowlisting can be configured using the provided script (works alongside geo-blocking)
 
 ### S3 Bucket Security
 
@@ -501,6 +659,57 @@ aws cloudfront list-distributions \
 **Note**: CloudFront distributions must be disabled before deletion, which takes 15-20 minutes. You can disable multiple distributions at once, then delete them all after they're disabled.
 
 ## After Deployment
+
+### WAF Geographic Restriction
+
+The WAF is configured to only allow IP addresses from the United States. This is enforced by a GeoMatch rule with the highest priority (0).
+
+**What this means:**
+- ✅ IPs from the US are allowed
+- ❌ IPs from outside the US are blocked with a custom error page
+- The error page explains that access is restricted to US IPs
+
+**To verify geographic restriction:**
+```bash
+# Check WAF rules
+aws wafv2 get-web-acl \
+  --scope CLOUDFRONT \
+  --region us-east-1 \
+  --name "CloudFrontWebACL-vqZX7V0FN6hP" \
+  --id "e67a2f34-b2c8-497b-aa10-67ee0a9d0e4d" \
+  --output json | jq '.WebACL.Rules[] | select(.Name == "USOnlyGeoMatch")'
+```
+
+**To modify allowed countries:**
+Update the `country_codes` array in `aws/stacks/storage_stack.py` in the `USOnlyGeoMatch` rule, then redeploy:
+```bash
+cdk deploy ConsistencyTracker-Storage
+```
+
+### Configure IP Allowlisting (Optional - Additional Layer)
+
+If you want to add additional IP-based restrictions on top of geographic blocking, you can use the provided script:
+
+```bash
+./scripts/update-waf-ip-allowlist.sh
+```
+
+**Use cases:**
+- Allow specific IPs outside the US (if needed)
+- Add an additional layer of IP-based access control
+- Temporarily allow access from non-US IPs
+
+This script will:
+1. Automatically detect your current IPv4 and IPv6 addresses
+2. Create or update AWS WAF IP sets for both addresses
+3. Update the WAF Web ACL to allow traffic from these IPs (in addition to US geo-blocking)
+4. Set the default action to "Block" to enforce IP restriction
+
+**Important Notes:**
+- WAF rule changes take 2-3 minutes to propagate globally
+- The script preserves existing WAF rules (geo-blocking, rate limiting, managed rules)
+- Geographic restriction is the primary access control; IP allowlisting is additional
+- See `scripts/README.md` for detailed documentation
 
 ### Create First Admin User
 
@@ -611,4 +820,60 @@ Check CloudFormation console for detailed error messages. Common issues:
 - Insufficient IAM permissions
 - Resource name conflicts
 - Region-specific service availability
+
+### CloudFront 403 Errors After Frontend Deployment
+
+If you see `403 Forbidden` errors even after uploading frontend files:
+
+1. **Check CloudFront Origin Configuration:**
+   ```bash
+   aws cloudfront get-distribution-config --id E11CYNQ91MDSZR --output json | \
+     jq '.DistributionConfig.Origins.Items[0]'
+   ```
+
+2. **Verify Origin Uses S3 Endpoint (Not Website Endpoint):**
+   - ✅ Correct: `consistency-tracker-frontend-us-east-1.s3.amazonaws.com`
+   - ❌ Wrong: `consistency-tracker-frontend-us-east-1.s3-website-us-east-1.amazonaws.com`
+
+3. **If Using Website Endpoint, Update Distribution:**
+   The origin should use `S3OriginConfig` with `OriginAccessIdentity`, not `CustomOriginConfig`.
+   
+   This can happen if the distribution was manually modified or if there was a CDK synthesis issue. The CDK code correctly configures `origins.S3Origin` with OAI, so redeploying the Storage stack should fix it:
+   ```bash
+   cdk deploy ConsistencyTracker-Storage
+   ```
+
+4. **Verify S3 Bucket Policy:**
+   ```bash
+   aws s3api get-bucket-policy --bucket consistency-tracker-frontend-us-east-1 --output json | jq -r '.Policy' | jq '.'
+   ```
+   The policy should allow the CloudFront OAI to access the bucket.
+
+5. **Check WAF Configuration:**
+   If IP allowlisting is enabled, ensure your IP is in the allowlist:
+   ```bash
+   ./scripts/update-waf-ip-allowlist.sh
+   ```
+
+### Frontend Files Not Updating
+
+If changes to frontend files aren't appearing:
+
+1. **Rebuild the application:**
+   ```bash
+   cd app
+   npm run build
+   ```
+
+2. **Re-upload to S3:**
+   ```bash
+   aws s3 sync dist/ s3://consistency-tracker-frontend-us-east-1/ --delete
+   ```
+
+3. **Invalidate CloudFront cache:**
+   ```bash
+   aws cloudfront create-invalidation --distribution-id E11CYNQ91MDSZR --paths "/*"
+   ```
+
+4. **Wait for invalidation to complete** (1-2 minutes), then hard refresh your browser.
 

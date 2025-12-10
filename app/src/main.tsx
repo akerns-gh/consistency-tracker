@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import './config/aws-config' // Configure Amplify before App
 import App from './App.tsx'
 import './styles/globals.css'
 

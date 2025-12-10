@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getContent, getPlayer } from '../services/playerApi'
 import NavigationMenu from '../components/navigation/NavigationMenu'
@@ -7,7 +7,7 @@ import Card from '../components/ui/Card'
 import DOMPurify from 'dompurify'
 
 export default function ContentPageView() {
-  const { uniqueLink, slug } = useParams<{ uniqueLink: string; slug: string }>()
+  const { slug } = useParams<{ slug: string }>()
   const [content, setContent] = useState<any>(null)
   const [player, setPlayer] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -15,18 +15,18 @@ export default function ContentPageView() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
-    if (!uniqueLink || !slug) return
+    if (!slug) return
     
     loadData()
-  }, [uniqueLink, slug])
+  }, [slug])
 
   const loadData = async () => {
     try {
       setLoading(true)
-      const playerData = await getPlayer(uniqueLink!)
+      const playerData = await getPlayer()
       setPlayer(playerData.player)
       
-      const contentData = await getContent(uniqueLink!, slug!)
+      const contentData = await getContent(slug!)
       setContent(contentData)
       setError(null)
     } catch (err: any) {
@@ -47,7 +47,7 @@ export default function ContentPageView() {
           <h1 className="text-2xl font-bold text-red-600 mb-4">Error</h1>
           <p className="text-gray-600 mb-4">{error || 'Content not found'}</p>
           <Link
-            to={`/player/${uniqueLink}/resource-list`}
+            to="/player/resource-list"
             className="text-primary hover:underline"
           >
             Back to Resources
@@ -93,7 +93,7 @@ export default function ContentPageView() {
       <main className="max-w-4xl mx-auto px-4 py-6">
         <div className="mb-4">
           <Link
-            to={`/player/${uniqueLink}/resource-list`}
+            to="/player/resource-list"
             className="text-primary hover:underline"
           >
             ← Back to Resources

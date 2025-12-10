@@ -1,4 +1,18 @@
+import { fetchAuthSession } from 'aws-amplify/auth'
 import api from './api'
+
+/**
+ * Get current JWT token from Amplify
+ */
+export async function getAuthToken(): Promise<string | null> {
+  try {
+    const session = await fetchAuthSession()
+    return session.tokens?.idToken?.toString() || null
+  } catch (error) {
+    console.error('Error getting auth token:', error)
+    return null
+  }
+}
 
 /**
  * Check if user has admin role
@@ -6,7 +20,7 @@ import api from './api'
  */
 export async function checkAdminRole(): Promise<{ isAdmin: boolean }> {
   try {
-    const token = localStorage.getItem('authToken')
+    const token = await getAuthToken()
     if (!token) {
       return { isAdmin: false }
     }

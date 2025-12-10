@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { fetchAuthSession } from 'aws-amplify/auth'
 
 // Get API endpoint from environment or use default
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.repwarrior.net'
@@ -13,11 +14,17 @@ const api = axios.create({
 
 // Request interceptor
 api.interceptors.request.use(
-  (config) => {
-    // Add auth token if available
-    const token = localStorage.getItem('authToken')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+  async (config) => {
+    // Add auth token from Amplify if available
+    try {
+      const session = await fetchAuthSession()
+      const token = session.tokens?.idToken?.toString()
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`
+      }
+    } catch (error) {
+      // User not authenticated, continue without token
+      console.debug('No auth token available')
     }
     return config
   },
@@ -33,9 +40,11 @@ api.interceptors.response.use(
     if (error.response) {
       // Handle specific error codes
       if (error.response.status === 401) {
-        // Unauthorized - clear token and redirect to login
-        localStorage.removeItem('authToken')
-        // Could redirect to login page here
+        // Unauthorized - redirect to login
+        // Token is managed by Amplify, no need to clear localStorage
+        if (window.location.pathname !== '/login' && window.location.pathname !== '/admin/login') {
+          window.location.href = '/login'
+        }
       } else if (error.response.status === 403) {
         // Forbidden
         console.error('Access denied')

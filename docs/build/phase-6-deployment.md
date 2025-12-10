@@ -40,6 +40,7 @@ Comprehensive testing, performance optimization, security validation, deployment
 - Test CORS configuration
 - Test API rate limiting
 - Test image upload security (file type, size limits)
+- Test geographic restrictions (non-US IPs should be blocked with custom error page)
 
 ## 6.4 Performance Optimization
 - Optimize Lambda cold starts (provisioned concurrency if needed)
@@ -51,15 +52,30 @@ Comprehensive testing, performance optimization, security validation, deployment
 ## 6.5 Deployment
 - Deploy CDK stacks: `cdk deploy --all`
 - Create initial admin account in Cognito User Pool (via AWS Console)
-- Build React app: `npm run build`
-- Deploy frontend to S3 (automated via CDK BucketDeployment)
-- Configure custom domain in Route 53
+- Build React app: `cd app && npm run build`
+- Deploy frontend to S3:
+  ```bash
+  aws s3 sync app/dist/ s3://consistency-tracker-frontend-us-east-1/ --delete
+  ```
+- Invalidate CloudFront cache:
+  ```bash
+  aws cloudfront create-invalidation --distribution-id E11CYNQ91MDSZR --paths "/*"
+  ```
+- Verify CloudFront origin configuration (should use S3 endpoint with OAI, not website endpoint)
+- Configure custom domain in Route 53 (if not already done)
 - Verify SSL certificate is active
 - Test production deployment end-to-end
 
 ## 6.6 Post-Deployment Setup
 - Set up CloudWatch monitoring and alarms
 - Configure DynamoDB automated backups
+- Configure IP allowlisting (optional, for restricted access):
+  - Run the IP allowlist script: `./scripts/update-waf-ip-allowlist.sh`
+  - This script automatically detects your current IPv4 and IPv6 addresses
+  - Updates AWS WAF to only allow traffic from your IP addresses
+  - Sets default action to "Block" to enforce IP restriction
+  - **Note**: Run this script again if your IP address changes
+  - See `scripts/README.md` for detailed documentation
 - Create initial team data:
   - Default activities (Sleep, Hydration, Daily Wall Ball, 1-Mile Run, Bodyweight Training)
   - Activity configurations (types: flyout/link, required days, goals)

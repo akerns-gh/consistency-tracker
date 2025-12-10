@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import React from 'react'
+import { Link } from 'react-router-dom'
 import { Player } from '../../services/playerApi'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface NavigationMenuProps {
   player: Player
@@ -9,15 +10,20 @@ interface NavigationMenuProps {
 }
 
 export default function NavigationMenu({ player, isOpen, onClose }: NavigationMenuProps) {
-  const { uniqueLink } = useParams<{ uniqueLink: string }>()
+  const { isAdmin } = useAuth()
   
   const menuItems = [
-    { path: `/player/${uniqueLink}`, label: 'My Week', icon: '📅' },
-    { path: `/player/${uniqueLink}/progress`, label: 'My Progress', icon: '📊' },
-    { path: `/player/${uniqueLink}/leaderboard`, label: 'Leaderboard', icon: '🏆' },
-    { path: `/player/${uniqueLink}/reflection`, label: 'Reflection', icon: '💭' },
-    { path: `/player/${uniqueLink}/resource-list`, label: 'Resources', icon: '📚' },
+    { path: '/player', label: 'My Week', icon: '📅' },
+    { path: '/player/progress', label: 'My Progress', icon: '📊' },
+    { path: '/player/leaderboard', label: 'Leaderboard', icon: '🏆' },
+    { path: '/player/reflection', label: 'Reflection', icon: '💭' },
+    { path: '/player/resource-list', label: 'Resources', icon: '📚' },
   ]
+
+  // Add admin link if user is admin
+  if (isAdmin) {
+    menuItems.push({ path: '/admin', label: 'Admin Dashboard', icon: '⚙️' })
+  }
   
   return (
     <>

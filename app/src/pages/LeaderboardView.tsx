@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { getLeaderboard, getPlayer } from '../services/playerApi'
 import NavigationMenu from '../components/navigation/NavigationMenu'
 import Loading from '../components/ui/Loading'
@@ -7,7 +6,6 @@ import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 
 export default function LeaderboardView() {
-  const { uniqueLink } = useParams<{ uniqueLink: string }>()
   const [leaderboardData, setLeaderboardData] = useState<any>(null)
   const [player, setPlayer] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -17,20 +15,18 @@ export default function LeaderboardView() {
   const [weekId, setWeekId] = useState<string>('')
 
   useEffect(() => {
-    if (!uniqueLink) return
-    
     loadPlayer()
-  }, [uniqueLink])
+  }, [])
 
   useEffect(() => {
-    if (!uniqueLink || !weekId) return
+    if (!weekId) return
     
     loadLeaderboard()
-  }, [uniqueLink, weekId, scope])
+  }, [weekId, scope])
 
   const loadPlayer = async () => {
     try {
-      const data = await getPlayer(uniqueLink!)
+      const data = await getPlayer()
       setPlayer(data.player)
       // Set current week as default
       if (data.currentWeek?.weekId) {
@@ -44,7 +40,7 @@ export default function LeaderboardView() {
   const loadLeaderboard = async () => {
     try {
       setLoading(true)
-      const data = await getLeaderboard(weekId, uniqueLink!, scope)
+      const data = await getLeaderboard(weekId, scope)
       setLeaderboardData(data)
       setError(null)
     } catch (err: any) {

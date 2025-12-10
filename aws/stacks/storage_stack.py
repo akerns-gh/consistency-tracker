@@ -111,15 +111,140 @@ class StorageStack(Stack):
             "CloudFrontWebACL",
             scope="CLOUDFRONT",  # Required for CloudFront
             default_action=wafv2.CfnWebACL.DefaultActionProperty(
-                allow={}  # Allow by default, rules will block
+                block=wafv2.CfnWebACL.BlockActionProperty(
+                    custom_response=wafv2.CfnWebACL.CustomResponseProperty(
+                        response_code=403,
+                        custom_response_body_key="access-denied"
+                    )
+                )
             ),
+            custom_response_bodies={
+                "access-denied": wafv2.CfnWebACL.CustomResponseBodyProperty(
+                    content_type="TEXT_HTML",
+                    content='''<!DOCTYPE html>
+<html>
+<head>
+    <title>Access Denied</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            text-align: center;
+            padding: 50px 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #d32f2f;
+            margin-bottom: 20px;
+            font-size: 28px;
+        }
+        p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">🚫</div>
+        <h1>Access Denied</h1>
+        <p>Access to this site is restricted to IP addresses originating from the United States.</p>
+        <p>If you believe this is an error, please contact the administrator.</p>
+    </div>
+</body>
+</html>'''
+                ),
+                "rate-limit-exceeded": wafv2.CfnWebACL.CustomResponseBodyProperty(
+                    content_type="TEXT_HTML",
+                    content='''<!DOCTYPE html>
+<html>
+<head>
+    <title>Rate Limit Exceeded</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            text-align: center;
+            padding: 50px 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #f57c00;
+            margin-bottom: 20px;
+            font-size: 28px;
+        }
+        p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">⏱️</div>
+        <h1>Rate Limit Exceeded</h1>
+        <p>You have made too many requests. Please try again later.</p>
+    </div>
+</body>
+</html>'''
+                )
+            },
             visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
                 cloud_watch_metrics_enabled=True,
                 metric_name="ConsistencyTrackerWebACL",
                 sampled_requests_enabled=True,
             ),
-            # Add rate limiting rule to prevent DDoS
+            # WAF rules in priority order (lower number = higher priority)
             rules=[
+                # Geographic restriction: Only allow US IP addresses
+                wafv2.CfnWebACL.RuleProperty(
+                    name="USOnlyGeoMatch",
+                    priority=0,
+                    statement=wafv2.CfnWebACL.StatementProperty(
+                        geo_match_statement=wafv2.CfnWebACL.GeoMatchStatementProperty(
+                            country_codes=["US"]  # Only allow US IP addresses
+                        )
+                    ),
+                    action=wafv2.CfnWebACL.RuleActionProperty(
+                        allow={}  # Allow requests from US
+                    ),
+                    visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                        cloud_watch_metrics_enabled=True,
+                        metric_name="USOnlyGeoMatch",
+                        sampled_requests_enabled=True,
+                    ),
+                ),
+                # Rate limiting rule to prevent DDoS
                 wafv2.CfnWebACL.RuleProperty(
                     name="RateLimitRule",
                     priority=1,
@@ -130,7 +255,12 @@ class StorageStack(Stack):
                         )
                     ),
                     action=wafv2.CfnWebACL.RuleActionProperty(
-                        block={}  # Block requests exceeding rate limit
+                        block=wafv2.CfnWebACL.BlockActionProperty(
+                            custom_response=wafv2.CfnWebACL.CustomResponseProperty(
+                                response_code=429,
+                                custom_response_body_key="rate-limit-exceeded"
+                            )
+                        )
                     ),
                     visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
                         cloud_watch_metrics_enabled=True,
