@@ -40,12 +40,16 @@ auth_stack = AuthStack(
 )
 
 # API Stack - API Gateway and Lambda functions (Phase 2)
+# Note: Custom domain will be configured after DNS stack creates certificate
+# For now, deploy without custom domain to get API working
 api_stack = ApiStack(
     app,
     "ConsistencyTracker-API",
     database_stack=database_stack,
     auth_stack=auth_stack,
     domain_name=DOMAIN_NAME,  # Pass domain name for CORS configuration
+    # certificate_arn will be added after DNS stack creates certificate
+    # certificate_arn="arn:aws:acm:us-east-1:707406431671:certificate/98d1bf1b-dfd3-45bb-82aa-176aedd2babe",  # Wildcard cert covers api.repwarrior.net
     env=cdk.Environment(
         account=app.node.try_get_context("account") or None,
         region=AWS_REGION,
@@ -85,8 +89,8 @@ storage_stack = StorageStack(
     description="S3 buckets and CloudFront distribution",
 )
 
-# Now add Route 53 records to DNS stack (after Storage is created)
-dns_stack.add_route53_records(storage_stack)
+# Now add Route 53 records to DNS stack (after Storage and API are created)
+dns_stack.add_route53_records(storage_stack, api_stack)
 
 app.synth()
 

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { signIn, signOut, getCurrentUser, confirmSignIn } from 'aws-amplify/auth'
+import { signIn, signOut, getCurrentUser, confirmSignIn, fetchAuthSession } from 'aws-amplify/auth'
 import { checkAdminRole } from '../services/authApi'
 
 interface User {
@@ -81,8 +81,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return
       }
       
-      // Wait a moment for session to be established
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Wait for session to be established - retry until we have a valid token
+      let sessionEstablished = false
+      let retries = 0
+      const maxRetries = 10
+      
+      while (!sessionEstablished && retries < maxRetries) {
+        try {
+          const session = await fetchAuthSession()
+          if (session.tokens?.idToken) {
+            sessionEstablished = true
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 200))
+            retries++
+          }
+        } catch (error) {
+          await new Promise(resolve => setTimeout(resolve, 200))
+          retries++
+        }
+      }
       
       // Get user details after successful login
       const currentUser = await getCurrentUser()
@@ -94,7 +111,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsAuthenticated(true)
       setRequiresNewPassword(false)
       
-      // Check admin role
+      // Check admin role (this will fail gracefully if user is not admin)
       await checkRole()
     } catch (error: any) {
       const errorMessage = error.message || error.name || 'Login failed'
@@ -107,8 +124,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Confirm sign-in with new password
       await confirmSignIn({ challengeResponse: newPassword })
       
-      // Wait for session to be established
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Wait for session to be established - retry until we have a valid token
+      let sessionEstablished = false
+      let retries = 0
+      const maxRetries = 10
+      
+      while (!sessionEstablished && retries < maxRetries) {
+        try {
+          const session = await fetchAuthSession()
+          if (session.tokens?.idToken) {
+            sessionEstablished = true
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 200))
+            retries++
+          }
+        } catch (error) {
+          await new Promise(resolve => setTimeout(resolve, 200))
+          retries++
+        }
+      }
       
       // Get user details
       const currentUser = await getCurrentUser()
@@ -121,7 +155,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setRequiresNewPassword(false)
       setPendingEmail('')
       
-      // Check admin role
+      // Check admin role (this will fail gracefully if user is not admin)
       await checkRole()
     } catch (error: any) {
       const errorMessage = error.message || error.name || 'Failed to change password'

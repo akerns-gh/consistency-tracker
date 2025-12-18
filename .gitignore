@@ -65,5 +65,8 @@ cdk.context.json
 # AWS
 .aws-sam/
 
+# Lambda layer build artifacts (installed deps)
+aws/lambda/layer/python/python/
+
 # Custom files
 .condarc

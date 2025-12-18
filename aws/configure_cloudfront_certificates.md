@@ -2,7 +2,7 @@
 
 > **When to use this guide**: Use this document when you need to configure or verify CloudFront certificates and custom domain aliases. This is a focused, step-by-step guide with current status information. For complete deployment documentation, see [DEPLOYMENT_README.md](DEPLOYMENT_README.md).
 
-## Current Status
+## Current Status (Note: this guide is now optional)
 
 **Route 53 Records**: ✅ All configured correctly
 - `repwarrior.net` → Frontend distribution
@@ -20,6 +20,14 @@ arn:aws:acm:us-east-1:707406431671:certificate/98d1bf1b-dfd3-45bb-82aa-176aedd2b
 ```
 
 ## Configuration Steps
+
+> **Update**: This is now automated. Prefer running:
+>
+> ```bash
+> python aws/post_deploy_configure_domains.py --wait
+> ```
+>
+> This guide is kept for reference if you prefer using the AWS Console.
 
 ### Step 1: Configure Frontend Distribution (E11CYNQ91MDSZR)
 

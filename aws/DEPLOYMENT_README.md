@@ -76,10 +76,17 @@ After infrastructure deployment, configure CloudFront distributions with SSL cer
 
 See [configure_cloudfront_certificates.md](configure_cloudfront_certificates.md) for detailed steps.
 
-**Quick steps:**
-1. Add custom domain aliases to CloudFront distributions
-2. Attach ACM certificates to distributions
-3. Wait 10-15 minutes for distributions to deploy
+**Update (Automated):**
+These steps are now automated by `aws/post_deploy_configure_domains.py` and are run automatically at the end of `./aws/deploy.sh`:
+
+- CloudFront aliases + ACM cert attachment (frontend + content)
+- API Gateway custom domain + Route53 alias (TLS **1.2**)
+
+You can also run it manually (safe/idempotent):
+
+```bash
+python aws/post_deploy_configure_domains.py --wait
+```
 
 ### Step 3: Create Admin User
 
@@ -134,7 +141,7 @@ If you want to restrict access to specific IP addresses:
 
 ### Step 6: Post-Deployment Setup
 
-1. **Verify CloudFront origin configuration:**
+1. **Verify CloudFront origin configuration (optional):**
    ```bash
    aws cloudfront get-distribution-config --id E11CYNQ91MDSZR --output json | \
      jq '.DistributionConfig.Origins.Items[0] | {DomainName, S3OriginConfig}'
@@ -148,6 +155,16 @@ If you want to restrict access to specific IP addresses:
    - Navigation menu structure
 
 3. **Set up monitoring:**
+4. **(Optional) Seed data from CSV** (separate script):
+
+```bash
+python aws/seed_from_csv.py \
+  --clubs seed/clubs.csv \
+  --teams seed/teams.csv \
+  --players seed/players.csv \
+  --activities seed/activities.csv \
+  --content-pages seed/content_pages.csv
+```
    - CloudWatch dashboards
    - SNS alerts
    - AWS Budget alerts

@@ -25,10 +25,33 @@ export async function getClubs(): Promise<{ clubs: Club[]; total: number }> {
 }
 
 /**
+ * Create a new club (bootstrap)
+ */
+export async function createClub(data: {
+  clubName: string
+  settings?: Record<string, any>
+}): Promise<{ club: Club }> {
+  const response = await api.post('/admin/clubs', data)
+  return response.data.data
+}
+
+/**
  * Get teams in coach's club
  */
 export async function getTeams(): Promise<{ teams: Team[]; total: number }> {
   const response = await api.get('/admin/teams')
+  return response.data.data
+}
+
+/**
+ * Create a new team (in coach's club)
+ */
+export async function createTeam(data: {
+  teamName: string
+  coachName?: string
+  settings?: Record<string, any>
+}): Promise<{ team: Team }> {
+  const response = await api.post('/admin/teams', data)
   return response.data.data
 }
 

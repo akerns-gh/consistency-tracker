@@ -118,6 +118,54 @@ def install_dependencies(venv_path):
         sys.exit(1)
     print("✅ Dependencies installed")
 
+def build_lambda_layer_dependencies(venv_path):
+    """
+    Build the Lambda layer site-packages into aws/lambda/layer/python/python/.
+
+    This directory should NOT be committed to git (it's now ignored). It is rebuilt
+    during deployment so the Lambda layer contains Flask/serverless-wsgi/etc.
+    """
+    if os.environ.get("SKIP_LAYER_BUILD", "").lower() in ("1", "true", "yes"):
+        print("\n⏭️  Skipping Lambda layer dependency build (SKIP_LAYER_BUILD set)")
+        return True
+
+    aws_dir = Path(__file__).parent
+    layer_dir = aws_dir / "lambda" / "layer" / "python"
+    req_file = layer_dir / "requirements.txt"
+    target_dir = layer_dir / "python"
+
+    if not req_file.exists():
+        print(f"⚠️  Lambda layer requirements not found at {req_file} (skipping)")
+        return True
+
+    # Determine python path based on OS
+    if os.name == 'nt':  # Windows
+        python_path = venv_path / "Scripts" / "python"
+    else:  # Unix-like
+        python_path = venv_path / "bin" / "python"
+
+    print("\n📦 Building Lambda layer dependencies...")
+    print(f"   Requirements: {req_file}")
+    print(f"   Target: {target_dir}")
+
+    # Clean target to avoid stale packages
+    if target_dir.exists():
+        import shutil
+        shutil.rmtree(target_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    cmd = (
+        f"\"{python_path}\" -m pip install --upgrade "
+        f"-r \"{req_file}\" -t \"{target_dir}\" --no-cache-dir"
+    )
+    ok = run_command(cmd, cwd=aws_dir, timeout=1800, check=True)
+    if not ok:
+        print("❌ Failed to build Lambda layer dependencies")
+        return False
+
+    print("✅ Lambda layer dependencies built")
+    return True
+
 def run_command(command, cwd=None, timeout=300, check=True):
     """Run a command with error handling"""
     print(f"\n🔄 Running: {command}")
@@ -400,6 +448,10 @@ def main():
     
     # Step 3: Install dependencies
     install_dependencies(venv_path)
+
+    # Step 3.5: Build Lambda layer dependencies (aws/lambda/layer/python/python/)
+    if not build_lambda_layer_dependencies(venv_path):
+        sys.exit(1)
     
     # Step 4: Bootstrap CDK
     bootstrap_cdk(venv_path)
@@ -425,6 +477,27 @@ def main():
     if success:
         verify_deployment()
     
+    # Step 8: Post-deploy configuration (CloudFront certs/aliases + API custom domain)
+    # This replaces previously manual console steps.
+    if success:
+        print("\n🔧 Post-deploy configuration (domains/certificates)...")
+        aws_dir = Path(__file__).parent
+        post_script = aws_dir / "post_deploy_configure_domains.py"
+        if post_script.exists():
+            # Run idempotently; safe to re-run.
+            # Note: Requires AWS permissions to update CloudFront/APIGW/Route53.
+            if not run_command(
+                f"{sys.executable} {post_script} --wait",
+                cwd=aws_dir,
+                timeout=1800,
+                check=True,
+            ):
+                print("❌ Post-deploy configuration failed. You can re-run manually:")
+                print(f"   python aws/post_deploy_configure_domains.py --wait")
+                success = False
+        else:
+            print("⚠️  post_deploy_configure_domains.py not found; skipping.")
+    
     # Summary
     elapsed = datetime.now() - start_time
     print("\n" + "=" * 60)
@@ -444,6 +517,7 @@ def main():
         print("      - Frontend distribution domain")
         print("      - Content distribution domain (content.repwarrior.net)")
         print("      - Route 53 records for repwarrior.net and subdomains")
+        print("   4. (Optional) Seed initial data from CSV (clubs/teams/players/activities/content)")
     else:
         print("❌ Deployment failed!")
         print("📝 Troubleshooting:")

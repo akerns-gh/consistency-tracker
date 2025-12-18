@@ -21,10 +21,18 @@ api.interceptors.request.use(
       const token = session.tokens?.idToken?.toString()
       if (token) {
         config.headers.Authorization = `Bearer ${token}`
+      } else {
+        // If we're trying to access a protected endpoint but have no token, log it
+        if (config.url && !config.url.includes('/login') && !config.url.includes('/public')) {
+          console.warn('API request made without authentication token:', config.url)
+        }
       }
     } catch (error) {
       // User not authenticated, continue without token
-      console.debug('No auth token available')
+      // Only log if it's not a public endpoint
+      if (config.url && !config.url.includes('/login') && !config.url.includes('/public')) {
+        console.debug('No auth token available for:', config.url)
+      }
     }
     return config
   },
