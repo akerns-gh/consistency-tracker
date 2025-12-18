@@ -6,17 +6,20 @@ Comprehensive testing, performance optimization, security validation, deployment
 **Estimated Time:** 6-8 hours
 
 ## 6.1 Backend Testing
-- Test all Lambda functions with sample data
+- Test all Flask application endpoints with sample data
 - Test DynamoDB operations (CRUD)
 - Test HTML sanitization with malicious inputs
 - Test image upload flow
 - Test Cognito authentication flow
+- Test Flask authentication decorators (`@require_admin`, `@require_club`, etc.)
 - Load testing with multiple concurrent users
 
 **Testing approach:**
 - Manual testing with Postman/curl
-- Unit tests for Lambda functions (optional)
+- Test both Flask applications: `player_app.py` and `admin_app.py`
+- Unit tests for Flask routes (optional)
 - Integration tests for API endpoints
+- Verify proxy integration works correctly with API Gateway
 
 ## 6.2 Frontend Testing
 - Test player flow: unique link access, check-in, reflections

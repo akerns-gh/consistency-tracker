@@ -63,6 +63,6 @@ Implement the content management system with WYSIWYG editor, image upload, HTML 
 - Content Security Policy headers
 
 **Key implementation:**
-- `cdk/lambda/shared/html_sanitizer.py` - Server-side sanitization
+- `aws/lambda/shared/html_sanitizer.py` - Server-side sanitization (used by Flask apps)
 - `frontend/src/utils/sanitizeHtml.ts` - Client-side sanitization wrapper
 

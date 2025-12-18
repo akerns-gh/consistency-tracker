@@ -50,12 +50,13 @@ class StorageStack(Stack):
             self._certificate_arn = None
 
         # S3 bucket for React frontend hosting
+        # Note: Do NOT use website configuration - use REST endpoint with OAI instead
         self.frontend_bucket = s3.Bucket(
             self,
             "FrontendBucket",
             bucket_name="consistency-tracker-frontend-us-east-1",
-            website_index_document="index.html",
-            website_error_document="index.html",  # For React routing
+            # Removed website_index_document and website_error_document
+            # CloudFront will handle routing with error responses configured below
             public_read_access=False,  # Private bucket, accessed via CloudFront
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             removal_policy=RemovalPolicy.RETAIN,  # Retain on stack deletion

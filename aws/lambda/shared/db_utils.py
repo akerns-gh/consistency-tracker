@@ -51,6 +51,21 @@ def get_player_by_unique_link(unique_link: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def get_player_by_email(email: str) -> Optional[Dict[str, Any]]:
+    """Get a player by email (requires scan, email should be indexed in production)."""
+    try:
+        table = get_table(PLAYER_TABLE)
+        response = table.scan(
+            FilterExpression="email = :email",
+            ExpressionAttributeValues={":email": email},
+        )
+        items = response.get("Items", [])
+        return items[0] if items else None
+    except ClientError as e:
+        print(f"Error getting player by email {email}: {e}")
+        return None
+
+
 def get_activities_by_team(team_id: str, active_only: bool = True) -> List[Dict[str, Any]]:
     """Get all activities for a team, optionally filtered to active only."""
     try:

@@ -14,7 +14,9 @@ from aws_cdk import (
     aws_apigateway as apigateway,
     aws_iam as iam,
     aws_logs as logs,
+    aws_certificatemanager as acm,
 )
+from aws_cdk.aws_apigateway import CfnGatewayResponse
 from constructs import Construct
 from stacks.database_stack import DatabaseStack
 from stacks.auth_stack import AuthStack
@@ -30,6 +32,7 @@ class ApiStack(Stack):
         database_stack: DatabaseStack,
         auth_stack: AuthStack,
         domain_name: str = None,
+        certificate_arn: str = None,
         **kwargs
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -40,6 +43,7 @@ class ApiStack(Stack):
         # Store references
         self.database_stack = database_stack
         self.auth_stack = auth_stack
+        self.certificate_arn = certificate_arn
 
         # Get Lambda code directory
         lambda_dir = Path(__file__).parent.parent / "lambda"
@@ -47,31 +51,37 @@ class ApiStack(Stack):
         # Create Lambda layer for shared dependencies
         layer = self._create_lambda_layer(lambda_dir)
 
-        # Create shared Lambda code asset (shared utilities)
-        shared_code = lambda_.Code.from_asset(str(lambda_dir / "shared"))
 
-        # Create Lambda functions for player endpoints (no auth)
-        player_functions = self._create_player_functions(
-            lambda_dir, shared_code, layer
+        # Create Lambda function for player Flask app
+        player_function = self._create_player_function(
+            lambda_dir, layer
         )
 
-        # Create Lambda functions for admin endpoints (with auth)
-        admin_functions = self._create_admin_functions(
-            lambda_dir, shared_code, layer
+        # Create Lambda function for admin Flask app
+        admin_function = self._create_admin_function(
+            lambda_dir, layer
         )
 
         # Create API Gateway REST API
         api = self._create_api_gateway(auth_stack)
 
-        # Create Cognito authorizer for admin endpoints
+        # Add Gateway Responses with CORS headers for all error responses
+        self._add_gateway_responses(api)
+
+        # Create Cognito authorizer (shared between admin and player endpoints)
         authorizer = self._create_cognito_authorizer(api, auth_stack)
 
-        # Configure player endpoints (no auth)
-        self._configure_player_endpoints(api, player_functions)
+        # Configure player endpoints (with optional Cognito auth) - proxy all to player Flask app
+        self._configure_player_endpoints(api, player_function, authorizer)
 
-        # Configure admin endpoints (with Cognito auth)
-        self._configure_admin_endpoints(api, admin_functions, authorizer)
+        # Configure admin endpoints (with Cognito auth) - proxy all to admin Flask app
+        self._configure_admin_endpoints(api, admin_function, authorizer)
 
+        # Create custom domain for api.repwarrior.net if certificate is provided
+        self.custom_domain = None
+        if certificate_arn and domain_name:
+            self.custom_domain = self._create_custom_domain(api, domain_name, certificate_arn)
+        
         # Output API endpoint
         CfnOutput(
             self,
@@ -80,6 +90,16 @@ class ApiStack(Stack):
             description="API Gateway endpoint URL",
             export_name="ConsistencyTracker-ApiEndpoint",
         )
+        
+        # Output custom domain if created
+        if self.custom_domain:
+            CfnOutput(
+                self,
+                "ApiCustomDomainUrl",
+                value=f"https://api.{domain_name}",
+                description="API Gateway custom domain URL",
+                export_name="ConsistencyTracker-ApiCustomDomain",
+            )
 
     def _create_lambda_layer(self, lambda_dir: Path) -> lambda_.LayerVersion:
         """Create Lambda layer with Python dependencies."""
@@ -90,19 +110,16 @@ class ApiStack(Stack):
             "SharedLayer",
             code=lambda_.Code.from_asset(str(layer_dir)),
             compatible_runtimes=[lambda_.Runtime.PYTHON_3_11],
-            description="Shared dependencies (boto3, bleach, python-jose)",
+            description="Shared dependencies (boto3, bleach, python-jose, flask, serverless-wsgi)",
         )
 
-    def _create_player_functions(
+    def _create_player_function(
         self,
         lambda_dir: Path,
-        shared_code: lambda_.Code,
         layer: lambda_.LayerVersion,
-    ) -> dict:
-        """Create Lambda functions for player endpoints."""
-        functions = {}
-
-        # Common environment variables
+    ) -> lambda_.Function:
+        """Create Lambda function for player Flask app."""
+        # Environment variables
         env_vars = {
             "PLAYER_TABLE": self.database_stack.player_table.table_name,
             "ACTIVITY_TABLE": self.database_stack.activity_table.table_name,
@@ -113,9 +130,10 @@ class ApiStack(Stack):
             "CLUB_TABLE": self.database_stack.club_table.table_name,
             "COGNITO_USER_POOL_ID": self.auth_stack.user_pool.user_pool_id,
             "COGNITO_REGION": self.region,
+            "STRIP_STAGE_PATH": "yes",  # Strip /prod from paths when using direct API Gateway URL
         }
 
-        # Common IAM role for player functions
+        # IAM role for player function
         player_role = iam.Role(
             self,
             "PlayerLambdaRole",
@@ -136,49 +154,34 @@ class ApiStack(Stack):
         self.database_stack.team_table.grant_read_data(player_role)
         self.database_stack.club_table.grant_read_data(player_role)
 
-        # Player endpoint functions
-        player_functions_config = [
-            ("get_player", "get_player.py", "Get player data and current week"),
-            ("get_week", "get_week.py", "Get specific week data"),
-            ("get_progress", "get_progress.py", "Get aggregated progress statistics"),
-            ("checkin", "checkin.py", "Mark activity complete"),
-            ("save_reflection", "save_reflection.py", "Save/update weekly reflection"),
-            ("get_leaderboard", "get_leaderboard.py", "Get leaderboard for a week"),
-            ("list_content", "list_content.py", "List all published content pages"),
-            ("get_content", "get_content.py", "Get specific content page by slug"),
-        ]
+        # Create single Lambda function for player Flask app
+        player_function = lambda_.Function(
+            self,
+            "PlayerAppFunction",
+            runtime=lambda_.Runtime.PYTHON_3_11,
+            handler="player_app.lambda_handler",
+            code=lambda_.Code.from_asset(
+                str(lambda_dir),
+                exclude=["**/admin/**", "**/layer/**", "**/__pycache__/**", "**/legacy/**"],
+            ),
+            layers=[layer],
+            environment=env_vars,
+            role=player_role,
+            timeout=Duration.seconds(30),
+            memory_size=512,  # Increased for Flask app
+            description="Flask application for player endpoints - v3",
+            log_retention=logs.RetentionDays.ONE_WEEK,
+        )
 
-        for func_name, handler_file, description in player_functions_config:
-            functions[func_name] = lambda_.Function(
-                self,
-                f"Player{func_name.title().replace('_', '')}Function",
-                runtime=lambda_.Runtime.PYTHON_3_11,
-                handler=f"{handler_file[:-3]}.lambda_handler",
-                code=lambda_.Code.from_asset(
-                    str(lambda_dir),
-                    exclude=["**/admin/**", "**/layer/**", "**/__pycache__/**"],
-                ),
-                layers=[layer],
-                environment=env_vars,
-                role=player_role,
-                timeout=Duration.seconds(30),
-                memory_size=256,
-                description=description,
-                log_retention=logs.RetentionDays.ONE_WEEK,
-            )
+        return player_function
 
-        return functions
-
-    def _create_admin_functions(
+    def _create_admin_function(
         self,
         lambda_dir: Path,
-        shared_code: lambda_.Code,
         layer: lambda_.LayerVersion,
-    ) -> dict:
-        """Create Lambda functions for admin endpoints."""
-        functions = {}
-
-        # Common environment variables
+    ) -> lambda_.Function:
+        """Create Lambda function for admin Flask app."""
+        # Environment variables
         env_vars = {
             "PLAYER_TABLE": self.database_stack.player_table.table_name,
             "ACTIVITY_TABLE": self.database_stack.activity_table.table_name,
@@ -190,9 +193,10 @@ class ApiStack(Stack):
             "COGNITO_USER_POOL_ID": self.auth_stack.user_pool.user_pool_id,
             "COGNITO_REGION": self.region,
             "CONTENT_IMAGES_BUCKET": "consistency-tracker-content-images",  # Will be set from storage stack
+            "STRIP_STAGE_PATH": "yes",  # Strip /prod from paths when using direct API Gateway URL
         }
 
-        # Common IAM role for admin functions
+        # IAM role for admin function
         admin_role = iam.Role(
             self,
             "AdminLambdaRole",
@@ -222,43 +226,26 @@ class ApiStack(Stack):
             )
         )
 
-        # Admin endpoint functions
-        admin_functions_config = [
-            ("check_role", "admin/check_role.py", "Verify user's admin role"),
-            ("clubs", "admin/clubs.py", "Club management (CRUD)"),
-            ("teams", "admin/teams.py", "Team management (CRUD)"),
-            ("players", "admin/players.py", "Player management (CRUD)"),
-            ("activities", "admin/activities.py", "Activity management (CRUD)"),
-            ("content", "admin/content.py", "Content management (CRUD)"),
-            ("content_publish", "admin/content_publish.py", "Publish/unpublish content"),
-            ("content_reorder", "admin/content_reorder.py", "Reorder content pages"),
-            ("image_upload", "admin/image_upload.py", "Generate pre-signed S3 URLs"),
-            ("overview", "admin/overview.py", "Team statistics and overview"),
-            ("export", "admin/export.py", "Export week data (CSV)"),
-            ("week_advance", "admin/week_advance.py", "Advance to next week"),
-            ("reflections", "admin/reflections.py", "View all player reflections"),
-        ]
+        # Create single Lambda function for admin Flask app
+        admin_function = lambda_.Function(
+            self,
+            "AdminAppFunction",
+            runtime=lambda_.Runtime.PYTHON_3_11,
+            handler="admin_app.lambda_handler",
+            code=lambda_.Code.from_asset(
+                str(lambda_dir),
+                exclude=["**/layer/**", "**/__pycache__/**"],
+            ),
+            layers=[layer],
+            environment=env_vars,
+            role=admin_role,
+            timeout=Duration.seconds(30),
+            memory_size=512,  # Increased for Flask app
+            description="Flask application for admin endpoints",
+            log_retention=logs.RetentionDays.ONE_WEEK,
+        )
 
-        for func_name, handler_file, description in admin_functions_config:
-            functions[func_name] = lambda_.Function(
-                self,
-                f"Admin{func_name.title().replace('_', '')}Function",
-                runtime=lambda_.Runtime.PYTHON_3_11,
-                handler=f"{handler_file[:-3].replace('/', '.')}.lambda_handler",
-                code=lambda_.Code.from_asset(
-                    str(lambda_dir),
-                    exclude=["**/layer/**", "**/__pycache__/**"],
-                ),
-                layers=[layer],
-                environment=env_vars,
-                role=admin_role,
-                timeout=Duration.seconds(30),
-                memory_size=256,
-                description=description,
-                log_retention=logs.RetentionDays.ONE_WEEK,
-            )
-
-        return functions
+        return admin_function
 
     def _create_api_gateway(self, auth_stack: AuthStack) -> apigateway.RestApi:
         """Create REST API Gateway with security configurations."""
@@ -298,6 +285,44 @@ class ApiStack(Stack):
 
         return api
 
+    def _add_gateway_responses(self, api: apigateway.RestApi) -> None:
+        """Add Gateway Responses with CORS headers for all error responses."""
+        domain_name = self.domain_name or self.node.try_get_context("domain_name") or "repwarrior.net"
+        
+        # Get the API Gateway REST API ID
+        rest_api_id = api.rest_api_id
+        
+        # CORS headers to add to all error responses
+        # Note: Gateway Responses can't dynamically match origins, so we use the primary domain
+        # Flask app will handle dynamic origin matching for Lambda-level errors
+        cors_headers = {
+            "gatewayresponse.header.Access-Control-Allow-Origin": f"'https://{domain_name}'",
+            "gatewayresponse.header.Access-Control-Allow-Headers": "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'",
+            "gatewayresponse.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS,PATCH'",
+            "gatewayresponse.header.Access-Control-Allow-Credentials": "'true'",
+        }
+        
+        # Add CORS headers to common error responses using CfnGatewayResponse
+        # Note: response_type determines the status code, no need for status_code parameter
+        error_types = [
+            "DEFAULT_4XX",
+            "DEFAULT_5XX",
+            "UNAUTHORIZED",
+            "ACCESS_DENIED",
+            "EXPIRED_TOKEN",
+            "INVALID_SIGNATURE",
+            "MISSING_AUTHENTICATION_TOKEN",
+        ]
+        
+        for error_type in error_types:
+            CfnGatewayResponse(
+                self,
+                f"{error_type}Response",
+                rest_api_id=rest_api_id,
+                response_type=error_type,
+                response_parameters=cors_headers,
+            )
+
     def _create_cognito_authorizer(
         self, api: apigateway.RestApi, auth_stack: AuthStack
     ) -> apigateway.CognitoUserPoolsAuthorizer:
@@ -312,278 +337,89 @@ class ApiStack(Stack):
         return authorizer
 
     def _configure_player_endpoints(
-        self, api: apigateway.RestApi, functions: dict
+        self, api: apigateway.RestApi, player_function: lambda_.Function, authorizer: apigateway.CognitoUserPoolsAuthorizer
     ) -> None:
-        """Configure player endpoints (no authentication)."""
-        player_resource = api.root.add_resource("player")
+        """Configure player endpoints (with Cognito authentication) - proxy all to Flask app."""
+        # Create proxy integration for player Flask app
+        player_integration = apigateway.LambdaIntegration(
+            player_function,
+            proxy=True,  # Proxy all requests to Flask app
+        )
         
-        # GET /player/{uniqueLink}
-        unique_link_resource = player_resource.add_resource("{uniqueLink}")
-        unique_link_resource.add_method(
-            "GET",
-            apigateway.LambdaIntegration(functions["get_player"]),
-        )
-
-        # GET /player/{uniqueLink}/week/{weekId}
-        week_resource = unique_link_resource.add_resource("week").add_resource(
-            "{weekId}"
-        )
-        week_resource.add_method(
-            "GET",
-            apigateway.LambdaIntegration(functions["get_week"]),
-        )
-
-        # GET /player/{uniqueLink}/progress
-        progress_resource = unique_link_resource.add_resource("progress")
-        progress_resource.add_method(
-            "GET",
-            apigateway.LambdaIntegration(functions["get_progress"]),
-        )
-
-        # POST /player/{uniqueLink}/checkin
-        checkin_resource = unique_link_resource.add_resource("checkin")
-        checkin_resource.add_method(
-            "POST",
-            apigateway.LambdaIntegration(functions["checkin"]),
-        )
-
-        # PUT /player/{uniqueLink}/reflection
-        reflection_resource = unique_link_resource.add_resource("reflection")
-        reflection_resource.add_method(
-            "PUT",
-            apigateway.LambdaIntegration(functions["save_reflection"]),
-        )
-
-        # GET /leaderboard/{weekId}
-        leaderboard_resource = api.root.add_resource("leaderboard").add_resource(
-            "{weekId}"
-        )
-        leaderboard_resource.add_method(
-            "GET",
-            apigateway.LambdaIntegration(functions["get_leaderboard"]),
-        )
-
-        # GET /content
+        # Configure player routes
+        # Note: We don't use authorizer here - Flask will handle JWT validation
+        # This allows requests to reach Flask even without a token, so Flask can return proper errors
+        player_resource = api.root.add_resource("player")
+        # Add direct route for /player (exact match) - NO authorizer
+        # Add both ANY and GET explicitly to ensure browser requests work
+        # ANY includes OPTIONS for CORS preflight
+        player_resource.add_method("ANY", player_integration)
+        player_resource.add_method("GET", player_integration)
+        # Add catch-all that matches everything under /player/*
+        player_proxy = player_resource.add_resource("{proxy+}")
+        player_proxy.add_method("ANY", player_integration)
+        player_proxy.add_method("GET", player_integration)
+        
+        # For leaderboard and content, we need to handle them separately
+        # since they might have existing specific routes
+        # We'll add them as catch-all but Flask will route correctly
+        leaderboard_resource = api.root.add_resource("leaderboard")
+        leaderboard_proxy = leaderboard_resource.add_resource("{proxy+}")
+        leaderboard_proxy.add_method("ANY", player_integration, authorizer=authorizer)
+        
         content_resource = api.root.add_resource("content")
-        content_resource.add_method(
-            "GET",
-            apigateway.LambdaIntegration(functions["list_content"]),
-        )
-
-        # GET /content/{slug}
-        content_slug_resource = content_resource.add_resource("{slug}")
-        content_slug_resource.add_method(
-            "GET",
-            apigateway.LambdaIntegration(functions["get_content"]),
-        )
+        content_proxy = content_resource.add_resource("{proxy+}")
+        content_proxy.add_method("ANY", player_integration, authorizer=authorizer)
 
     def _configure_admin_endpoints(
         self,
         api: apigateway.RestApi,
-        functions: dict,
+        admin_function: lambda_.Function,
         authorizer: apigateway.CognitoUserPoolsAuthorizer,
     ) -> None:
-        """Configure admin endpoints (with Cognito authentication)."""
+        """Configure admin endpoints (with Cognito authentication) - proxy all to Flask app."""
+        # Create proxy integration for admin Flask app
+        admin_integration = apigateway.LambdaIntegration(
+            admin_function,
+            proxy=True,  # Proxy all requests to Flask app
+        )
+        
+        # Proxy /admin/* to admin Flask app with Cognito authorizer
         admin_resource = api.root.add_resource("admin")
-
-        # GET /admin/check-role
-        check_role_resource = admin_resource.add_resource("check-role")
-        check_role_resource.add_method(
-            "GET",
-            apigateway.LambdaIntegration(functions["check_role"]),
+        admin_resource.add_resource("{proxy+}").add_method(
+            "ANY",
+            admin_integration,
             authorizer=authorizer,
         )
-
-        # Club management endpoints
-        clubs_resource = admin_resource.add_resource("clubs")
-        clubs_resource.add_method(
-            "GET",
-            apigateway.LambdaIntegration(functions["clubs"]),
-            authorizer=authorizer,
+    
+    def _create_custom_domain(
+        self, api: apigateway.RestApi, domain_name: str, certificate_arn: str
+    ) -> apigateway.DomainName:
+        """Create custom domain for API Gateway."""
+        # Import the certificate
+        certificate = acm.Certificate.from_certificate_arn(
+            self,
+            "ApiCertificate",
+            certificate_arn=certificate_arn,
         )
-        clubs_resource.add_method(
-            "POST",
-            apigateway.LambdaIntegration(functions["clubs"]),
-            authorizer=authorizer,
+        
+        # Create custom domain for REST API Gateway
+        # Note: REST API Gateway uses regional endpoints
+        custom_domain = apigateway.DomainName(
+            self,
+            "ApiCustomDomain",
+            domain_name=f"api.{domain_name}",
+            certificate=certificate,
+            security_policy=apigateway.SecurityPolicy.TLS_1_2,
+            endpoint_type=apigateway.EndpointType.REGIONAL,  # REST API uses regional endpoints
         )
-
-        # GET /admin/clubs/{clubId}
-        club_id_resource = clubs_resource.add_resource("{clubId}")
-        club_id_resource.add_method(
-            "GET",
-            apigateway.LambdaIntegration(functions["clubs"]),
-            authorizer=authorizer,
+        
+        # Create base path mapping to the API
+        # Note: For REST API Gateway, we need to specify the stage
+        custom_domain.add_base_path_mapping(
+            api,
+            base_path="",  # Empty base path means root
+            stage=api.deployment_stage,  # Explicitly set the stage
         )
-        club_id_resource.add_method(
-            "PUT",
-            apigateway.LambdaIntegration(functions["clubs"]),
-            authorizer=authorizer,
-        )
-
-        # Team management endpoints
-        teams_resource = admin_resource.add_resource("teams")
-        teams_resource.add_method(
-            "GET",
-            apigateway.LambdaIntegration(functions["teams"]),
-            authorizer=authorizer,
-        )
-        teams_resource.add_method(
-            "POST",
-            apigateway.LambdaIntegration(functions["teams"]),
-            authorizer=authorizer,
-        )
-
-        # GET /admin/teams/{teamId}
-        team_id_resource = teams_resource.add_resource("{teamId}")
-        team_id_resource.add_method(
-            "GET",
-            apigateway.LambdaIntegration(functions["teams"]),
-            authorizer=authorizer,
-        )
-        team_id_resource.add_method(
-            "PUT",
-            apigateway.LambdaIntegration(functions["teams"]),
-            authorizer=authorizer,
-        )
-
-        # Player management endpoints
-        players_resource = admin_resource.add_resource("players")
-        players_resource.add_method(
-            "GET",
-            apigateway.LambdaIntegration(functions["players"]),
-            authorizer=authorizer,
-        )
-        players_resource.add_method(
-            "POST",
-            apigateway.LambdaIntegration(functions["players"]),
-            authorizer=authorizer,
-        )
-
-        # PUT /admin/players/{playerId}
-        player_id_resource = players_resource.add_resource("{playerId}")
-        player_id_resource.add_method(
-            "PUT",
-            apigateway.LambdaIntegration(functions["players"]),
-            authorizer=authorizer,
-        )
-        player_id_resource.add_method(
-            "DELETE",
-            apigateway.LambdaIntegration(functions["players"]),
-            authorizer=authorizer,
-        )
-
-        # Activity management endpoints
-        activities_resource = admin_resource.add_resource("activities")
-        activities_resource.add_method(
-            "GET",
-            apigateway.LambdaIntegration(functions["activities"]),
-            authorizer=authorizer,
-        )
-        activities_resource.add_method(
-            "POST",
-            apigateway.LambdaIntegration(functions["activities"]),
-            authorizer=authorizer,
-        )
-
-        # PUT /admin/activities/{activityId}
-        activity_id_resource = activities_resource.add_resource("{activityId}")
-        activity_id_resource.add_method(
-            "PUT",
-            apigateway.LambdaIntegration(functions["activities"]),
-            authorizer=authorizer,
-        )
-        activity_id_resource.add_method(
-            "DELETE",
-            apigateway.LambdaIntegration(functions["activities"]),
-            authorizer=authorizer,
-        )
-
-        # Content management endpoints
-        content_resource = admin_resource.add_resource("content")
-        content_resource.add_method(
-            "GET",
-            apigateway.LambdaIntegration(functions["content"]),
-            authorizer=authorizer,
-        )
-        content_resource.add_method(
-            "POST",
-            apigateway.LambdaIntegration(functions["content"]),
-            authorizer=authorizer,
-        )
-
-        # PUT /admin/content/{contentId}
-        content_id_resource = content_resource.add_resource("{contentId}")
-        content_id_resource.add_method(
-            "GET",
-            apigateway.LambdaIntegration(functions["content"]),
-            authorizer=authorizer,
-        )
-        content_id_resource.add_method(
-            "PUT",
-            apigateway.LambdaIntegration(functions["content"]),
-            authorizer=authorizer,
-        )
-        content_id_resource.add_method(
-            "DELETE",
-            apigateway.LambdaIntegration(functions["content"]),
-            authorizer=authorizer,
-        )
-
-        # PUT /admin/content/{contentId}/publish
-        publish_resource = content_id_resource.add_resource("publish")
-        publish_resource.add_method(
-            "PUT",
-            apigateway.LambdaIntegration(functions["content_publish"]),
-            authorizer=authorizer,
-        )
-
-        # PUT /admin/content/reorder
-        reorder_resource = content_resource.add_resource("reorder")
-        reorder_resource.add_method(
-            "PUT",
-            apigateway.LambdaIntegration(functions["content_reorder"]),
-            authorizer=authorizer,
-        )
-
-        # POST /admin/content/image-upload-url
-        image_upload_resource = content_resource.add_resource("image-upload-url")
-        image_upload_resource.add_method(
-            "POST",
-            apigateway.LambdaIntegration(functions["image_upload"]),
-            authorizer=authorizer,
-        )
-
-        # GET /admin/overview
-        overview_resource = admin_resource.add_resource("overview")
-        overview_resource.add_method(
-            "GET",
-            apigateway.LambdaIntegration(functions["overview"]),
-            authorizer=authorizer,
-        )
-
-        # GET /admin/export/{weekId}
-        export_resource = admin_resource.add_resource("export").add_resource(
-            "{weekId}"
-        )
-        export_resource.add_method(
-            "GET",
-            apigateway.LambdaIntegration(functions["export"]),
-            authorizer=authorizer,
-        )
-
-        # POST /admin/week/advance
-        week_resource = admin_resource.add_resource("week")
-        advance_resource = week_resource.add_resource("advance")
-        advance_resource.add_method(
-            "POST",
-            apigateway.LambdaIntegration(functions["week_advance"]),
-            authorizer=authorizer,
-        )
-
-        # GET /admin/reflections
-        reflections_resource = admin_resource.add_resource("reflections")
-        reflections_resource.add_method(
-            "GET",
-            apigateway.LambdaIntegration(functions["reflections"]),
-            authorizer=authorizer,
-        )
+        
+        return custom_domain

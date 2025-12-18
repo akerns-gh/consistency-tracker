@@ -6,7 +6,7 @@ This document provides an overview of the multi-phase implementation plan. Each 
 
 - **[Phase 0: HTML Prototype & Requirements Validation](./phase-0-prototype.md)** - ✅ **COMPLETE** - Standalone HTML prototype created and validated (8-12 hours)
 - **[Phase 1: Project Foundation & Infrastructure Setup](./phase-1-infrastructure.md)** - Set up project structure and AWS CDK infrastructure (4-6 hours)
-- **[Phase 2: Backend API Development](./phase-2-backend.md)** - Develop Lambda functions, API Gateway, and storage infrastructure (12-16 hours)
+- **[Phase 2: Backend API Development](./phase-2-backend.md)** - Develop Flask applications (deployed as Lambda functions), API Gateway with proxy integration, and storage infrastructure (12-16 hours)
 - **[Phase 3: Frontend Foundation & Player Interface](./phase-3-frontend.md)** - Build React app and player-facing features (10-14 hours)
 - **[Phase 4: Admin Dashboard & Authentication](./phase-4-admin.md)** - Implement admin dashboard and authentication (8-12 hours)
 - **[Phase 5: Content Management System](./phase-5-content.md)** - Build content management with WYSIWYG editor (8-10 hours)
@@ -43,9 +43,25 @@ The prototype validates all requirements and provides a solid foundation for the
 
 - `aws/app.py` - Main CDK app with stack dependencies
 - `aws/cdk.json` - CDK configuration
+- `aws/lambda/admin_app.py` - Admin Flask application (14 endpoints)
+- `aws/lambda/player_app.py` - Player Flask application (7 endpoints)
+- `aws/lambda/shared/flask_auth.py` - Flask authentication decorators
 - `app/package.json` - Frontend dependencies
 - `app/tailwind.config.js` - Styling configuration
 - `.env.example` - Environment variables template (domain, AWS region, etc.)
+
+## Backend Architecture
+
+The backend uses **Flask applications** deployed as Lambda functions instead of individual Lambda handlers:
+
+- **2 Flask applications** replace 21 individual Lambda functions
+- **Player Flask App** (`player_app.py`) - 7 public endpoints (no authentication)
+- **Admin Flask App** (`admin_app.py`) - 14 admin endpoints (Cognito authentication required)
+- **Proxy Integration** - API Gateway routes all requests to Flask apps using `ANY /{proxy+}` pattern
+- **Authentication Decorators** - Flask decorators (`@require_admin`, `@require_club`) handle authorization
+- **Benefits**: 60-70% reduction in boilerplate code, centralized error handling, easier maintenance
+
+See `FLASK_MIGRATION_COMPLETE.md` for migration details.
 
 ## Prerequisites Before Starting
 

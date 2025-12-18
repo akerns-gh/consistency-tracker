@@ -1,0 +1,3 @@
+playerId,name,email,clubName,clubId,teamName,teamId,uniqueLink,isActive
+,Test Player,test.player@example.com,True Lacrosse,,2028 Boys,,testplayer1,true
+

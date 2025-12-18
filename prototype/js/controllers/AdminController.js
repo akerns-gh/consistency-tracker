@@ -71,6 +71,15 @@ class AdminController extends BaseController {
         menuClose?.addEventListener('click', closeMenu);
         menuOverlay?.addEventListener('click', closeMenu);
 
+        // Tab navigation (from tab navigation bar)
+        const tabButtons = document.querySelectorAll('.tab-button');
+        tabButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                const tabName = e.currentTarget.dataset.tab;
+                this.switchTab(tabName);
+            });
+        });
+
         // Tab navigation (from menu drawer)
         const menuTabs = document.querySelectorAll('.menu-tab');
         menuTabs.forEach(tab => {
@@ -82,10 +91,7 @@ class AdminController extends BaseController {
         });
 
         // Set initial active tab
-        const firstTab = document.querySelector('.menu-tab[data-tab="players"]');
-        if (firstTab) {
-            firstTab.classList.add('active');
-        }
+        this.switchTab('overview'); // Default to overview tab like the app
 
         // Delegate player actions
         const playersList = document.getElementById('playersTableBody');
@@ -115,6 +121,12 @@ class AdminController extends BaseController {
             tab.style.display = 'none';
         });
 
+        // Remove active class from all tab navigation buttons
+        const allTabButtons = document.querySelectorAll('.tab-button');
+        allTabButtons.forEach(btn => {
+            btn.classList.remove('active');
+        });
+
         // Remove active class from all menu tab buttons
         const allMenuTabs = document.querySelectorAll('.menu-tab');
         allMenuTabs.forEach(btn => {
@@ -125,6 +137,12 @@ class AdminController extends BaseController {
         const selectedTab = document.getElementById(`${tabName}Tab`);
         if (selectedTab) {
             selectedTab.style.display = 'block';
+        }
+
+        // Add active class to selected tab navigation button
+        const selectedTabButton = document.querySelector(`.tab-button[data-tab="${tabName}"]`);
+        if (selectedTabButton) {
+            selectedTabButton.classList.add('active');
         }
 
         // Add active class to selected menu tab button

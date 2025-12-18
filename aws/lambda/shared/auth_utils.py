@@ -88,6 +88,51 @@ def extract_user_info_from_event(event: Dict[str, Any]) -> Optional[Dict[str, An
     return user_info
 
 
+def extract_user_info_from_jwt_token(token: str) -> Optional[Dict[str, Any]]:
+    """
+    Extract user information from a JWT token by decoding it (without verification).
+    
+    WARNING: This does NOT verify the token signature. Use only when token has been
+    validated by API Gateway authorizer or another trusted source.
+    
+    Args:
+        token: JWT token string (without 'Bearer ' prefix)
+    
+    Returns:
+        Dictionary with user info (username, email, groups) or None if token is invalid
+    """
+    if not token:
+        print(f"DEBUG extract_user_info_from_jwt_token: No token provided")
+        return None
+    
+    if not jwt:
+        print(f"DEBUG extract_user_info_from_jwt_token: JWT library not available")
+        return None
+    
+    try:
+        print(f"DEBUG extract_user_info_from_jwt_token: Attempting to decode token (length: {len(token)})")
+        # Decode without verification (since API Gateway would have verified it if authorizer was used)
+        # In production, you should verify the signature using Cognito public keys
+        decoded = jwt.get_unverified_claims(token)
+        print(f"DEBUG extract_user_info_from_jwt_token: Successfully decoded token. Keys: {list(decoded.keys())[:10]}")
+        
+        # Extract user information from JWT claims
+        user_info = {
+            "username": decoded.get("cognito:username") or decoded.get("sub"),
+            "email": decoded.get("email"),
+            "user_id": decoded.get("sub"),
+            "groups": decoded.get("cognito:groups", []),
+        }
+        
+        print(f"DEBUG extract_user_info_from_jwt_token: Extracted user info - email: {user_info.get('email')}, username: {user_info.get('username')}")
+        return user_info
+    except Exception as e:
+        import traceback
+        print(f"ERROR extract_user_info_from_jwt_token: Failed to decode token: {e}")
+        traceback.print_exc()
+        return None
+
+
 def verify_admin_role(event: Dict[str, Any]) -> bool:
     """
     Verify that the authenticated user has admin role.

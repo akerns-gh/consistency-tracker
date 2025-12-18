@@ -1,0 +1,4 @@
+activityId,clubName,clubId,scope,teamName,teamId,name,description,frequency,pointValue,displayOrder,isActive
+,True Lacrosse,,club,,,Sleep,8+ hours,daily,1,1,true
+,True Lacrosse,,club,,,Hydration,Drink water,daily,1,2,true
+

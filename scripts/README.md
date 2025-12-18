@@ -11,6 +11,7 @@ These scripts should be run in the following order for a complete deployment:
    ./aws/deploy.sh
    ```
    Deploys all CDK stacks (Database, Auth, API, DNS, Storage)
+   - Also runs post-deploy configuration automatically (CloudFront certs/aliases + API custom domain)
 
 2. **Admin User Creation** (not in this directory):
    ```bash
@@ -24,7 +25,17 @@ These scripts should be run in the following order for a complete deployment:
    ```
    Builds and deploys the React application to S3 and CloudFront
 
-4. **IP Allowlisting** (optional):
+4. **Seed Data from CSV** (optional):
+   ```bash
+   python aws/seed_from_csv.py \
+     --clubs seed/clubs.csv \
+     --teams seed/teams.csv \
+     --players seed/players.csv \
+     --activities seed/activities.csv \
+     --content-pages seed/content_pages.csv
+   ```
+
+5. **IP Allowlisting** (optional):
    ```bash
    ./scripts/update-waf-ip-allowlist.sh
    ```

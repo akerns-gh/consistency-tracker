@@ -70,8 +70,8 @@ class DnsStack(Stack):
             export_name="ConsistencyTracker-CertificateArn",
         )
 
-    def add_route53_records(self, storage_stack: StorageStack):
-        """Add Route 53 records pointing to CloudFront distributions"""
+    def add_route53_records(self, storage_stack: StorageStack, api_stack=None):
+        """Add Route 53 records pointing to CloudFront distributions and API Gateway"""
         if not storage_stack:
             return
             
@@ -107,6 +107,26 @@ class DnsStack(Stack):
                 targets.CloudFrontTarget(storage_stack.content_distribution)
             ),
         )
+        
+        # A record for api subdomain pointing to API Gateway custom domain
+        if api_stack and api_stack.custom_domain:
+            # For REST API Gateway, use ApiGatewayDomain target
+            api_record = route53.ARecord(
+                self,
+                "ApiARecord",
+                zone=self.hosted_zone,
+                record_name=f"api.{self.domain_name}",
+                target=route53.RecordTarget.from_alias(
+                    targets.ApiGatewayDomain(api_stack.custom_domain)
+                ),
+            )
+            
+            CfnOutput(
+                self,
+                "ApiDomainRecord",
+                value=api_record.domain_name,
+                description="API subdomain A record",
+            )
         
         CfnOutput(
             self,

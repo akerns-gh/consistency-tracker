@@ -10,9 +10,11 @@ set -euo pipefail
 
 # Configuration
 S3_BUCKET="consistency-tracker-frontend-us-east-1"
-CLOUDFRONT_DISTRIBUTION_ID="E11CYNQ91MDSZR"
+CLOUDFRONT_DISTRIBUTION_ID="E2YTNOXL25MKBG"
 AWS_REGION="us-east-1"
 AUTH_STACK_NAME="ConsistencyTracker-Auth"
+API_STACK_NAME="ConsistencyTracker-API"
+API_CUSTOM_DOMAIN="https://api.repwarrior.net"
 
 # Colors for output
 RED='\033[0;31m'
@@ -78,9 +80,15 @@ fi
 log_info "✅ Cognito User Pool ID: $COGNITO_USER_POOL_ID"
 log_info "✅ Cognito Client ID: $COGNITO_USER_POOL_CLIENT_ID"
 
+# Use custom domain URL (configured manually)
+log_info "Using API Gateway custom domain URL..."
+API_ENDPOINT="$API_CUSTOM_DOMAIN"
+log_info "✅ API Gateway Endpoint: $API_ENDPOINT"
+
 # Export environment variables for Vite build
 export VITE_COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID"
 export VITE_COGNITO_USER_POOL_CLIENT_ID="$COGNITO_USER_POOL_CLIENT_ID"
+export VITE_API_URL="$API_ENDPOINT"
 
 # Build the application
 log_info "Building React application..."

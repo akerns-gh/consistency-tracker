@@ -57,6 +57,7 @@ class AuthStack(Stack):
             user_pool_client_name="ConsistencyTracker-WebClient",
             generate_secret=False,  # Public client (web app)
             auth_flows=cognito.AuthFlow(
+                user_srp=True,  # SRP flow (required for AWS Amplify)
                 user_password=True,  # Username/password flow
                 admin_user_password=True,  # Admin-initiated auth
             ),
