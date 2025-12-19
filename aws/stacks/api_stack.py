@@ -346,19 +346,19 @@ class ApiStack(Stack):
             proxy=True,  # Proxy all requests to Flask app
         )
         
-        # Configure player routes
-        # Note: We don't use authorizer here - Flask will handle JWT validation
-        # This allows requests to reach Flask even without a token, so Flask can return proper errors
+        # Configure player routes with Cognito authorizer
+        # All /player/* routes require authentication at API Gateway level
+        # Flask will handle JWT validation and unique link validation
         player_resource = api.root.add_resource("player")
-        # Add direct route for /player (exact match) - NO authorizer
+        # Add direct route for /player (exact match) - WITH authorizer
         # Add both ANY and GET explicitly to ensure browser requests work
         # ANY includes OPTIONS for CORS preflight
-        player_resource.add_method("ANY", player_integration)
-        player_resource.add_method("GET", player_integration)
+        player_resource.add_method("ANY", player_integration, authorizer=authorizer)
+        player_resource.add_method("GET", player_integration, authorizer=authorizer)
         # Add catch-all that matches everything under /player/*
         player_proxy = player_resource.add_resource("{proxy+}")
-        player_proxy.add_method("ANY", player_integration)
-        player_proxy.add_method("GET", player_integration)
+        player_proxy.add_method("ANY", player_integration, authorizer=authorizer)
+        player_proxy.add_method("GET", player_integration, authorizer=authorizer)
         
         # For leaderboard and content, we need to handle them separately
         # since they might have existing specific routes

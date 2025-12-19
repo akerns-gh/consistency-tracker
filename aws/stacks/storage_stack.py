@@ -291,6 +291,37 @@ class StorageStack(Stack):
             ],
         )
 
+        # Create Response Headers Policy with HSTS and security headers
+        # This forces browsers to always use HTTPS and adds security headers
+        response_headers_policy = cloudfront.ResponseHeadersPolicy(
+            self,
+            "SecurityHeadersPolicy",
+            security_headers_behavior=cloudfront.ResponseSecurityHeadersBehavior(
+                strict_transport_security=cloudfront.ResponseHeadersStrictTransportSecurity(
+                    access_control_max_age=Duration.seconds(31536000),  # 1 year
+                    include_subdomains=True,
+                    preload=True,
+                    override=True,
+                ),
+                content_type_options=cloudfront.ResponseHeadersContentTypeOptions(
+                    override=True,
+                ),
+                frame_options=cloudfront.ResponseHeadersFrameOptions(
+                    frame_option=cloudfront.HeadersFrameOption.DENY,
+                    override=True,
+                ),
+                referrer_policy=cloudfront.ResponseHeadersReferrerPolicy(
+                    referrer_policy=cloudfront.HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN,
+                    override=True,
+                ),
+                xss_protection=cloudfront.ResponseHeadersXSSProtection(
+                    protection=True,
+                    mode_block=True,
+                    override=True,
+                ),
+            ),
+        )
+
         # Configure CloudFront viewer certificate
         # Prefer certificate object over ARN string to avoid CDK synthesis issues
         viewer_certificate = None
@@ -325,6 +356,7 @@ class StorageStack(Stack):
                 cached_methods=cloudfront.CachedMethods.CACHE_GET_HEAD,
                 compress=True,
                 cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
+                response_headers_policy=response_headers_policy,
             ),
             "default_root_object": "index.html",
             "error_responses": [
@@ -392,6 +424,7 @@ class StorageStack(Stack):
                 cached_methods=cloudfront.CachedMethods.CACHE_GET_HEAD,
                 compress=True,
                 cache_policy=cloudfront.CachePolicy.CACHING_OPTIMIZED,
+                response_headers_policy=response_headers_policy,
             ),
             "price_class": cloudfront.PriceClass.PRICE_CLASS_100,
             "comment": "CloudFront distribution for Consistency Tracker content images",
