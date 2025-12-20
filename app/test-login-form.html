@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Form Test Suite</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section h2 {
+            color: #333;
+            border-bottom: 2px solid #96c855;
+            padding-bottom: 10px;
+        }
+        .test-item {
+            margin: 15px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-left: 4px solid #96c855;
+        }
+        .test-item h3 {
+            margin-top: 0;
+            color: #555;
+        }
+        .test-item p {
+            margin: 5px 0;
+            color: #666;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status.pass {
+            background: #4caf50;
+            color: white;
+        }
+        .status.fail {
+            background: #f44336;
+            color: white;
+        }
+        .status.pending {
+            background: #ff9800;
+            color: white;
+        }
+        code {
+            background: #e0e0e0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .instructions {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .instructions h3 {
+            margin-top: 0;
+            color: #1976d2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Login Form Test Suite</h1>
+    
+    <div class="instructions">
+        <h3>Instructions</h3>
+        <p>1. Open the application at <code>http://localhost:5173/login</code></p>
+        <p>2. Open browser DevTools (F12) and go to the Console tab</p>
+        <p>3. Copy and paste the test script below into the console</p>
+        <p>4. The script will automatically test all validation scenarios</p>
+        <p>5. Review the test results below and manually verify any edge cases</p>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 1: Email Validation</h2>
+        
+        <div class="test-item">
+            <h3>1.1 Empty Email Field</h3>
+            <p><strong>Test:</strong> Submit form with empty email field</p>
+            <p><strong>Expected:</strong> Error message "Please enter your email address"</p>
+            <p><strong>Steps:</strong></p>
+            <ol>
+                <li>Clear the email field</li>
+                <li>Enter any password</li>
+                <li>Click "Sign in"</li>
+                <li>Verify error message appears</li>
+            </ol>
+        </div>
+
+        <div class="test-item">
+            <h3>1.2 Invalid Email Format</h3>
+            <p><strong>Test:</strong> Submit form with invalid email format</p>
+            <p><strong>Expected:</strong> Error message "Please enter a valid email address"</p>
+            <p><strong>Test Cases:</strong></p>
+            <ul>
+                <li><code>invalid-email</code> (no @ symbol)</li>
+                <li><code>invalid@email</code> (no domain extension)</li>
+                <li><code>@email.com</code> (no local part)</li>
+                <li><code>email@.com</code> (no domain)</li>
+                <li><code>email@com</code> (no dot)</li>
+            </ul>
+        </div>
+
+        <div class="test-item">
+            <h3>1.3 Valid Email Format</h3>
+            <p><strong>Test:</strong> Submit form with valid email format</p>
+            <p><strong>Expected:</strong> Email validation passes, form proceeds to password check</p>
+            <p><strong>Test Cases:</strong></p>
+            <ul>
+                <li><code>test@example.com</code></li>
+                <li><code>user.name@example.co.uk</code></li>
+                <li><code>user+tag@example.com</code></li>
+            </ul>
+        </div>
+
+        <div class="test-item">
+            <h3>1.4 Email Trimming</h3>
+            <p><strong>Test:</strong> Submit form with email containing leading/trailing spaces</p>
+            <p><strong>Expected:</strong> Email is trimmed before validation</p>
+            <p><strong>Test Cases:</strong></p>
+            <ul>
+                <li><code>  test@example.com  </code> (should be trimmed)</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Password Validation</h2>
+        
+        <div class="test-item">
+            <h3>2.1 Empty Password Field</h3>
+            <p><strong>Test:</strong> Submit form with empty password field</p>
+            <p><strong>Expected:</strong> Error message "Please enter your password"</p>
+            <p><strong>Steps:</strong></p>
+            <ol>
+                <li>Enter valid email</li>
+                <li>Clear the password field</li>
+                <li>Click "Sign in"</li>
+                <li>Verify error message appears</li>
+            </ol>
+        </div>
+
+        <div class="test-item">
+            <h3>2.2 Valid Password Format</h3>
+            <p><strong>Test:</strong> Submit form with valid password</p>
+            <p><strong>Expected:</strong> Password validation passes, form submits</p>
+            <p><strong>Note:</strong> Actual authentication will fail with invalid credentials, but validation should pass</p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Password Reset Flow</h2>
+        
+        <div class="test-item">
+            <h3>3.1 Access Password Reset</h3>
+            <p><strong>Test:</strong> Click "Forgot your password?" link</p>
+            <p><strong>Expected:</strong> Password reset form appears</p>
+        </div>
+
+        <div class="test-item">
+            <h3>3.2 Reset Email Validation - Empty</h3>
+            <p><strong>Test:</strong> Submit reset form with empty email</p>
+            <p><strong>Expected:</strong> Error message "Please enter your email address"</p>
+        </div>
+
+        <div class="test-item">
+            <h3>3.3 Reset Email Validation - Invalid Format</h3>
+            <p><strong>Test:</strong> Submit reset form with invalid email format</p>
+            <p><strong>Expected:</strong> Error message "Please enter a valid email address"</p>
+        </div>
+
+        <div class="test-item">
+            <h3>3.4 Reset Email Validation - Valid Format</h3>
+            <p><strong>Test:</strong> Submit reset form with valid email</p>
+            <p><strong>Expected:</strong> Code sent confirmation, form switches to code entry</p>
+            <p><strong>Note:</strong> Requires backend to be configured</p>
+        </div>
+
+        <div class="test-item">
+            <h3>3.5 Code Entry Form</h3>
+            <p><strong>Test:</strong> After code sent, verify code entry form appears</p>
+            <p><strong>Expected:</strong> Form shows fields for: Verification Code, New Password, Confirm Password</p>
+        </div>
+
+        <div class="test-item">
+            <h3>3.6 Back to Login</h3>
+            <p><strong>Test:</strong> Click "Back to login" button</p>
+            <p><strong>Expected:</strong> Returns to main login form, resets all fields</p>
+        </div>
+
+        <div class="test-item">
+            <h3>3.7 Resend Code</h3>
+            <p><strong>Test:</strong> Click "Resend code" link</p>
+            <p><strong>Expected:</strong> Returns to email entry form</p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 4: Password Change Flow (New Password Required)</h2>
+        
+        <div class="test-item">
+            <h3>4.1 Password Change Form Display</h3>
+            <p><strong>Test:</strong> Login with account requiring password change</p>
+            <p><strong>Expected:</strong> Password change form appears instead of navigation</p>
+        </div>
+
+        <div class="test-item">
+            <h3>4.2 Password Mismatch</h3>
+            <p><strong>Test:</strong> Enter different passwords in "New Password" and "Confirm Password"</p>
+            <p><strong>Expected:</strong> Error message "Passwords do not match"</p>
+            <p><strong>Test Cases:</strong></p>
+            <ul>
+                <li>New: <code>Password123</code>, Confirm: <code>Password456</code></li>
+                <li>New: <code>Test123</code>, Confirm: <code>test123</code> (case sensitive)</li>
+            </ul>
+        </div>
+
+        <div class="test-item">
+            <h3>4.3 Password Requirements Display</h3>
+            <p><strong>Test:</strong> Verify password requirements are displayed</p>
+            <p><strong>Expected:</strong> Requirements list shows:</p>
+            <ul>
+                <li>At least 12 characters</li>
+                <li>At least one uppercase letter</li>
+                <li>At least one lowercase letter</li>
+                <li>At least one number</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 5: Password Requirements Validation</h2>
+        
+        <div class="test-item">
+            <h3>5.1 Minimum Length (12 characters)</h3>
+            <p><strong>Test:</strong> Submit password with less than 12 characters</p>
+            <p><strong>Expected:</strong> Error message "Password must be at least 12 characters long"</p>
+            <p><strong>Test Cases:</strong></p>
+            <ul>
+                <li><code>Short1</code> (6 chars)</li>
+                <li><code>ShortPass1</code> (11 chars)</li>
+            </ul>
+        </div>
+
+        <div class="test-item">
+            <h3>5.2 Lowercase Letter Requirement</h3>
+            <p><strong>Test:</strong> Submit password without lowercase letter</p>
+            <p><strong>Expected:</strong> Error message "Password must contain at least one lowercase letter"</p>
+            <p><strong>Test Cases:</strong></p>
+            <ul>
+                <li><code>PASSWORD123</code> (all uppercase)</li>
+                <li><code>PASS123456</code> (no lowercase)</li>
+            </ul>
+        </div>
+
+        <div class="test-item">
+            <h3>5.3 Uppercase Letter Requirement</h3>
+            <p><strong>Test:</strong> Submit password without uppercase letter</p>
+            <p><strong>Expected:</strong> Error message "Password must contain at least one uppercase letter"</p>
+            <p><strong>Test Cases:</strong></p>
+            <ul>
+                <li><code>password123</code> (all lowercase)</li>
+                <li><code>pass123456</code> (no uppercase)</li>
+            </ul>
+        </div>
+
+        <div class="test-item">
+            <h3>5.4 Number Requirement</h3>
+            <p><strong>Test:</strong> Submit password without number</p>
+            <p><strong>Expected:</strong> Error message "Password must contain at least one number"</p>
+            <p><strong>Test Cases:</strong></p>
+            <ul>
+                <li><code>PasswordTest</code> (no numbers)</li>
+                <li><code>MyPassword</code> (no numbers)</li>
+            </ul>
+        </div>
+
+        <div class="test-item">
+            <h3>5.5 Valid Password</h3>
+            <p><strong>Test:</strong> Submit password meeting all requirements</p>
+            <p><strong>Expected:</strong> Validation passes</p>
+            <p><strong>Test Cases:</strong></p>
+            <ul>
+                <li><code>Password123</code> (12 chars, has uppercase, lowercase, number)</li>
+                <li><code>MySecurePass123</code> (meets all requirements)</li>
+                <li><code>Test123456789</code> (meets all requirements)</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 6: Password Reset - Code Entry Validation</h2>
+        
+        <div class="test-item">
+            <h3>6.1 Empty Verification Code</h3>
+            <p><strong>Test:</strong> Submit reset form with empty verification code</p>
+            <p><strong>Expected:</strong> Error message "Please enter the verification code from your email"</p>
+        </div>
+
+        <div class="test-item">
+            <h3>6.2 Password Requirements in Reset Flow</h3>
+            <p><strong>Test:</strong> Same password requirements apply in reset flow</p>
+            <p><strong>Expected:</strong> All password requirement validations work (length, uppercase, lowercase, number)</p>
+        </div>
+
+        <div class="test-item">
+            <h3>6.3 Password Mismatch in Reset Flow</h3>
+            <p><strong>Test:</strong> Enter mismatched passwords in reset flow</p>
+            <p><strong>Expected:</strong> Error message "Passwords do not match"</p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 7: Form Behavior & UI</h2>
+        
+        <div class="test-item">
+            <h3>7.1 Loading State</h3>
+            <p><strong>Test:</strong> Submit form and verify loading state</p>
+            <p><strong>Expected:</strong> Button text changes to "Signing in...", button is disabled</p>
+        </div>
+
+        <div class="test-item">
+            <h3>7.2 Error Message Display</h3>
+            <p><strong>Test:</strong> Verify error messages appear in red alert box</p>
+            <p><strong>Expected:</strong> Error messages displayed in <code>bg-red-50</code> container with red text</p>
+        </div>
+
+        <div class="test-item">
+            <h3>7.3 Form Field Accessibility</h3>
+            <p><strong>Test:</strong> Verify form fields have proper labels and autocomplete</p>
+            <p><strong>Expected:</strong></p>
+            <ul>
+                <li>Email field: <code>type="email"</code>, <code>autoComplete="email"</code></li>
+                <li>Password field: <code>type="password"</code>, <code>autoComplete="current-password"</code></li>
+                <li>New password fields: <code>autoComplete="new-password"</code></li>
+            </ul>
+        </div>
+
+        <div class="test-item">
+            <h3>7.4 HTML5 Required Attribute</h3>
+            <p><strong>Test:</strong> Verify HTML5 validation works</p>
+            <p><strong>Expected:</strong> All required fields have <code>required</code> attribute</p>
+        </div>
+
+        <div class="test-item">
+            <h3>7.5 Form Reset on Navigation</h3>
+            <p><strong>Test:</strong> Navigate between login and reset forms</p>
+            <p><strong>Expected:</strong> Form fields are cleared when switching views</p>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 8: Edge Cases</h2>
+        
+        <div class="test-item">
+            <h3>8.1 Very Long Email</h3>
+            <p><strong>Test:</strong> Enter very long email address</p>
+            <p><strong>Expected:</strong> Email format validation should still work</p>
+        </div>
+
+        <div class="test-item">
+            <h3>8.2 Special Characters in Email</h3>
+            <p><strong>Test:</strong> Enter email with special characters</p>
+            <p><strong>Test Cases:</strong></p>
+            <ul>
+                <li><code>user+tag@example.com</code> (should pass)</li>
+                <li><code>user.name@example.com</code> (should pass)</li>
+            </ul>
+        </div>
+
+        <div class="test-item">
+            <h3>8.3 Whitespace Handling</h3>
+            <p><strong>Test:</strong> Enter email/password with leading/trailing spaces</p>
+            <p><strong>Expected:</strong> Email is trimmed, password spaces are preserved (as per standard)</p>
+        </div>
+
+        <div class="test-item">
+            <h3>8.4 Multiple Rapid Submissions</h3>
+            <p><strong>Test:</strong> Click submit button multiple times rapidly</p>
+            <p><strong>Expected:</strong> Form should prevent duplicate submissions (loading state)</p>
+        </div>
+    </div>
+
+    <script>
+        // Automated test script - paste this into browser console on the login page
+        console.log('%c=== Login Form Test Suite ===', 'font-size: 16px; font-weight: bold; color: #96c855');
+        
+        const tests = {
+            emailValidation: {
+                empty: () => {
+                    const emailInput = document.getElementById('email');
+                    const passwordInput = document.getElementById('password');
+                    const submitButton = document.querySelector('button[type="submit"]');
+                    
+                    if (!emailInput || !passwordInput) {
+                        console.error('❌ Form elements not found');
+                        return false;
+                    }
+                    
+                    emailInput.value = '';
+                    passwordInput.value = 'testpassword';
+                    submitButton.click();
+                    
+                    // Check for error message
+                    const errorDiv = document.querySelector('.bg-red-50');
+                    if (errorDiv && errorDiv.textContent.includes('email address')) {
+                        console.log('✅ Empty email validation: PASS');
+                        return true;
+                    }
+                    console.log('❌ Empty email validation: FAIL');
+                    return false;
+                },
+                invalidFormat: () => {
+                    const emailInput = document.getElementById('email');
+                    const passwordInput = document.getElementById('password');
+                    const submitButton = document.querySelector('button[type="submit"]');
+                    
+                    const invalidEmails = ['invalid-email', 'invalid@email', '@email.com'];
+                    let passed = 0;
+                    
+                    invalidEmails.forEach(email => {
+                        emailInput.value = email;
+                        passwordInput.value = 'testpassword';
+                        submitButton.click();
+                        
+                        const errorDiv = document.querySelector('.bg-red-50');
+                        if (errorDiv && errorDiv.textContent.includes('valid email')) {
+                            passed++;
+                        }
+                    });
+                    
+                    if (passed === invalidEmails.length) {
+                        console.log('✅ Invalid email format validation: PASS');
+                        return true;
+                    }
+                    console.log(`❌ Invalid email format validation: FAIL (${passed}/${invalidEmails.length})`);
+                    return false;
+                }
+            },
+            passwordValidation: {
+                empty: () => {
+                    const emailInput = document.getElementById('email');
+                    const passwordInput = document.getElementById('password');
+                    const submitButton = document.querySelector('button[type="submit"]');
+                    
+                    emailInput.value = 'test@example.com';
+                    passwordInput.value = '';
+                    submitButton.click();
+                    
+                    const errorDiv = document.querySelector('.bg-red-50');
+                    if (errorDiv && errorDiv.textContent.includes('password')) {
+                        console.log('✅ Empty password validation: PASS');
+                        return true;
+                    }
+                    console.log('❌ Empty password validation: FAIL');
+                    return false;
+                }
+            }
+        };
+        
+        // Run tests
+        console.log('\nRunning automated tests...\n');
+        Object.keys(tests).forEach(category => {
+            Object.keys(tests[category]).forEach(test => {
+                tests[category][test]();
+            });
+        });
+        
+        console.log('\n%c=== Manual Tests Required ===', 'font-size: 14px; font-weight: bold; color: #ff9800');
+        console.log('Please manually test:');
+        console.log('- Password reset flow');
+        console.log('- Password change flow');
+        console.log('- Password requirements (12+ chars, uppercase, lowercase, number)');
+        console.log('- Form loading states');
+        console.log('- Navigation between forms');
+    </script>
+</body>
+</html>
+

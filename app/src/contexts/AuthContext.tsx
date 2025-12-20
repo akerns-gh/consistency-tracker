@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { signIn, signOut, getCurrentUser, confirmSignIn, fetchAuthSession } from 'aws-amplify/auth'
+import { signIn, signOut, getCurrentUser, confirmSignIn, fetchAuthSession, resetPassword as amplifyResetPassword, confirmResetPassword as amplifyConfirmResetPassword } from 'aws-amplify/auth'
 import { checkAdminRole } from '../services/authApi'
 
 interface User {
@@ -18,6 +18,8 @@ interface AuthContextType {
   changePassword: (newPassword: string) => Promise<void>
   logout: () => Promise<void>
   checkRole: () => Promise<void>
+  resetPassword: (email: string) => Promise<void>
+  confirmResetPassword: (email: string, confirmationCode: string, newPassword: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -188,6 +190,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }
 
+  const resetPassword = async (email: string) => {
+    try {
+      await amplifyResetPassword({ username: email })
+    } catch (error: any) {
+      const errorMessage = error.message || error.name || 'Failed to initiate password reset'
+      throw new Error(errorMessage)
+    }
+  }
+
+  const confirmResetPassword = async (email: string, confirmationCode: string, newPassword: string) => {
+    try {
+      await amplifyConfirmResetPassword({ username: email, confirmationCode, newPassword })
+    } catch (error: any) {
+      const errorMessage = error.message || error.name || 'Failed to confirm password reset'
+      throw new Error(errorMessage)
+    }
+  }
+
   const value: AuthContextType = {
     isAuthenticated,
     user,
@@ -198,6 +218,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     changePassword,
     logout,
     checkRole,
+    resetPassword,
+    confirmResetPassword,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -1,7 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
-import PlayerLogin from './pages/PlayerLogin'
-import AdminLogin from './pages/AdminLogin'
+import Login from './pages/Login'
 import AdminDashboard from './pages/AdminDashboard'
 import PlayerView from './pages/PlayerView'
 import MyProgressView from './pages/MyProgressView'
@@ -19,8 +18,8 @@ function App() {
         <Router>
           <Routes>
             {/* Public routes */}
-            <Route path="/login" element={<PlayerLogin />} />
-            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/admin/login" element={<Login />} />
             
             {/* Player routes (protected, no admin required) */}
             <Route
