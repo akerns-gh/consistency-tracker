@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { createClub, createTeam, getTeams, Team, advanceWeek } from '../../../services/adminApi'
+import { useAuth } from '../../../contexts/AuthContext'
 import Card from '../../ui/Card'
 import Button from '../../ui/Button'
 import Loading from '../../ui/Loading'
 
 export default function SettingsForm() {
+  const { isAppAdmin } = useAuth()
   const [teams, setTeams] = useState<Team[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedTeam, setSelectedTeam] = useState<string>('')
@@ -99,8 +101,8 @@ export default function SettingsForm() {
 
   return (
     <div className="space-y-6">
-      {needsClubAssociation && (
-        <Card title="Club Setup (Required)">
+      {isAppAdmin && (
+        <Card title="Club Setup">
           <div className="space-y-4">
             <p className="text-sm text-gray-700">
               Your admin user is authenticated, but not associated with a club yet, so teams/players/activities can’t load.
@@ -143,49 +145,60 @@ export default function SettingsForm() {
         </Card>
       )}
 
-      {!needsClubAssociation && teams.length === 0 && (
-        <Card title="Team Setup (Required)">
-          <div className="space-y-4">
-            <p className="text-sm text-gray-700">
-              No teams exist in your club yet. Create your first team so you can add players and team-scoped activities.
-            </p>
-
-            {teamCreateError && (
-              <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-                {teamCreateError}
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">Team name</label>
-                <input
-                  type="text"
-                  value={teamCreateName}
-                  onChange={(e) => setTeamCreateName(e.target.value)}
-                  placeholder="e.g. 2028 Boys"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">Coach name (optional)</label>
-                <input
-                  type="text"
-                  value={teamCreateCoachName}
-                  onChange={(e) => setTeamCreateCoachName(e.target.value)}
-                  placeholder="e.g. Coach Adams"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            <Button onClick={handleCreateTeam}>Create Team</Button>
-          </div>
-        </Card>
-      )}
-
       <Card title="Team Information">
         <div className="space-y-4">
+          {needsClubAssociation ? (
+            <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded">
+              <p className="text-sm">
+                <strong>Club association required:</strong> You must be associated with a club before creating teams.
+                {isAppAdmin ? (
+                  <> Create a club above, then set your Cognito user attribute <code>custom:clubId</code> to the clubId and sign out/in.</>
+                ) : (
+                  <> Please contact an administrator to associate your account with a club.</>
+                )}
+              </p>
+            </div>
+          ) : teams.length === 0 ? (
+            // Show create team form when no teams exist AND user has club
+            <div className="space-y-4">
+              <p className="text-sm text-gray-700">
+                No teams exist in your club yet. Create your first team so you can add players and team-scoped activities.
+              </p>
+
+              {teamCreateError && (
+                <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
+                  {teamCreateError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Team name</label>
+                  <input
+                    type="text"
+                    value={teamCreateName}
+                    onChange={(e) => setTeamCreateName(e.target.value)}
+                    placeholder="e.g. 2028 Boys"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Coach name (optional)</label>
+                  <input
+                    type="text"
+                    value={teamCreateCoachName}
+                    onChange={(e) => setTeamCreateCoachName(e.target.value)}
+                    placeholder="e.g. Coach Adams"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <Button onClick={handleCreateTeam}>Create Team</Button>
+            </div>
+          ) : (
+            // Show dropdown when teams exist
+            <>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Select Team
@@ -195,7 +208,6 @@ export default function SettingsForm() {
               onChange={(e) => setSelectedTeam(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
             >
-              {teams.length === 0 && <option value="">No teams available</option>}
               {teams.map((team) => (
                 <option key={team.teamId} value={team.teamId}>
                   {team.teamName}
@@ -218,6 +230,8 @@ export default function SettingsForm() {
                 </>
               )}
             </div>
+              )}
+            </>
           )}
         </div>
       </Card>

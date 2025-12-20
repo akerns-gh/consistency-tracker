@@ -100,7 +100,7 @@ Or via AWS Console:
 1. Go to AWS Console → Cognito → User Pools
 2. Select "ConsistencyTracker-AdminPool"
 3. Create a new user
-4. Add user to "Admins" group
+4. Add user to "club-admins" group
 
 ### Step 4: Deploy Frontend Application
 
@@ -772,7 +772,7 @@ aws cognito-idp admin-create-user \
 aws cognito-idp admin-add-user-to-group \
   --user-pool-id $USER_POOL_ID \
   --username admin@example.com \
-  --group-name Admins \
+  --group-name club-admins \
   --region us-east-2
 ```
 

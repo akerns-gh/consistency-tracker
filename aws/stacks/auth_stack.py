@@ -67,13 +67,15 @@ class AuthStack(Stack):
             prevent_user_existence_errors=True,  # Security: don't reveal if user exists
         )
 
-        # Admin User Group
-        # This group identifies users with admin privileges
-        self.admin_group = self.user_pool.add_group(
-            "Admins",
-            group_name="Admins",
-            description="Administrators with full access to the Consistency Tracker",
-            precedence=1,  # Lower number = higher precedence
+        # App Admin Group (Platform-wide admins - highest privilege)
+        # These admins can create clubs and administer the entire platform
+        # Note: Dynamic groups (club-{clubId}-admins and coach-{clubId}-{teamId}) are created automatically
+        # when clubs and teams are created via the API
+        self.app_admin_group = self.user_pool.add_group(
+            "AppAdmin",
+            group_name="app-admin",
+            description="Platform administrators with access to all clubs and club creation",
+            precedence=0,  # Highest precedence (lower number = higher priority)
         )
 
         # Add custom attributes for club and team association

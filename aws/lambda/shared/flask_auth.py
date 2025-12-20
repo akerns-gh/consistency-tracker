@@ -11,6 +11,7 @@ from typing import Optional, Dict, Any
 from shared.auth_utils import (
     extract_user_info_from_event,
     verify_admin_role,
+    verify_app_admin_role,
     get_club_id_from_user,
     get_team_ids_from_user,
 )
@@ -57,6 +58,36 @@ def require_admin(f):
         g.current_user = user_info
         g.club_id = get_club_id_from_user(event)
         g.team_ids = get_team_ids_from_user(event)
+        g.is_app_admin = verify_app_admin_role(event)  # Set app-admin flag
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def require_app_admin(f):
+    """
+    Decorator to require app-admin authentication (platform-wide admin).
+    
+    Validates that the user is authenticated and has app-admin role.
+    Must be used after @require_admin.
+    
+    Usage:
+        @app.route('/admin/clubs', methods=['POST'])
+        @require_admin
+        @require_app_admin
+        def create_club():
+            # Only app-admins can access this
+            pass
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        event = get_api_gateway_event()
+        
+        if not verify_app_admin_role(event):
+            abort(403, description="App-admin access required")
+        
+        # Ensure is_app_admin is set
+        g.is_app_admin = True
         
         return f(*args, **kwargs)
     return decorated_function

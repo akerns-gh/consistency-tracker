@@ -22,8 +22,11 @@ except ImportError:
 COGNITO_USER_POOL_ID = os.environ.get("COGNITO_USER_POOL_ID")
 COGNITO_REGION = os.environ.get("COGNITO_REGION", "us-east-2")
 
-# Admin group name
-ADMIN_GROUP_NAME = "Admins"
+# Admin group names
+APP_ADMIN_GROUP_NAME = "app-admin"  # Platform-wide admins (can create clubs)
+# Note: Dynamic groups are created automatically:
+# - club-{clubId}-admins: Created when app-admin creates a club
+# - coach-{clubId}-{teamId}: Created when club-admin creates a team
 
 
 def get_cognito_public_keys(user_pool_id: str, region: str) -> Dict[str, Any]:
@@ -133,15 +136,15 @@ def extract_user_info_from_jwt_token(token: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def verify_admin_role(event: Dict[str, Any]) -> bool:
+def verify_app_admin_role(event: Dict[str, Any]) -> bool:
     """
-    Verify that the authenticated user has admin role.
+    Verify that the authenticated user has app-admin role (platform-wide admin).
 
     Args:
         event: API Gateway Lambda event
 
     Returns:
-        True if user is admin, False otherwise
+        True if user is app-admin, False otherwise
     """
     user_info = extract_user_info_from_event(event)
     
@@ -149,7 +152,46 @@ def verify_admin_role(event: Dict[str, Any]) -> bool:
         return False
     
     groups = user_info.get("groups", [])
-    return ADMIN_GROUP_NAME in groups
+    # Check for exact app-admin group match
+    return APP_ADMIN_GROUP_NAME in groups
+
+
+def verify_admin_role(event: Dict[str, Any]) -> bool:
+    """
+    Verify that the authenticated user has admin role (app-admin, club-admin, or coach).
+
+    Args:
+        event: API Gateway Lambda event
+
+    Returns:
+        True if user is app-admin, club-{clubId}-admins, or coach-{clubId}-{teamId}, False otherwise
+    """
+    import re
+    
+    user_info = extract_user_info_from_event(event)
+    
+    if not user_info:
+        return False
+    
+    groups = user_info.get("groups", [])
+    
+    # Check for app-admin (exact match)
+    if APP_ADMIN_GROUP_NAME in groups:
+        return True
+    
+    # Check for club-{clubId}-admins pattern
+    club_admin_pattern = re.compile(r'^club-([a-f0-9-]+)-admins$')
+    for group in groups:
+        if club_admin_pattern.match(group):
+            return True
+    
+    # Check for coach-{clubId}-{teamId} pattern
+    coach_pattern = re.compile(r'^coach-([a-f0-9-]+)-([a-f0-9-]+)$')
+    for group in groups:
+        if coach_pattern.match(group):
+            return True
+    
+    return False
 
 
 def require_admin(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -186,6 +228,8 @@ def get_club_id_from_user(event: Dict[str, Any]) -> Optional[str]:
     Returns:
         clubId or None
     """
+    import re
+    
     request_context = event.get("requestContext", {})
     authorizer = request_context.get("authorizer", {})
     claims = authorizer.get("claims", {})
@@ -193,24 +237,29 @@ def get_club_id_from_user(event: Dict[str, Any]) -> Optional[str]:
     if not claims:
         return None
     
-    # Try custom:clubId attribute first
+    # Try custom:clubId attribute first (preferred)
     club_id = claims.get("custom:clubId")
     if club_id:
         return club_id
     
-    # Try extracting from group name (e.g., "club-{clubId}-admins")
+    # Try extracting from group names using pattern matching
     user_info = extract_user_info_from_event(event)
     if user_info:
         groups = user_info.get("groups", [])
+        
+        # Pattern for club-{clubId}-admins
+        club_admin_pattern = re.compile(r'^club-([a-f0-9-]+)-admins$')
         for group in groups:
-            if group.startswith("club-") and group.endswith("-admins"):
-                # Extract clubId from group name
-                club_id = group.replace("club-", "").replace("-admins", "")
-                return club_id
-            elif group.startswith("club-") and group.endswith("-coaches"):
-                # Extract clubId from group name
-                club_id = group.replace("club-", "").replace("-coaches", "")
-                return club_id
+            match = club_admin_pattern.match(group)
+            if match:
+                return match.group(1)
+        
+        # Pattern for coach-{clubId}-{teamId} (extract clubId)
+        coach_pattern = re.compile(r'^coach-([a-f0-9-]+)-([a-f0-9-]+)$')
+        for group in groups:
+            match = coach_pattern.match(group)
+            if match:
+                return match.group(1)  # Return clubId from coach group
     
     return None
 
@@ -225,6 +274,8 @@ def get_team_ids_from_user(event: Dict[str, Any]) -> List[str]:
     Returns:
         List of teamIds user has access to
     """
+    import re
+    
     request_context = event.get("requestContext", {})
     authorizer = request_context.get("authorizer", {})
     claims = authorizer.get("claims", {})
@@ -232,22 +283,26 @@ def get_team_ids_from_user(event: Dict[str, Any]) -> List[str]:
     if not claims:
         return []
     
-    # Try custom:teamIds (comma-separated)
+    # Try custom:teamIds (comma-separated) - preferred
     team_ids_str = claims.get("custom:teamIds", "")
     if team_ids_str:
         return [tid.strip() for tid in team_ids_str.split(",") if tid.strip()]
     
-    # Try extracting from group names (e.g., "team-{teamId}-coaches")
+    # Try extracting from group names using pattern matching
+    # Pattern: coach-{clubId}-{teamId}
     user_info = extract_user_info_from_event(event)
     if not user_info:
         return []
     
     groups = user_info.get("groups", [])
     team_ids = []
+    coach_pattern = re.compile(r'^coach-([a-f0-9-]+)-([a-f0-9-]+)$')
     for group in groups:
-        if group.startswith("team-") and group.endswith("-coaches"):
-            team_id = group.replace("team-", "").replace("-coaches", "")
-            team_ids.append(team_id)
+        match = coach_pattern.match(group)
+        if match:
+            team_id = match.group(2)  # Extract teamId from coach group
+            if team_id not in team_ids:
+                team_ids.append(team_id)
     
     return team_ids
 

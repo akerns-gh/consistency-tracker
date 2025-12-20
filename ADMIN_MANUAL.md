@@ -6,10 +6,124 @@ This document describes the process for creating and managing admin users in the
 
 Admin users are authenticated through AWS Cognito User Pool. When a new admin user is created, they receive a temporary password and must change it on their first login. This manual covers:
 
-1. Creating new admin users
-2. First-time login process
-3. Password requirements
-4. Troubleshooting
+1. Admin group hierarchy and permissions
+2. Creating new admin users
+3. First-time login process
+4. Password requirements
+5. Troubleshooting
+
+## Admin Group Hierarchy
+
+The application uses a hierarchical admin group structure to manage permissions:
+
+### Group Types
+
+1. **`app-admin`** (Platform Administrators)
+   - **Scope**: Platform-wide access to all clubs
+   - **Permissions**:
+     - Create new clubs
+     - Access all clubs and teams
+     - Manage platform settings
+   - **Creation**: Created manually via AWS Console or CLI (see "Creating Your First App-Admin" below)
+
+2. **`club-{clubId}-admins`** (Club Administrators)
+   - **Scope**: Access to a specific club and all its teams
+   - **Permissions**:
+     - Create teams within their club
+     - Manage club settings
+     - Access all teams in their club
+     - Cannot create new clubs
+   - **Creation**: Automatically created when an `app-admin` creates a new club
+   - **Example**: `club-abc123-def456-789-admins` for club with ID `abc123-def456-789`
+
+3. **`coach-{clubId}-{teamId}`** (Team Coaches)
+   - **Scope**: Access to a specific team within a club
+   - **Permissions**:
+     - View and manage team data
+     - Access team-specific settings
+     - Cannot create teams or clubs
+   - **Creation**: Automatically created when a `club-admin` creates a new team
+   - **Auto-assignment**: The club-admin who creates the team is automatically added to this group
+   - **Example**: `coach-abc123-def456-789-xyz987-654-321` for team `xyz987-654-321` in club `abc123-def456-789`
+
+### Automatic Group Creation
+
+The system automatically creates admin groups when clubs and teams are created:
+
+- **When an `app-admin` creates a club:**
+  - The system automatically creates a `club-{clubId}-admins` group in Cognito
+  - This group can then be used to assign club administrators
+
+- **When a `club-admin` creates a team:**
+  - The system automatically creates a `coach-{clubId}-{teamId}` group in Cognito
+  - The club-admin who created the team is automatically added to this group
+  - This allows the creator to immediately access and manage the team
+
+### Group Assignment Workflow
+
+```
+1. App-admin creates club → `club-{clubId}-admins` group created automatically
+2. App-admin assigns users to `club-{clubId}-admins` group → Users become club-admins
+3. Club-admin creates team → `coach-{clubId}-{teamId}` group created automatically
+4. Club-admin (creator) automatically added to `coach-{clubId}-{teamId}` group
+5. Additional coaches can be manually added to `coach-{clubId}-{teamId}` group
+```
+
+## Creating Your First App-Admin
+
+Before you can create clubs, you need at least one `app-admin` user. Here's how to create one:
+
+### Using AWS Console
+
+1. **Create the user** (follow "Creating New Admin Users" section below)
+2. **Add to app-admin group:**
+   - Go to AWS Console → Cognito → User Pools → ConsistencyTracker-AdminPool
+   - Select the user
+   - Go to "Groups" tab
+   - Click "Add user to group"
+   - Select `app-admin` group
+   - Click "Add"
+
+### Using AWS CLI
+
+```bash
+# Get User Pool ID
+USER_POOL_ID=$(aws cloudformation describe-stacks \
+  --stack-name ConsistencyTracker-Auth \
+  --region us-east-1 \
+  --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
+  --output text)
+
+# Create user (if not already created)
+aws cognito-idp admin-create-user \
+  --user-pool-id $USER_POOL_ID \
+  --username admin@example.com \
+  --user-attributes Name=email,Value=admin@example.com \
+  --temporary-password "TempPass123!2025" \
+  --message-action SUPPRESS \
+  --region us-east-1
+
+# Add to app-admin group
+aws cognito-idp admin-add-user-to-group \
+  --user-pool-id $USER_POOL_ID \
+  --username admin@example.com \
+  --group-name app-admin \
+  --region us-east-1
+```
+
+### Using Python Script
+
+Edit `aws/create_admin_user.py` and change the `ADMIN_GROUP_NAME` to `"app-admin"`:
+
+```python
+ADMIN_GROUP_NAME = "app-admin"  # For platform administrators
+```
+
+Then run:
+```bash
+cd aws
+python create_admin_user.py
+```
 
 ## Creating New Admin Users
 
@@ -40,7 +154,7 @@ The easiest way to create a new admin user is using the provided Python script:
    The script will:
    - Automatically fetch the User Pool ID from CloudFormation
    - Create the admin user with the specified email and temporary password
-   - Add the user to the "Admins" group
+   - Add the user to the specified admin group (default: `club-admins`, but can be changed to `app-admin` or a dynamic group)
    - Handle errors gracefully (e.g., user already exists)
 
 4. **Share credentials with the new admin:**
@@ -61,11 +175,14 @@ The easiest way to create a new admin user is using the provided Python script:
    - Uncheck "Send an invitation" if you want to share credentials manually
    - Click "Create user"
 
-3. **Add to Admins Group:**
+3. **Add to Appropriate Group:**
    - Select the newly created user
    - Go to "Groups" tab
    - Click "Add user to group"
-   - Select "Admins" group
+   - Select the appropriate group:
+     - `app-admin` for platform administrators
+     - `club-{clubId}-admins` for club administrators (replace `{clubId}` with actual club ID)
+     - `coach-{clubId}-{teamId}` for team coaches (replace with actual club and team IDs)
    - Click "Add"
 
 ### Option 3: Using AWS CLI
@@ -87,12 +204,20 @@ aws cognito-idp admin-create-user \
   --message-action SUPPRESS \
   --region us-east-1
 
-# Add to Admins group
+# Add to appropriate group (replace with actual group name)
+# For app-admin:
 aws cognito-idp admin-add-user-to-group \
   --user-pool-id $USER_POOL_ID \
   --username admin@example.com \
-  --group-name Admins \
+  --group-name app-admin \
   --region us-east-1
+
+# For club-admin (replace {clubId} with actual club ID):
+# aws cognito-idp admin-add-user-to-group \
+#   --user-pool-id $USER_POOL_ID \
+#   --username admin@example.com \
+#   --group-name club-{clubId}-admins \
+#   --region us-east-1
 ```
 
 ## First-Time Login Process
@@ -195,16 +320,20 @@ When viewing users in the AWS Cognito console, you may see different statuses:
   - At least one number
 - Check that both password fields match exactly
 
-### User Not in Admins Group
+### User Not in Correct Admin Group
 
-**Issue**: User can log in but doesn't have admin access
+**Issue**: User can log in but doesn't have expected admin access
 
 **Solution**:
 1. Go to AWS Console → Cognito → User Pools → ConsistencyTracker-AdminPool
 2. Select the user
 3. Go to "Groups" tab
-4. Verify user is in "Admins" group
-5. If not, click "Add user to group" and select "Admins"
+4. Verify user is in the appropriate group:
+   - `app-admin` for platform-wide access
+   - `club-{clubId}-admins` for club-specific access (check the club ID)
+   - `coach-{clubId}-{teamId}` for team-specific access (check club and team IDs)
+5. If not in the correct group, click "Add user to group" and select the appropriate group
+6. **Note**: Dynamic groups (`club-{clubId}-admins` and `coach-{clubId}-{teamId}`) are created automatically when clubs/teams are created, but users must be manually added to them
 
 ### Temporary Password Expired
 
@@ -226,10 +355,77 @@ When viewing users in the AWS Cognito console, you may see different statuses:
 4. **Regular Audits**: Periodically review admin users in Cognito to ensure only authorized users have access
 5. **Document User Creation**: Keep a record of when users were created and by whom
 
+## Managing Dynamic Groups
+
+### Finding Club and Team IDs
+
+To assign users to dynamic groups, you need to know the club and team IDs:
+
+1. **From the Application UI:**
+   - Log in as an admin
+   - Navigate to Settings
+   - Club ID and Team IDs are displayed in the UI
+
+2. **From DynamoDB:**
+   ```bash
+   # List all clubs
+   aws dynamodb scan \
+     --table-name ConsistencyTracker-Clubs \
+     --region us-east-1 \
+     --query 'Items[*].[clubId.S,clubName.S]' \
+     --output table
+   
+   # List teams for a club
+   aws dynamodb query \
+     --table-name ConsistencyTracker-Teams \
+     --index-name ClubIdIndex \
+     --key-condition-expression "clubId = :clubId" \
+     --expression-attribute-values '{":clubId":{"S":"YOUR_CLUB_ID"}}' \
+     --region us-east-1 \
+     --query 'Items[*].[teamId.S,teamName.S]' \
+     --output table
+   ```
+
+3. **From CloudWatch Logs:**
+   - Check Lambda function logs for club/team creation events
+   - Club and team IDs are logged when created
+
+### Adding Users to Dynamic Groups
+
+Once you have the club/team IDs, add users to the appropriate groups:
+
+```bash
+# Get User Pool ID
+USER_POOL_ID=$(aws cloudformation describe-stacks \
+  --stack-name ConsistencyTracker-Auth \
+  --region us-east-1 \
+  --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' \
+  --output text)
+
+# Add user to club-admin group
+aws cognito-idp admin-add-user-to-group \
+  --user-pool-id $USER_POOL_ID \
+  --username user@example.com \
+  --group-name club-{CLUB_ID}-admins \
+  --region us-east-1
+
+# Add user to coach group
+aws cognito-idp admin-add-user-to-group \
+  --user-pool-id $USER_POOL_ID \
+  --username user@example.com \
+  --group-name coach-{CLUB_ID}-{TEAM_ID} \
+  --region us-east-1
+```
+
+**Note**: Replace `{CLUB_ID}` and `{TEAM_ID}` with actual IDs from your database.
+
 ## Related Files
 
 - **User Creation Script**: `aws/create_admin_user.py`
 - **Auth Stack Configuration**: `aws/stacks/auth_stack.py`
+- **Admin App (Group Creation Logic)**: `aws/lambda/admin_app.py`
+- **Auth Utilities**: `aws/lambda/shared/auth_utils.py`
+- **Flask Auth Decorators**: `aws/lambda/shared/flask_auth.py`
 - **Login Components**: 
   - `app/src/pages/AdminLogin.tsx`
   - `app/src/pages/PlayerLogin.tsx`

@@ -226,6 +226,20 @@ class ApiStack(Stack):
             )
         )
 
+        # Grant Cognito permissions for group creation and management
+        admin_role.add_to_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "cognito-idp:CreateGroup",
+                    "cognito-idp:DescribeUserPool",
+                    "cognito-idp:GetGroup",
+                    "cognito-idp:AdminAddUserToGroup",
+                ],
+                resources=[self.auth_stack.user_pool.user_pool_arn],
+            )
+        )
+
         # Create single Lambda function for admin Flask app
         admin_function = lambda_.Function(
             self,

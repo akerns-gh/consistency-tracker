@@ -17,9 +17,11 @@ import boto3
 from datetime import datetime, timedelta
 from flask import Flask, request, g
 from serverless_wsgi import handle_request
+from botocore.exceptions import ClientError
 
 from shared.flask_auth import (
     require_admin,
+    require_app_admin,
     require_club,
     require_club_access,
     require_resource_access,
@@ -37,7 +39,7 @@ from shared.db_utils import (
     get_all_content_pages_by_club,
     get_tracking_by_week,
 )
-from shared.auth_utils import extract_user_info_from_event, verify_admin_role
+from shared.auth_utils import extract_user_info_from_event, verify_admin_role, verify_app_admin_role
 from shared.flask_auth import get_api_gateway_event
 from shared.html_sanitizer import sanitize_html
 from shared.week_utils import get_current_week_id, get_week_id, get_week_dates
@@ -47,6 +49,46 @@ app = Flask(__name__)
 # S3 client for image uploads
 CONTENT_IMAGES_BUCKET = os.environ.get("CONTENT_IMAGES_BUCKET", "consistency-tracker-content-images")
 s3_client = boto3.client("s3")
+
+# Cognito client for group management
+COGNITO_USER_POOL_ID = os.environ.get("COGNITO_USER_POOL_ID")
+COGNITO_REGION = os.environ.get("COGNITO_REGION", "us-east-1")
+cognito_client = boto3.client("cognito-idp", region_name=COGNITO_REGION) if COGNITO_USER_POOL_ID else None
+
+
+def create_cognito_group(user_pool_id: str, group_name: str, description: str = None) -> bool:
+    """
+    Create a Cognito group if it doesn't exist. Returns True if created or already exists.
+    
+    Args:
+        user_pool_id: Cognito User Pool ID
+        group_name: Name of the group to create
+        description: Optional description for the group
+    
+    Returns:
+        True if group was created or already exists, False on error
+    """
+    if not cognito_client:
+        print(f"Warning: Cognito client not initialized. Cannot create group: {group_name}")
+        return False
+    
+    try:
+        cognito_client.create_group(
+            UserPoolId=user_pool_id,
+            GroupName=group_name,
+            Description=description
+        )
+        print(f"Created Cognito group: {group_name}")
+        return True
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
+        if error_code == 'ResourceConflictException':
+            # Group already exists - that's fine (idempotent)
+            print(f"Cognito group already exists: {group_name}")
+            return True
+        else:
+            print(f"Error creating Cognito group {group_name}: {e}")
+            return False
 
 
 @app.after_request
@@ -137,10 +179,12 @@ def check_role():
             return flask_error_response("Authentication required", status_code=401)
         
         is_admin = verify_admin_role(event)
+        is_app_admin = verify_app_admin_role(event)
         
         response_data = {
             "authenticated": True,
             "isAdmin": is_admin,
+            "isAppAdmin": is_app_admin,
             "user": {
                 "username": user_info.get("username"),
                 "email": user_info.get("email"),
@@ -165,14 +209,22 @@ def check_role():
 @app.route('/admin/clubs', methods=['GET'])
 @require_admin
 def list_clubs():
-    """List clubs (for now, only return user's club)."""
-    user_club_id = g.club_id
+    """List clubs. App-admins see all clubs, club-admins see only their club."""
+    is_app_admin = getattr(g, 'is_app_admin', False)
     
-    if user_club_id:
-        club = get_club_by_id(user_club_id)
-        clubs = [club] if club else []
+    if is_app_admin:
+        # App-admins can see all clubs
+        table = get_table("ConsistencyTracker-Clubs")
+        response = table.scan()
+        clubs = response.get("Items", [])
     else:
-        clubs = []
+        # Club-admins see only their club
+        user_club_id = g.club_id
+        if user_club_id:
+            club = get_club_by_id(user_club_id)
+            clubs = [club] if club else []
+        else:
+            clubs = []
     
     return flask_success_response({"clubs": clubs, "total": len(clubs)})
 
@@ -191,15 +243,9 @@ def get_club(club_id):
 
 @app.route('/admin/clubs', methods=['POST'])
 @require_admin
+@require_app_admin
 def create_club():
-    """Create new club (restricted - for now, allow if user doesn't have a club)."""
-    user_club_id = g.club_id
-    
-    if user_club_id:
-        return flask_error_response(
-            "User already associated with a club. Club creation restricted.",
-            status_code=403
-        )
+    """Create new club (restricted to app-admins only)."""
     
     body = request.get_json() or {}
     club_name = body.get("clubName")
@@ -220,6 +266,12 @@ def create_club():
     
     table = get_table("ConsistencyTracker-Clubs")
     table.put_item(Item=club)
+    
+    # Automatically create club-{clubId}-admins group in Cognito
+    if COGNITO_USER_POOL_ID:
+        group_name = f"club-{new_club_id}-admins"
+        description = f"Administrators for club {club_name}"
+        create_cognito_group(COGNITO_USER_POOL_ID, group_name, description)
     
     return flask_success_response({"club": club}, status_code=201)
 
@@ -350,6 +402,37 @@ def create_team():
     
     table = get_table("ConsistencyTracker-Teams")
     table.put_item(Item=team)
+    
+    # Automatically create coach-{clubId}-{teamId} group in Cognito
+    if COGNITO_USER_POOL_ID and cognito_client:
+        group_name = f"coach-{club_id}-{new_team_id}"
+        # Get club name for description
+        club = get_club_by_id(club_id)
+        club_name = club.get("clubName", "Unknown Club") if club else "Unknown Club"
+        description = f"Coaches for team {team_name} in club {club_name}"
+        
+        # Create the group
+        if create_cognito_group(COGNITO_USER_POOL_ID, group_name, description):
+            # Automatically add the current user (club-admin who created the team) to the group
+            event = get_api_gateway_event()
+            user_info = extract_user_info_from_event(event)
+            if user_info and user_info.get("username"):
+                username = user_info.get("username")
+                try:
+                    cognito_client.admin_add_user_to_group(
+                        UserPoolId=COGNITO_USER_POOL_ID,
+                        Username=username,
+                        GroupName=group_name
+                    )
+                    print(f"Added user {username} to coach group: {group_name}")
+                except ClientError as e:
+                    error_code = e.response.get('Error', {}).get('Code', '')
+                    if error_code == 'InvalidParameterException' and 'already a member' in str(e):
+                        # User already in group - that's fine
+                        print(f"User {username} is already a member of {group_name}")
+                    else:
+                        print(f"Warning: Could not add user {username} to group {group_name}: {e}")
+                        # Don't fail the request if group creation succeeded
     
     return flask_success_response({"team": team}, status_code=201)
 

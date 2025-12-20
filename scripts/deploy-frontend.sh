@@ -83,7 +83,7 @@ log_info "✅ Cognito Client ID: $COGNITO_USER_POOL_CLIENT_ID"
 # Use custom domain URL (configured manually)
 log_info "Using API Gateway custom domain URL..."
 API_ENDPOINT="$API_CUSTOM_DOMAIN"
-log_info "✅ API Gateway Endpoint: $API_ENDPOINT"
+    log_info "✅ API Gateway Endpoint: $API_ENDPOINT"
 
 # Export environment variables for Vite build
 export VITE_COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID"

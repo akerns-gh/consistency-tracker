@@ -3,7 +3,12 @@
 Create First Admin User in Cognito User Pool
 
 This script creates the first admin user in the Consistency Tracker Cognito User Pool
-and adds them to the Admins group.
+and adds them to the specified admin group.
+
+Group Options:
+- "app-admin": Platform-wide administrators who can create clubs
+- "club-{clubId}-admins": Club-scoped administrators (created automatically when clubs are created)
+- "coach-{clubId}-{teamId}": Team-scoped coaches (created automatically when teams are created)
 """
 
 import boto3
@@ -24,7 +29,11 @@ ADMIN_USERNAME = "adamckerns@gmail.com"  # Usually same as email
 TEMPORARY_PASSWORD = "8u88l3Gum!2025"  # Must meet password policy (12+ chars, uppercase, lowercase, number)
 
 # Group Configuration
-ADMIN_GROUP_NAME = "Admins"
+# Options:
+#   - "app-admin" (singular): Platform-wide admins who can create clubs
+#   - "club-{clubId}-admins": Club-scoped admins (created automatically when club is created)
+#   - "coach-{clubId}-{teamId}": Team-scoped coaches (created automatically when team is created)
+ADMIN_GROUP_NAME = "app-admin"  # Change to "app-admin" for platform administrators, or use dynamic group name
 
 # ============================================================================
 # Script Logic

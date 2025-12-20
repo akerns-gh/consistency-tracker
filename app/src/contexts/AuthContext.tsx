@@ -12,6 +12,7 @@ interface AuthContextType {
   isAuthenticated: boolean
   user: User | null
   isAdmin: boolean
+  isAppAdmin: boolean
   isLoading: boolean
   requiresNewPassword: boolean
   login: (email: string, password: string) => Promise<void>
@@ -40,6 +41,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isAppAdmin, setIsAppAdmin] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [requiresNewPassword, setRequiresNewPassword] = useState(false)
   const [pendingEmail, setPendingEmail] = useState<string>('')
@@ -171,12 +173,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsAuthenticated(false)
       setUser(null)
       setIsAdmin(false)
+      setIsAppAdmin(false)
     } catch (error) {
       console.error('Logout error:', error)
       // Clear state even if signOut fails
       setIsAuthenticated(false)
       setUser(null)
       setIsAdmin(false)
+      setIsAppAdmin(false)
     }
   }
 
@@ -184,9 +188,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const result = await checkAdminRole()
       setIsAdmin(result.isAdmin)
+      setIsAppAdmin(result.isAppAdmin || false)
     } catch (error) {
       console.error('Error checking admin role:', error)
       setIsAdmin(false)
+      setIsAppAdmin(false)
     }
   }
 
@@ -212,6 +218,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated,
     user,
     isAdmin,
+    isAppAdmin,
     isLoading,
     requiresNewPassword,
     login,
