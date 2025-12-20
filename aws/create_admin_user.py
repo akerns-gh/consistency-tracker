@@ -7,7 +7,7 @@ and adds them to the specified admin group.
 
 Group Options:
 - "app-admin": Platform-wide administrators who can create clubs
-- "club-{clubId}-admins": Club-scoped administrators (created automatically when clubs are created)
+- "club-{sanitizedClubName}-admins": Club-scoped administrators (created automatically when clubs are created, uses sanitized club name)
 - "coach-{clubId}-{teamId}": Team-scoped coaches (created automatically when teams are created)
 """
 
@@ -31,7 +31,7 @@ TEMPORARY_PASSWORD = "8u88l3Gum!2025"  # Must meet password policy (12+ chars, u
 # Group Configuration
 # Options:
 #   - "app-admin" (singular): Platform-wide admins who can create clubs
-#   - "club-{clubId}-admins": Club-scoped admins (created automatically when club is created)
+#   - "club-{sanitizedClubName}-admins": Club-scoped admins (created automatically when club is created, uses sanitized club name)
 #   - "coach-{clubId}-{teamId}": Team-scoped coaches (created automatically when team is created)
 ADMIN_GROUP_NAME = "app-admin"  # Change to "app-admin" for platform administrators, or use dynamic group name
 

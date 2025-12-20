@@ -69,7 +69,7 @@ class AuthStack(Stack):
 
         # App Admin Group (Platform-wide admins - highest privilege)
         # These admins can create clubs and administer the entire platform
-        # Note: Dynamic groups (club-{clubId}-admins and coach-{clubId}-{teamId}) are created automatically
+        # Note: Dynamic groups (club-{sanitizedClubName}-admins and coach-{clubId}-{teamId}) are created automatically
         # when clubs and teams are created via the API
         self.app_admin_group = self.user_pool.add_group(
             "AppAdmin",

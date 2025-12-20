@@ -56,6 +56,49 @@ COGNITO_REGION = os.environ.get("COGNITO_REGION", "us-east-1")
 cognito_client = boto3.client("cognito-idp", region_name=COGNITO_REGION) if COGNITO_USER_POOL_ID else None
 
 
+def sanitize_club_name_for_group(club_name: str) -> str:
+    """
+    Sanitize club name for use in Cognito group names.
+    
+    Cognito group names must:
+    - Start with a letter
+    - Contain only alphanumeric characters, underscores, and hyphens
+    - Be between 1 and 128 characters
+    
+    Args:
+        club_name: Original club name
+    
+    Returns:
+        Sanitized club name safe for Cognito group names
+    """
+    if not club_name:
+        return "club"
+    
+    # Convert to lowercase and replace spaces/special chars with underscores
+    sanitized = re.sub(r'[^a-zA-Z0-9_-]', '_', club_name)
+    sanitized = sanitized.lower()
+    
+    # Ensure it starts with a letter (prepend 'club' if it starts with a number or underscore)
+    if not sanitized or not sanitized[0].isalpha():
+        sanitized = 'club_' + sanitized
+    
+    # Remove consecutive underscores
+    sanitized = re.sub(r'_+', '_', sanitized)
+    
+    # Remove leading/trailing underscores
+    sanitized = sanitized.strip('_')
+    
+    # Ensure it's not empty and limit length (Cognito max is 128, but we need room for 'club-' and '-admins')
+    if not sanitized:
+        sanitized = "club"
+    
+    # Limit to 100 chars to leave room for 'club-' prefix and '-admins' suffix
+    if len(sanitized) > 100:
+        sanitized = sanitized[:100].rstrip('_')
+    
+    return sanitized
+
+
 def create_cognito_group(user_pool_id: str, group_name: str, description: str = None) -> bool:
     """
     Create a Cognito group if it doesn't exist. Returns True if created or already exists.
@@ -267,9 +310,10 @@ def create_club():
     table = get_table("ConsistencyTracker-Clubs")
     table.put_item(Item=club)
     
-    # Automatically create club-{clubId}-admins group in Cognito
+    # Automatically create club-{sanitizedClubName}-admins group in Cognito
     if COGNITO_USER_POOL_ID:
-        group_name = f"club-{new_club_id}-admins"
+        sanitized_name = sanitize_club_name_for_group(club_name)
+        group_name = f"club-{sanitized_name}-admins"
         description = f"Administrators for club {club_name}"
         create_cognito_group(COGNITO_USER_POOL_ID, group_name, description)
     

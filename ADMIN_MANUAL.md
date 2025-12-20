@@ -26,7 +26,7 @@ The application uses a hierarchical admin group structure to manage permissions:
      - Manage platform settings
    - **Creation**: Created manually via AWS Console or CLI (see "Creating Your First App-Admin" below)
 
-2. **`club-{clubId}-admins`** (Club Administrators)
+2. **`club-{clubName}-admins`** (Club Administrators)
    - **Scope**: Access to a specific club and all its teams
    - **Permissions**:
      - Create teams within their club
@@ -34,7 +34,8 @@ The application uses a hierarchical admin group structure to manage permissions:
      - Access all teams in their club
      - Cannot create new clubs
    - **Creation**: Automatically created when an `app-admin` creates a new club
-   - **Example**: `club-abc123-def456-789-admins` for club with ID `abc123-def456-789`
+   - **Naming**: Uses sanitized club name (lowercase, underscores for spaces/special chars)
+   - **Example**: `club-acme_club-admins` for club named "ACME CLUB"
 
 3. **`coach-{clubId}-{teamId}`** (Team Coaches)
    - **Scope**: Access to a specific team within a club
@@ -51,7 +52,8 @@ The application uses a hierarchical admin group structure to manage permissions:
 The system automatically creates admin groups when clubs and teams are created:
 
 - **When an `app-admin` creates a club:**
-  - The system automatically creates a `club-{clubId}-admins` group in Cognito
+  - The system automatically creates a `club-{sanitizedClubName}-admins` group in Cognito
+  - The group name is based on the club name (sanitized for Cognito compatibility)
   - This group can then be used to assign club administrators
 
 - **When a `club-admin` creates a team:**
@@ -62,8 +64,8 @@ The system automatically creates admin groups when clubs and teams are created:
 ### Group Assignment Workflow
 
 ```
-1. App-admin creates club → `club-{clubId}-admins` group created automatically
-2. App-admin assigns users to `club-{clubId}-admins` group → Users become club-admins
+1. App-admin creates club → `club-{sanitizedClubName}-admins` group created automatically
+2. App-admin assigns users to `club-{sanitizedClubName}-admins` group → Users become club-admins
 3. Club-admin creates team → `coach-{clubId}-{teamId}` group created automatically
 4. Club-admin (creator) automatically added to `coach-{clubId}-{teamId}` group
 5. Additional coaches can be manually added to `coach-{clubId}-{teamId}` group
@@ -181,7 +183,7 @@ The easiest way to create a new admin user is using the provided Python script:
    - Click "Add user to group"
    - Select the appropriate group:
      - `app-admin` for platform administrators
-     - `club-{clubId}-admins` for club administrators (replace `{clubId}` with actual club ID)
+     - `club-{sanitizedClubName}-admins` for club administrators (e.g., `club-acme_club-admins` for "ACME CLUB")
      - `coach-{clubId}-{teamId}` for team coaches (replace with actual club and team IDs)
    - Click "Add"
 
@@ -212,11 +214,11 @@ aws cognito-idp admin-add-user-to-group \
   --group-name app-admin \
   --region us-east-1
 
-# For club-admin (replace {clubId} with actual club ID):
+# For club-admin (replace with actual sanitized club name, e.g., club-acme_club-admins):
 # aws cognito-idp admin-add-user-to-group \
 #   --user-pool-id $USER_POOL_ID \
 #   --username admin@example.com \
-#   --group-name club-{clubId}-admins \
+#   --group-name club-{sanitizedClubName}-admins \
 #   --region us-east-1
 ```
 
@@ -330,10 +332,10 @@ When viewing users in the AWS Cognito console, you may see different statuses:
 3. Go to "Groups" tab
 4. Verify user is in the appropriate group:
    - `app-admin` for platform-wide access
-   - `club-{clubId}-admins` for club-specific access (check the club ID)
+   - `club-{sanitizedClubName}-admins` for club-specific access (e.g., `club-acme_club-admins`)
    - `coach-{clubId}-{teamId}` for team-specific access (check club and team IDs)
 5. If not in the correct group, click "Add user to group" and select the appropriate group
-6. **Note**: Dynamic groups (`club-{clubId}-admins` and `coach-{clubId}-{teamId}`) are created automatically when clubs/teams are created, but users must be manually added to them
+6. **Note**: Dynamic groups (`club-{sanitizedClubName}-admins` and `coach-{clubId}-{teamId}`) are created automatically when clubs/teams are created, but users must be manually added to them
 
 ### Temporary Password Expired
 

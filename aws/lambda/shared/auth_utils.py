@@ -25,7 +25,7 @@ COGNITO_REGION = os.environ.get("COGNITO_REGION", "us-east-2")
 # Admin group names
 APP_ADMIN_GROUP_NAME = "app-admin"  # Platform-wide admins (can create clubs)
 # Note: Dynamic groups are created automatically:
-# - club-{clubId}-admins: Created when app-admin creates a club
+# - club-{clubName}-admins: Created when app-admin creates a club (uses sanitized club name)
 # - coach-{clubId}-{teamId}: Created when club-admin creates a team
 
 
@@ -164,7 +164,7 @@ def verify_admin_role(event: Dict[str, Any]) -> bool:
         event: API Gateway Lambda event
 
     Returns:
-        True if user is app-admin, club-{clubId}-admins, or coach-{clubId}-{teamId}, False otherwise
+        True if user is app-admin, club-{clubName}-admins, or coach-{clubId}-{teamId}, False otherwise
     """
     import re
     
@@ -179,8 +179,9 @@ def verify_admin_role(event: Dict[str, Any]) -> bool:
     if APP_ADMIN_GROUP_NAME in groups:
         return True
     
-    # Check for club-{clubId}-admins pattern
-    club_admin_pattern = re.compile(r'^club-([a-f0-9-]+)-admins$')
+    # Check for club-{clubName}-admins pattern (new format with sanitized club name)
+    # Matches: club-{alphanumeric, underscores, hyphens}-admins
+    club_admin_pattern = re.compile(r'^club-([a-z0-9_-]+)-admins$')
     for group in groups:
         if club_admin_pattern.match(group):
             return True
@@ -243,16 +244,11 @@ def get_club_id_from_user(event: Dict[str, Any]) -> Optional[str]:
         return club_id
     
     # Try extracting from group names using pattern matching
+    # Note: With new format (club-{name}-admins), we can't extract club ID from group name
+    # So we rely on custom:clubId claim (checked above) or coach groups
     user_info = extract_user_info_from_event(event)
     if user_info:
         groups = user_info.get("groups", [])
-        
-        # Pattern for club-{clubId}-admins
-        club_admin_pattern = re.compile(r'^club-([a-f0-9-]+)-admins$')
-        for group in groups:
-            match = club_admin_pattern.match(group)
-            if match:
-                return match.group(1)
         
         # Pattern for coach-{clubId}-{teamId} (extract clubId)
         coach_pattern = re.compile(r'^coach-([a-f0-9-]+)-([a-f0-9-]+)$')
