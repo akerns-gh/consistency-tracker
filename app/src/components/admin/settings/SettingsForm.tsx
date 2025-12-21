@@ -1,18 +1,13 @@
 import { useState, useEffect } from 'react'
-import { createClub, createTeam, getTeams, Team, advanceWeek } from '../../../services/adminApi'
-import { useAuth } from '../../../contexts/AuthContext'
+import { createTeam, getTeams, Team, advanceWeek } from '../../../services/adminApi'
 import Card from '../../ui/Card'
 import Button from '../../ui/Button'
 import Loading from '../../ui/Loading'
 
 export default function SettingsForm() {
-  const { isAppAdmin } = useAuth()
   const [teams, setTeams] = useState<Team[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedTeam, setSelectedTeam] = useState<string>('')
-  const [clubBootstrapName, setClubBootstrapName] = useState('')
-  const [clubBootstrapCreatedId, setClubBootstrapCreatedId] = useState<string | null>(null)
-  const [clubBootstrapError, setClubBootstrapError] = useState<string | null>(null)
   const [teamCreateName, setTeamCreateName] = useState('')
   const [teamCreateCoachName, setTeamCreateCoachName] = useState('')
   const [teamCreateError, setTeamCreateError] = useState<string | null>(null)
@@ -38,23 +33,6 @@ export default function SettingsForm() {
       setTeamLoadError((err as any)?.message || 'Failed to load teams')
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleCreateClub = async () => {
-    setClubBootstrapError(null)
-    setClubBootstrapCreatedId(null)
-    const name = clubBootstrapName.trim()
-    if (!name) {
-      setClubBootstrapError('Please enter a club name')
-      return
-    }
-
-    try {
-      const res = await createClub({ clubName: name })
-      setClubBootstrapCreatedId(res.club.clubId)
-    } catch (err: any) {
-      setClubBootstrapError(err?.message || 'Failed to create club')
     }
   }
 
@@ -101,49 +79,6 @@ export default function SettingsForm() {
 
   return (
     <div className="space-y-6">
-      {isAppAdmin && (
-        <Card title="Club Setup">
-          <div className="space-y-4">
-            <p className="text-sm text-gray-700">
-              Your admin user is authenticated, but not associated with a club yet, so teams/players/activities can’t load.
-              Create a club below, then set your Cognito user attribute <code>custom:clubId</code> to the new clubId and
-              sign out/in.
-            </p>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Club name</label>
-              <input
-                type="text"
-                value={clubBootstrapName}
-                onChange={(e) => setClubBootstrapName(e.target.value)}
-                placeholder="e.g. True Lacrosse"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-            </div>
-
-            {clubBootstrapError && (
-              <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-                {clubBootstrapError}
-              </div>
-            )}
-
-            {clubBootstrapCreatedId ? (
-              <div className="bg-green-50 border border-green-200 text-green-900 px-4 py-3 rounded space-y-2">
-                <div>
-                  <strong>Club created.</strong> Your clubId is:
-                </div>
-                <div className="font-mono break-all">{clubBootstrapCreatedId}</div>
-                <div className="text-sm">
-                  Next: In Cognito user pool <code>us-east-1_1voH0LIGL</code>, edit your user and set{' '}
-                  <code>custom:clubId</code> to the value above, then sign out and sign back in.
-                </div>
-              </div>
-            ) : (
-              <Button onClick={handleCreateClub}>Create Club</Button>
-            )}
-          </div>
-        </Card>
-      )}
 
       <Card title="Team Information">
         <div className="space-y-4">
@@ -151,11 +86,7 @@ export default function SettingsForm() {
             <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded">
               <p className="text-sm">
                 <strong>Club association required:</strong> You must be associated with a club before creating teams.
-                {isAppAdmin ? (
-                  <> Create a club above, then set your Cognito user attribute <code>custom:clubId</code> to the clubId and sign out/in.</>
-                ) : (
-                  <> Please contact an administrator to associate your account with a club.</>
-                )}
+                Please contact an administrator to associate your account with a club.
               </p>
             </div>
           ) : teams.length === 0 ? (

@@ -5,6 +5,9 @@ export interface Club {
   clubName: string
   settings?: Record<string, any>
   createdAt?: string
+  isDisabled?: boolean
+  disabledAt?: string
+  enabledAt?: string
 }
 
 export interface Team {
@@ -32,6 +35,33 @@ export async function createClub(data: {
   settings?: Record<string, any>
 }): Promise<{ club: Club }> {
   const response = await api.post('/admin/clubs', data)
+  return response.data.data
+}
+
+/**
+ * Update a club
+ */
+export async function updateClub(
+  clubId: string,
+  data: Partial<Club>
+): Promise<{ club: Club }> {
+  const response = await api.put(`/admin/clubs/${clubId}`, data)
+  return response.data.data
+}
+
+/**
+ * Disable a club (removes all users from Cognito groups)
+ */
+export async function disableClub(clubId: string): Promise<{ club: Club; message: string }> {
+  const response = await api.post(`/admin/clubs/${clubId}/disable`)
+  return response.data.data
+}
+
+/**
+ * Enable a club (note: users must be manually re-added to groups)
+ */
+export async function enableClub(clubId: string): Promise<{ club: Club; message: string }> {
+  const response = await api.post(`/admin/clubs/${clubId}/enable`)
   return response.data.data
 }
 

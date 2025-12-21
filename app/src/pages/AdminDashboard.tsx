@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useAuth } from '../contexts/AuthContext'
 import NavBar from '../components/admin/NavBar'
 import TabNavigation, { AdminTab } from '../components/admin/TabNavigation'
 import AdminMenu from '../components/admin/AdminMenu'
@@ -8,8 +9,15 @@ import SummaryCards from '../components/admin/overview/SummaryCards'
 import Charts from '../components/admin/overview/Charts'
 import ReflectionHighlights from '../components/admin/overview/ReflectionHighlights'
 import SettingsForm from '../components/admin/settings/SettingsForm'
+import AppAdminDashboard from './AppAdminDashboard'
 
 export default function AdminDashboard() {
+  const { isAppAdmin } = useAuth()
+  
+  // If user is app-admin, show app-admin dashboard instead
+  if (isAppAdmin) {
+    return <AppAdminDashboard />
+  }
   const [activeTab, setActiveTab] = useState<AdminTab>('overview')
   const [menuOpen, setMenuOpen] = useState(false)
 

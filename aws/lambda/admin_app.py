@@ -15,6 +15,7 @@ import base64
 import secrets
 import boto3
 from datetime import datetime, timedelta
+from typing import List
 from flask import Flask, request, g
 from serverless_wsgi import handle_request
 from botocore.exceptions import ClientError
@@ -132,6 +133,98 @@ def create_cognito_group(user_pool_id: str, group_name: str, description: str = 
         else:
             print(f"Error creating Cognito group {group_name}: {e}")
             return False
+
+
+def get_cognito_groups_for_club(club_id: str) -> List[str]:
+    """
+    Get all Cognito group names associated with a club.
+    
+    Returns:
+        List of group names: [club-{name}-admins, coach-{clubId}-{teamId1}, ...]
+    """
+    groups = []
+    
+    # Get club record to get club name
+    club = get_club_by_id(club_id)
+    if not club:
+        return groups
+    
+    club_name = club.get("clubName", "")
+    if club_name:
+        # Add club-admin group
+        sanitized_name = sanitize_club_name_for_group(club_name)
+        club_admin_group = f"club-{sanitized_name}-admins"
+        groups.append(club_admin_group)
+    
+    # Get all teams for the club
+    teams = get_teams_by_club(club_id)
+    for team in teams:
+        team_id = team.get("teamId")
+        if team_id:
+            coach_group = f"coach-{club_id}-{team_id}"
+            groups.append(coach_group)
+    
+    return groups
+
+
+def remove_all_users_from_group(user_pool_id: str, group_name: str) -> int:
+    """
+    Remove all users from a Cognito group.
+    
+    Args:
+        user_pool_id: Cognito User Pool ID
+        group_name: Name of the group
+    
+    Returns:
+        Number of users removed
+    """
+    if not cognito_client:
+        print(f"Warning: Cognito client not initialized. Cannot remove users from group: {group_name}")
+        return 0
+    
+    removed_count = 0
+    
+    try:
+        # List all users in the group
+        paginator = cognito_client.get_paginator('list_users_in_group')
+        pages = paginator.paginate(
+            UserPoolId=user_pool_id,
+            GroupName=group_name
+        )
+        
+        # Collect all usernames
+        usernames = []
+        for page in pages:
+            for user in page.get('Users', []):
+                username = user.get('Username')
+                if username:
+                    usernames.append(username)
+        
+        # Remove each user from the group
+        for username in usernames:
+            try:
+                cognito_client.admin_remove_user_from_group(
+                    UserPoolId=user_pool_id,
+                    Username=username,
+                    GroupName=group_name
+                )
+                removed_count += 1
+                print(f"Removed user {username} from group {group_name}")
+            except ClientError as e:
+                print(f"Error removing user {username} from group {group_name}: {e}")
+        
+        print(f"Removed {removed_count} users from group {group_name}")
+        return removed_count
+        
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
+        if error_code == 'ResourceNotFoundException':
+            # Group doesn't exist - that's fine
+            print(f"Group {group_name} does not exist")
+            return 0
+        else:
+            print(f"Error listing users in group {group_name}: {e}")
+            return 0
 
 
 @app.after_request
@@ -252,20 +345,24 @@ def check_role():
 @app.route('/admin/clubs', methods=['GET'])
 @require_admin
 def list_clubs():
-    """List clubs. App-admins see all clubs, club-admins see only their club."""
+    """List clubs. App-admins see all clubs (including disabled), club-admins see only their enabled club."""
     is_app_admin = getattr(g, 'is_app_admin', False)
     
     if is_app_admin:
-        # App-admins can see all clubs
+        # App-admins can see all clubs (including disabled)
         table = get_table("ConsistencyTracker-Clubs")
         response = table.scan()
         clubs = response.get("Items", [])
     else:
-        # Club-admins see only their club
+        # Club-admins see only their club (if it's enabled)
         user_club_id = g.club_id
         if user_club_id:
             club = get_club_by_id(user_club_id)
-            clubs = [club] if club else []
+            # Filter out disabled clubs for non-app-admins
+            if club and not club.get("isDisabled", False):
+                clubs = [club]
+            else:
+                clubs = []
         else:
             clubs = []
     
@@ -274,12 +371,22 @@ def list_clubs():
 
 @app.route('/admin/clubs/<club_id>', methods=['GET'])
 @require_admin
-@require_club_access('club_id')
 def get_club(club_id):
-    """Get club details."""
+    """Get club details. App-admins can get any club, club-admins can only get their own enabled club."""
     club = get_club_by_id(club_id)
     if not club:
         return flask_error_response("Club not found", status_code=404)
+    
+    # Check access: app-admins can get any club, club-admins can only get their own
+    is_app_admin = getattr(g, 'is_app_admin', False)
+    user_club_id = getattr(g, 'club_id', None)
+    
+    if not is_app_admin and club_id != user_club_id:
+        return flask_error_response("Club not found or access denied", status_code=403)
+    
+    # Check if club is disabled (non-app-admins cannot access disabled clubs)
+    if not is_app_admin and club.get("isDisabled", False):
+        return flask_error_response("Club is disabled", status_code=403)
     
     return flask_success_response({"club": club})
 
@@ -322,15 +429,21 @@ def create_club():
 
 @app.route('/admin/clubs/<club_id>', methods=['PUT'])
 @require_admin
-@require_club_access('club_id')
 def update_club(club_id):
-    """Update club settings."""
+    """Update club settings. App-admins can update any club, club-admins can only update their own."""
     body = request.get_json() or {}
     
     # Get existing club
     existing = get_club_by_id(club_id)
     if not existing:
         return flask_error_response("Club not found", status_code=404)
+    
+    # Check access: app-admins can update any club, club-admins can only update their own
+    is_app_admin = getattr(g, 'is_app_admin', False)
+    user_club_id = getattr(g, 'club_id', None)
+    
+    if not is_app_admin and club_id != user_club_id:
+        return flask_error_response("Club not found or access denied", status_code=403)
     
     # Update allowed fields
     update_expression_parts = []
@@ -363,6 +476,84 @@ def update_club(club_id):
     # Get updated club
     updated = get_club_by_id(club_id)
     return flask_success_response({"club": updated})
+
+
+@app.route('/admin/clubs/<club_id>/disable', methods=['POST'])
+@require_admin
+@require_app_admin
+def disable_club(club_id):
+    """Disable a club (restricted to app-admins only). Removes all users from Cognito groups."""
+    
+    # Get existing club
+    existing = get_club_by_id(club_id)
+    if not existing:
+        return flask_error_response("Club not found", status_code=404)
+    
+    # Check if already disabled
+    if existing.get("isDisabled", False):
+        return flask_error_response("Club is already disabled", status_code=400)
+    
+    # Update club to set isDisabled flag
+    table = get_table("ConsistencyTracker-Clubs")
+    now = datetime.utcnow().isoformat() + "Z"
+    table.update_item(
+        Key={"clubId": club_id},
+        UpdateExpression="SET isDisabled = :disabled, disabledAt = :disabledAt",
+        ExpressionAttributeValues={
+            ":disabled": True,
+            ":disabledAt": now
+        }
+    )
+    
+    # Remove all users from Cognito groups associated with this club
+    if COGNITO_USER_POOL_ID:
+        groups = get_cognito_groups_for_club(club_id)
+        total_removed = 0
+        for group_name in groups:
+            removed = remove_all_users_from_group(COGNITO_USER_POOL_ID, group_name)
+            total_removed += removed
+        
+        print(f"Disabled club {club_id}: removed {total_removed} users from {len(groups)} groups")
+    
+    # Get updated club
+    updated = get_club_by_id(club_id)
+    return flask_success_response({"club": updated, "message": "Club disabled successfully"})
+
+
+@app.route('/admin/clubs/<club_id>/enable', methods=['POST'])
+@require_admin
+@require_app_admin
+def enable_club(club_id):
+    """Re-enable a club (restricted to app-admins only). Note: Users must be manually re-added to groups."""
+    
+    # Get existing club
+    existing = get_club_by_id(club_id)
+    if not existing:
+        return flask_error_response("Club not found", status_code=404)
+    
+    # Check if already enabled
+    if not existing.get("isDisabled", False):
+        return flask_error_response("Club is already enabled", status_code=400)
+    
+    # Update club to clear isDisabled flag
+    table = get_table("ConsistencyTracker-Clubs")
+    now = datetime.utcnow().isoformat() + "Z"
+    update_expression = "SET isDisabled = :disabled, enabledAt = :enabledAt REMOVE disabledAt"
+    table.update_item(
+        Key={"clubId": club_id},
+        UpdateExpression=update_expression,
+        ExpressionAttributeValues={
+            ":disabled": False,
+            ":enabledAt": now
+        }
+    )
+    
+    # Get updated club
+    updated = get_club_by_id(club_id)
+    return flask_success_response({
+        "club": updated,
+        "message": "Club enabled successfully. Note: Users must be manually re-added to Cognito groups."
+    })
 
 
 # ============================================================================

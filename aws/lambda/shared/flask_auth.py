@@ -15,6 +15,7 @@ from shared.auth_utils import (
     get_club_id_from_user,
     get_team_ids_from_user,
 )
+# Import get_club_by_id lazily to avoid import issues at module load time
 
 
 def get_api_gateway_event() -> Dict[str, Any]:
@@ -98,7 +99,7 @@ def require_club(f):
     Decorator to require club association.
     
     Must be used after @require_admin. Validates that the user
-    is associated with a club.
+    is associated with a club and the club is not disabled.
     
     Usage:
         @app.route('/admin/endpoint')
@@ -112,6 +113,21 @@ def require_club(f):
     def decorated_function(*args, **kwargs):
         if not hasattr(g, 'club_id') or not g.club_id:
             abort(403, description="User not associated with a club")
+        
+        # Check if club is disabled (app-admins can still access disabled clubs)
+        is_app_admin = getattr(g, 'is_app_admin', False)
+        if not is_app_admin:
+            try:
+                # Lazy import to avoid import issues at module load time
+                from shared.db_utils import get_club_by_id
+                club = get_club_by_id(g.club_id)
+                if club and club.get("isDisabled", False):
+                    abort(403, description="Club is disabled")
+            except Exception as e:
+                # If we can't check club status, allow access (fail open)
+                # This prevents blocking access due to transient DB issues
+                print(f"Warning: Could not check club disabled status: {e}")
+        
         return f(*args, **kwargs)
     return decorated_function
 
@@ -120,7 +136,8 @@ def require_club_access(club_id_param: str = 'club_id'):
     """
     Decorator factory to verify user can access a specific club.
     
-    Validates that the requested club_id matches the user's club_id.
+    Validates that the requested club_id matches the user's club_id
+    and the club is not disabled (unless user is app-admin).
     Must be used after @require_admin and @require_club.
     
     Args:
@@ -143,6 +160,20 @@ def require_club_access(club_id_param: str = 'club_id'):
             
             if requested_club_id and requested_club_id != user_club_id:
                 abort(403, description="Club not found or access denied")
+            
+            # Check if club is disabled (app-admins can still access disabled clubs)
+            is_app_admin = getattr(g, 'is_app_admin', False)
+            if not is_app_admin and requested_club_id:
+                try:
+                    # Lazy import to avoid import issues at module load time
+                    from shared.db_utils import get_club_by_id
+                    club = get_club_by_id(requested_club_id)
+                    if club and club.get("isDisabled", False):
+                        abort(403, description="Club is disabled")
+                except Exception as e:
+                    # If we can't check club status, allow access (fail open)
+                    # This prevents blocking access due to transient DB issues
+                    print(f"Warning: Could not check club disabled status: {e}")
             
             return f(*args, **kwargs)
         return decorated_function
