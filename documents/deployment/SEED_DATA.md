@@ -10,11 +10,11 @@ From repo root:
 
 ```bash
 python aws/seed_from_csv.py \
-  --clubs seed/clubs.csv \
-  --teams seed/teams.csv \
-  --players seed/players.csv \
-  --activities seed/activities.csv \
-  --content-pages seed/content_pages.csv
+  --clubs data/clubs.csv \
+  --teams data/teams.csv \
+  --players data/players.csv \
+  --activities data/activities.csv \
+  --content-pages data/content_pages.csv
 ```
 
 ## Notes

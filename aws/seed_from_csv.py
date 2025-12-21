@@ -10,7 +10,7 @@ Recommended workflow:
 1) Deploy infra: ./aws/deploy.sh
 2) Configure domains: (now automated by deploy.py) or python aws/post_deploy_configure_domains.py --wait
 3) Create admin user: python aws/create_admin_user.py
-4) Seed data: python aws/seed_from_csv.py --clubs seed/clubs.csv --teams seed/teams.csv --players seed/players.csv --activities seed/activities.csv
+4) Seed data: python aws/seed_from_csv.py --clubs data/clubs.csv --teams data/teams.csv --players data/players.csv --activities data/activities.csv
 """
 
 from __future__ import annotations
