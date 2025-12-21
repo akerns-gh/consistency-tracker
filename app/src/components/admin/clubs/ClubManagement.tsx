@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { getClubs, createClub, updateClub, disableClub, enableClub, Club } from '../../../services/adminApi'
 import Card from '../../ui/Card'
 import Button from '../../ui/Button'
 import Loading from '../../ui/Loading'
+
+type SortColumn = 'clubName' | 'clubId' | 'status' | 'createdAt'
+type SortDirection = 'asc' | 'desc'
 
 export default function ClubManagement() {
   const [clubs, setClubs] = useState<Club[]>([])
@@ -10,6 +13,11 @@ export default function ClubManagement() {
   const [error, setError] = useState<string | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [editingClub, setEditingClub] = useState<Club | null>(null)
+  
+  // Search and sort state
+  const [searchTerm, setSearchTerm] = useState('')
+  const [sortColumn, setSortColumn] = useState<SortColumn>('clubName')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   
   // Form state
   const [clubName, setClubName] = useState('')
@@ -123,6 +131,90 @@ export default function ClubManagement() {
     setFormError(null)
   }
 
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  const filteredAndSortedClubs = useMemo(() => {
+    // Filter clubs based on search term
+    let filtered = clubs.filter((club) => {
+      const searchLower = searchTerm.toLowerCase()
+      return (
+        club.clubName?.toLowerCase().includes(searchLower) ||
+        club.clubId?.toLowerCase().includes(searchLower)
+      )
+    })
+
+    // Sort clubs
+    filtered.sort((a, b) => {
+      let aValue: any
+      let bValue: any
+
+      switch (sortColumn) {
+        case 'clubName':
+          aValue = a.clubName || ''
+          bValue = b.clubName || ''
+          break
+        case 'clubId':
+          aValue = a.clubId || ''
+          bValue = b.clubId || ''
+          break
+        case 'status':
+          aValue = a.isDisabled ? 1 : 0
+          bValue = b.isDisabled ? 1 : 0
+          break
+        case 'createdAt':
+          aValue = a.createdAt ? new Date(a.createdAt).getTime() : 0
+          bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0
+          break
+        default:
+          return 0
+      }
+
+      // Handle string comparison
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        const comparison = aValue.localeCompare(bValue)
+        return sortDirection === 'asc' ? comparison : -comparison
+      }
+
+      // Handle number comparison
+      const comparison = aValue - bValue
+      return sortDirection === 'asc' ? comparison : -comparison
+    })
+
+    return filtered
+  }, [clubs, searchTerm, sortColumn, sortDirection])
+
+  const getSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) {
+      return (
+        <span className="ml-1 text-gray-400">
+          <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+          </svg>
+        </span>
+      )
+    }
+    return (
+      <span className="ml-1 text-primary">
+        {sortDirection === 'asc' ? (
+          <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+          </svg>
+        ) : (
+          <svg className="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        )}
+      </span>
+    )
+  }
+
   if (loading) {
     return <Loading text="Loading clubs..." />
   }
@@ -195,27 +287,68 @@ export default function ClubManagement() {
             </div>
           )}
 
+          {/* Search Bar */}
+          {clubs.length > 0 && (
+            <div className="mb-4">
+              <input
+                type="text"
+                placeholder="Search clubs by name or ID..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+            </div>
+          )}
+
           {/* Clubs List */}
           {clubs.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <p>No clubs found. Create your first club to get started.</p>
+            </div>
+          ) : filteredAndSortedClubs.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p>No clubs found matching your search.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Club Name
+                    <th 
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                      onClick={() => handleSort('clubName')}
+                    >
+                      <div className="flex items-center">
+                        Club Name
+                        {getSortIcon('clubName')}
+                      </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Club ID
+                    <th 
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                      onClick={() => handleSort('clubId')}
+                    >
+                      <div className="flex items-center">
+                        Club ID
+                        {getSortIcon('clubId')}
+                      </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
+                    <th 
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                      onClick={() => handleSort('status')}
+                    >
+                      <div className="flex items-center">
+                        Status
+                        {getSortIcon('status')}
+                      </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Created
+                    <th 
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                      onClick={() => handleSort('createdAt')}
+                    >
+                      <div className="flex items-center">
+                        Created
+                        {getSortIcon('createdAt')}
+                      </div>
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
@@ -223,15 +356,7 @@ export default function ClubManagement() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {clubs
-                    .sort((a, b) => {
-                      // Sort: enabled clubs first, then disabled
-                      const aDisabled = a.isDisabled || false
-                      const bDisabled = b.isDisabled || false
-                      if (aDisabled === bDisabled) return 0
-                      return aDisabled ? 1 : -1
-                    })
-                    .map((club) => {
+                  {filteredAndSortedClubs.map((club) => {
                       const isDisabled = club.isDisabled || false
                       return (
                         <tr
