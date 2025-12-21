@@ -81,11 +81,21 @@ def extract_user_info_from_event(event: Dict[str, Any]) -> Optional[Dict[str, An
         return None
     
     # Extract user information from JWT claims
+    # Handle groups - can be a list or a string (comma-separated)
+    groups_raw = claims.get("cognito:groups", [])
+    if isinstance(groups_raw, str):
+        # If groups is a string, split by comma and strip whitespace
+        groups = [g.strip() for g in groups_raw.split(",") if g.strip()]
+    elif isinstance(groups_raw, list):
+        groups = groups_raw
+    else:
+        groups = []
+    
     user_info = {
         "username": claims.get("cognito:username") or claims.get("sub"),
         "email": claims.get("email"),
         "user_id": claims.get("sub"),
-        "groups": claims.get("cognito:groups", []),
+        "groups": groups,
     }
     
     return user_info
@@ -120,14 +130,24 @@ def extract_user_info_from_jwt_token(token: str) -> Optional[Dict[str, Any]]:
         print(f"DEBUG extract_user_info_from_jwt_token: Successfully decoded token. Keys: {list(decoded.keys())[:10]}")
         
         # Extract user information from JWT claims
+        # Handle groups - can be a list or a string (comma-separated)
+        groups_raw = decoded.get("cognito:groups", [])
+        if isinstance(groups_raw, str):
+            # If groups is a string, split by comma and strip whitespace
+            groups = [g.strip() for g in groups_raw.split(",") if g.strip()]
+        elif isinstance(groups_raw, list):
+            groups = groups_raw
+        else:
+            groups = []
+        
         user_info = {
             "username": decoded.get("cognito:username") or decoded.get("sub"),
             "email": decoded.get("email"),
             "user_id": decoded.get("sub"),
-            "groups": decoded.get("cognito:groups", []),
+            "groups": groups,
         }
         
-        print(f"DEBUG extract_user_info_from_jwt_token: Extracted user info - email: {user_info.get('email')}, username: {user_info.get('username')}")
+        print(f"DEBUG extract_user_info_from_jwt_token: Extracted user info - email: {user_info.get('email')}, username: {user_info.get('username')}, groups: {groups}")
         return user_info
     except Exception as e:
         import traceback
@@ -171,27 +191,35 @@ def verify_admin_role(event: Dict[str, Any]) -> bool:
     user_info = extract_user_info_from_event(event)
     
     if not user_info:
+        print("DEBUG verify_admin_role: No user_info from event")
         return False
     
     groups = user_info.get("groups", [])
+    print(f"DEBUG verify_admin_role: Checking groups: {groups}")
     
     # Check for app-admin (exact match)
     if APP_ADMIN_GROUP_NAME in groups:
+        print(f"DEBUG verify_admin_role: Found app-admin group")
         return True
     
     # Check for club-{clubName}-admins pattern (new format with sanitized club name)
     # Matches: club-{alphanumeric, underscores, hyphens}-admins
     club_admin_pattern = re.compile(r'^club-([a-z0-9_-]+)-admins$')
     for group in groups:
+        print(f"DEBUG verify_admin_role: Checking group '{group}' against club-admin pattern")
         if club_admin_pattern.match(group):
+            print(f"DEBUG verify_admin_role: Group '{group}' matches club-admin pattern")
             return True
     
     # Check for coach-{clubId}-{teamId} pattern
     coach_pattern = re.compile(r'^coach-([a-f0-9-]+)-([a-f0-9-]+)$')
     for group in groups:
+        print(f"DEBUG verify_admin_role: Checking group '{group}' against coach pattern")
         if coach_pattern.match(group):
+            print(f"DEBUG verify_admin_role: Group '{group}' matches coach pattern")
             return True
     
+    print(f"DEBUG verify_admin_role: No matching admin groups found")
     return False
 
 

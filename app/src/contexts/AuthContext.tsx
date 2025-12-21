@@ -15,10 +15,10 @@ interface AuthContextType {
   isAppAdmin: boolean
   isLoading: boolean
   requiresNewPassword: boolean
-  login: (email: string, password: string) => Promise<void>
-  changePassword: (newPassword: string) => Promise<void>
+  login: (email: string, password: string) => Promise<{ isAdmin: boolean; isAppAdmin: boolean } | void>
+  changePassword: (newPassword: string) => Promise<{ isAdmin: boolean; isAppAdmin: boolean }>
   logout: () => Promise<void>
-  checkRole: () => Promise<void>
+  checkRole: () => Promise<{ isAdmin: boolean; isAppAdmin: boolean }>
   resetPassword: (email: string) => Promise<void>
   confirmResetPassword: (email: string, confirmationCode: string, newPassword: string) => Promise<void>
 }
@@ -75,6 +75,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string) => {
     try {
+      // Check if there's an existing session and sign out first
+      try {
+        const currentUser = await getCurrentUser()
+        if (currentUser) {
+          console.log('Existing session found, signing out...')
+          await signOut()
+          // Wait a moment for sign out to complete
+          await new Promise(resolve => setTimeout(resolve, 300))
+        }
+      } catch (error) {
+        // No existing session, continue with login
+        console.log('No existing session')
+      }
+      
       const result = await signIn({ username: email, password })
       
       // Check if password change is required
@@ -115,8 +129,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsAuthenticated(true)
       setRequiresNewPassword(false)
       
-      // Check admin role (this will fail gracefully if user is not admin)
-      await checkRole()
+      // Verify token is available before checking role
+      let tokenAvailable = false
+      let tokenRetries = 0
+      const maxTokenRetries = 5
+      while (!tokenAvailable && tokenRetries < maxTokenRetries) {
+        try {
+          const session = await fetchAuthSession()
+          if (session.tokens?.idToken) {
+            tokenAvailable = true
+            console.log('Token available for role check')
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 100))
+            tokenRetries++
+          }
+        } catch (error) {
+          await new Promise(resolve => setTimeout(resolve, 100))
+          tokenRetries++
+        }
+      }
+      
+      // Check admin role and return the result
+      console.log('Checking admin role...')
+      const roleResult = await checkRole()
+      console.log('Role check result:', roleResult)
+      return roleResult
     } catch (error: any) {
       const errorMessage = error.message || error.name || 'Login failed'
       throw new Error(errorMessage)
@@ -159,8 +196,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setRequiresNewPassword(false)
       setPendingEmail('')
       
-      // Check admin role (this will fail gracefully if user is not admin)
-      await checkRole()
+      // Check admin role and return the result
+      const roleResult = await checkRole()
+      return roleResult
     } catch (error: any) {
       const errorMessage = error.message || error.name || 'Failed to change password'
       throw new Error(errorMessage)
@@ -184,15 +222,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }
 
-  const checkRole = async () => {
+  const checkRole = async (): Promise<{ isAdmin: boolean; isAppAdmin: boolean }> => {
     try {
       const result = await checkAdminRole()
       setIsAdmin(result.isAdmin)
       setIsAppAdmin(result.isAppAdmin || false)
+      return { isAdmin: result.isAdmin, isAppAdmin: result.isAppAdmin || false }
     } catch (error) {
       console.error('Error checking admin role:', error)
       setIsAdmin(false)
       setIsAppAdmin(false)
+      return { isAdmin: false, isAppAdmin: false }
     }
   }
 

@@ -40,7 +40,7 @@ from shared.db_utils import (
     get_all_content_pages_by_club,
     get_tracking_by_week,
 )
-from shared.auth_utils import extract_user_info_from_event, verify_admin_role, verify_app_admin_role
+from shared.auth_utils import extract_user_info_from_event, extract_user_info_from_jwt_token, verify_admin_role, verify_app_admin_role
 from shared.flask_auth import get_api_gateway_event
 from shared.html_sanitizer import sanitize_html
 from shared.week_utils import get_current_week_id, get_week_id, get_week_dates
@@ -392,14 +392,59 @@ def handle_unhandled_exception(error):
 def check_role():
     """Verify user's admin role (for frontend navigation)."""
     try:
+        from flask import request
+        
         event = get_api_gateway_event()
         user_info = extract_user_info_from_event(event)
+        
+        # Fallback: if no user info from event, try to extract from Authorization header
+        if not user_info:
+            auth_header = request.headers.get('Authorization', '')
+            if auth_header.startswith('Bearer '):
+                token = auth_header[7:]  # Remove 'Bearer ' prefix
+                user_info = extract_user_info_from_jwt_token(token)
+                print(f"DEBUG check_role: Extracted user_info from Authorization header")
         
         if not user_info:
             return flask_error_response("Authentication required", status_code=401)
         
+        # Debug: Log user info and groups
+        groups_raw = user_info.get("groups", [])
+        # Ensure groups is always a list (handle case where it's a string)
+        if isinstance(groups_raw, str):
+            groups = [g.strip() for g in groups_raw.split(",") if g.strip()]
+        elif isinstance(groups_raw, list):
+            groups = groups_raw
+        else:
+            groups = []
+        
+        print(f"DEBUG check_role: User email: {user_info.get('email')}")
+        print(f"DEBUG check_role: User groups (raw): {groups_raw}, type: {type(groups_raw)}")
+        print(f"DEBUG check_role: User groups (processed): {groups}, type: {type(groups)}")
+        
+        # Create or update event with user_info for verify_admin_role
+        # verify_admin_role expects event with authorizer.claims containing cognito:groups
+        if not event.get("requestContext", {}).get("authorizer", {}).get("claims", {}).get("cognito:groups"):
+            # If no groups in authorizer context, create one from user_info
+            if not event.get("requestContext"):
+                event["requestContext"] = {}
+            if not event["requestContext"].get("authorizer"):
+                event["requestContext"]["authorizer"] = {}
+            if not event["requestContext"]["authorizer"].get("claims"):
+                event["requestContext"]["authorizer"]["claims"] = {}
+            
+            # Update claims with user_info - ensure groups is a list
+            claims = event["requestContext"]["authorizer"]["claims"]
+            claims["cognito:username"] = user_info.get("username")
+            claims["email"] = user_info.get("email")
+            claims["sub"] = user_info.get("user_id")
+            claims["cognito:groups"] = groups  # This is now guaranteed to be a list
+            print(f"DEBUG check_role: Created authorizer claims from user_info, groups: {groups}")
+        
         is_admin = verify_admin_role(event)
         is_app_admin = verify_app_admin_role(event)
+        
+        print(f"DEBUG check_role: is_admin={is_admin}, is_app_admin={is_app_admin}")
         
         response_data = {
             "authenticated": True,

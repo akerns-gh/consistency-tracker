@@ -42,19 +42,25 @@ export default function Login() {
     setIsLoading(true)
 
     try {
-      await login(email.trim(), password)
-      // If requiresNewPassword is true, don't navigate - show password change form
-      if (!requiresNewPassword) {
-        // Wait a moment for role check to complete, then navigate based on role
-        setTimeout(() => {
-          if (isAdmin) {
-            navigate('/admin')
-          } else {
-            navigate('/player')
-          }
-        }, 300)
+      const roleResult = await login(email.trim(), password)
+      console.log('Login completed, roleResult:', roleResult)
+      // If roleResult exists, navigate based on role (if requiresNewPassword, roleResult will be undefined)
+      if (roleResult) {
+        console.log('Navigating based on role - isAdmin:', roleResult.isAdmin)
+        // Navigate based on role result from login
+        if (roleResult.isAdmin) {
+          console.log('Redirecting to /admin')
+          navigate('/admin')
+        } else {
+          console.log('Redirecting to /player')
+          navigate('/player')
+        }
+      } else {
+        console.log('No roleResult - password change required')
       }
+      // If roleResult is undefined, requiresNewPassword is true and password change form will be shown
     } catch (err: any) {
+      console.error('Login error:', err)
       setError(err.message || 'Login failed. Please check your email and password.')
       setIsLoading(false)
     }
@@ -94,15 +100,13 @@ export default function Login() {
     setIsLoading(true)
 
     try {
-      await changePassword(newPassword)
-      // After password change, navigate based on role
-      setTimeout(() => {
-        if (isAdmin) {
-          navigate('/admin')
-        } else {
-          navigate('/player')
-        }
-      }, 300)
+      const roleResult = await changePassword(newPassword)
+      // After password change, navigate based on role result
+      if (roleResult.isAdmin) {
+        navigate('/admin')
+      } else {
+        navigate('/player')
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to change password. Please try again.')
     } finally {

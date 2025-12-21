@@ -22,6 +22,7 @@ export async function checkAdminRole(): Promise<{ isAdmin: boolean; isAppAdmin?:
   try {
     const token = await getAuthToken()
     if (!token) {
+      console.warn('No auth token available for role check')
       return { isAdmin: false, isAppAdmin: false }
     }
     
@@ -30,8 +31,13 @@ export async function checkAdminRole(): Promise<{ isAdmin: boolean; isAppAdmin?:
         Authorization: `Bearer ${token}`,
       },
     })
-    return response.data.data
-  } catch (error) {
+    console.log('Role check response:', JSON.stringify(response.data, null, 2))
+    const result = response.data.data
+    console.log('Role check result - isAdmin:', result.isAdmin, 'isAppAdmin:', result.isAppAdmin)
+    return result
+  } catch (error: any) {
+    console.error('Error checking admin role:', error)
+    console.error('Error details:', error.response?.data || error.message)
     return { isAdmin: false, isAppAdmin: false }
   }
 }
