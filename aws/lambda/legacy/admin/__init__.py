@@ -1,4 +1,0 @@
-"""
-Admin Lambda functions.
-"""
-
