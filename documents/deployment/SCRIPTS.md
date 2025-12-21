@@ -21,7 +21,7 @@ These scripts should be run in the following order for a complete deployment:
 
 3. **Frontend Deployment**:
    ```bash
-   ./scripts/deploy-frontend.sh
+   ./scripts-frontend/deploy-frontend.sh
    ```
    Builds and deploys the React application to S3 and CloudFront
 
@@ -37,7 +37,7 @@ These scripts should be run in the following order for a complete deployment:
 
 5. **IP Allowlisting** (optional):
    ```bash
-   ./scripts/update-waf-ip-allowlist.sh
+   ./aws/scripts/update-waf-ip-allowlist.sh
    ```
    Restricts access to specific IP addresses
 
@@ -63,7 +63,7 @@ Builds and deploys the frontend application to S3 and CloudFront.
 ### Usage:
 
 ```bash
-./scripts/deploy-frontend.sh
+./scripts-frontend/deploy-frontend.sh
 ```
 
 ### Configuration:
@@ -99,7 +99,7 @@ Automatically updates the AWS WAF IP allowlist with your current IP addresses (b
 ### Usage:
 
 ```bash
-./scripts/update-waf-ip-allowlist.sh
+./aws/scripts/update-waf-ip-allowlist.sh
 ```
 
 ### Configuration:

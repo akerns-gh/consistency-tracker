@@ -62,7 +62,7 @@ cd aws
 
 # Deploy frontend
 cd ..
-./scripts/deploy-frontend.sh
+./scripts-frontend/deploy-frontend.sh
 ```
 
 ## Configuration

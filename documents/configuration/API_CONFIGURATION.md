@@ -14,7 +14,7 @@ The frontend automatically uses the custom domain. The API base URL is configure
 
 ### Deployment Script
 
-The deployment script (`scripts/deploy-frontend.sh`) is configured to:
+The deployment script (`scripts-frontend/deploy-frontend.sh`) is configured to:
 1. Use the custom domain `https://api.repwarrior.net` by default
 2. Fall back to direct API Gateway URL if custom domain is unavailable
 3. Automatically set `VITE_API_URL` during build
@@ -40,7 +40,7 @@ curl https://api.repwarrior.net/player/test-link
 ### Configuration Files
 
 - `app/src/services/api.ts` - Frontend API client configuration
-- `scripts/deploy-frontend.sh` - Deployment script with API URL configuration
+- `scripts-frontend/deploy-frontend.sh` - Deployment script with API URL configuration
 - `app/src/config/aws-config.ts` - AWS Amplify/Cognito configuration
 
 ### Environment Variables

@@ -120,7 +120,7 @@ Or via AWS Console:
 Build and deploy the React frontend:
 
 ```bash
-./scripts/deploy-frontend.sh
+./scripts-frontend/deploy-frontend.sh
 ```
 
 This script:
@@ -142,7 +142,7 @@ aws cloudfront create-invalidation --distribution-id E11CYNQ91MDSZR --paths "/*"
 If you want to restrict access to specific IP addresses:
 
 ```bash
-./scripts/update-waf-ip-allowlist.sh
+./aws/scripts/update-waf-ip-allowlist.sh
 ```
 
 **When to run:**
@@ -194,10 +194,10 @@ python aws/seed_from_csv.py \
 python aws/create_admin_user.py
 
 # 4. Deploy frontend
-./scripts/deploy-frontend.sh
+./scripts-frontend/deploy-frontend.sh
 
 # 5. Configure IP allowlisting (optional)
-./scripts/update-waf-ip-allowlist.sh
+./aws/scripts/update-waf-ip-allowlist.sh
 ```
 
 ## Quick Deployment
@@ -721,7 +721,7 @@ cdk deploy ConsistencyTracker-Storage
 If you want to add additional IP-based restrictions on top of geographic blocking, you can use the provided script:
 
 ```bash
-./scripts/update-waf-ip-allowlist.sh
+./aws/scripts/update-waf-ip-allowlist.sh
 ```
 
 **Use cases:**
@@ -739,7 +739,7 @@ This script will:
 - WAF rule changes take 2-3 minutes to propagate globally
 - The script preserves existing WAF rules (geo-blocking, rate limiting, managed rules)
 - Geographic restriction is the primary access control; IP allowlisting is additional
-- See `scripts/README.md` for detailed documentation
+- See `documents/deployment/SCRIPTS.md` for detailed documentation
 
 ### Create First Admin User
 
@@ -882,7 +882,7 @@ If you see `403 Forbidden` errors even after uploading frontend files:
 5. **Check WAF Configuration:**
    If IP allowlisting is enabled, ensure your IP is in the allowlist:
    ```bash
-   ./scripts/update-waf-ip-allowlist.sh
+   ./aws/scripts/update-waf-ip-allowlist.sh
    ```
 
 ### Frontend Files Not Updating
