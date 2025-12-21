@@ -44,6 +44,13 @@ from shared.auth_utils import extract_user_info_from_event, verify_admin_role, v
 from shared.flask_auth import get_api_gateway_event
 from shared.html_sanitizer import sanitize_html
 from shared.week_utils import get_current_week_id, get_week_id, get_week_dates
+from shared.email_service import send_templated_email, validate_email_address
+from shared.email_templates import (
+    get_user_invitation_template,
+    get_club_creation_template,
+    get_team_creation_template,
+    get_player_invitation_template,
+)
 
 app = Flask(__name__)
 
@@ -132,6 +139,83 @@ def create_cognito_group(user_pool_id: str, group_name: str, description: str = 
             return True
         else:
             print(f"Error creating Cognito group {group_name}: {e}")
+            return False
+
+
+def create_cognito_user(user_pool_id: str, email: str, temporary_password: str) -> dict:
+    """
+    Create a Cognito user if it doesn't exist. Returns user info or None on error.
+    
+    Args:
+        user_pool_id: Cognito User Pool ID
+        email: User's email address (used as username)
+        temporary_password: Temporary password (must meet password policy)
+    
+    Returns:
+        Dict with user info if successful, None on error
+    """
+    if not cognito_client:
+        print(f"Warning: Cognito client not initialized. Cannot create user: {email}")
+        return None
+    
+    try:
+        response = cognito_client.admin_create_user(
+            UserPoolId=user_pool_id,
+            Username=email,
+            UserAttributes=[
+                {'Name': 'email', 'Value': email},
+                {'Name': 'email_verified', 'Value': 'true'}
+            ],
+            TemporaryPassword=temporary_password,
+            MessageAction='SUPPRESS',  # Don't send welcome email (we'll send our own)
+            DesiredDeliveryMediums=['EMAIL']
+        )
+        print(f"Created Cognito user: {email}")
+        return {
+            'username': response['User']['Username'],
+            'status': response['User']['UserStatus']
+        }
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
+        if error_code == 'UsernameExistsException':
+            print(f"User '{email}' already exists")
+            return {'username': email, 'status': 'EXISTS'}
+        else:
+            print(f"Error creating Cognito user {email}: {e}")
+            return None
+
+
+def add_user_to_cognito_group(user_pool_id: str, username: str, group_name: str) -> bool:
+    """
+    Add a user to a Cognito group.
+    
+    Args:
+        user_pool_id: Cognito User Pool ID
+        username: Username (email)
+        group_name: Name of the group
+    
+    Returns:
+        True if successful, False on error
+    """
+    if not cognito_client:
+        print(f"Warning: Cognito client not initialized. Cannot add user to group: {group_name}")
+        return False
+    
+    try:
+        cognito_client.admin_add_user_to_group(
+            UserPoolId=user_pool_id,
+            Username=username,
+            GroupName=group_name
+        )
+        print(f"Added user {username} to group: {group_name}")
+        return True
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
+        if error_code == 'InvalidParameterException' and 'already a member' in str(e):
+            print(f"User {username} is already a member of {group_name}")
+            return True
+        else:
+            print(f"Error adding user {username} to group {group_name}: {e}")
             return False
 
 
@@ -418,13 +502,63 @@ def create_club():
     table.put_item(Item=club)
     
     # Automatically create club-{sanitizedClubName}-admins group in Cognito
+    admin_email = None
     if COGNITO_USER_POOL_ID:
         sanitized_name = sanitize_club_name_for_group(club_name)
         group_name = f"club-{sanitized_name}-admins"
         description = f"Administrators for club {club_name}"
         create_cognito_group(COGNITO_USER_POOL_ID, group_name, description)
+        
+        # If admin email and password provided, create the user and add to group
+        admin_email = body.get("adminEmail")
+        admin_password = body.get("adminPassword")
+        if admin_email and admin_password:
+            user_info = create_cognito_user(
+                COGNITO_USER_POOL_ID,
+                admin_email,
+                admin_password
+            )
+            if user_info and group_name:
+                add_user_to_cognito_group(
+                    COGNITO_USER_POOL_ID,
+                    user_info['username'],
+                    group_name
+                )
     
-    return flask_success_response({"club": club}, status_code=201)
+    # Send email notifications
+    response_data = {"club": club}
+    try:
+        # Get current user info for app-admin notification
+        event = get_api_gateway_event()
+        user_info = extract_user_info_from_event(event)
+        app_admin_email = user_info.get("email") if user_info else None
+        
+        # Send confirmation to app-admin
+        if app_admin_email and validate_email_address(app_admin_email):
+            template = get_club_creation_template(club_name, new_club_id, admin_email or "Not created")
+            send_templated_email([app_admin_email], template)
+        
+        # Send invitation to new club-admin if created
+        if admin_email and admin_password and validate_email_address(admin_email):
+            login_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net/admin/login")
+            template = get_user_invitation_template(
+                user_name=admin_email.split("@")[0],
+                email=admin_email,
+                temporary_password=admin_password,
+                login_url=login_url,
+                role="club administrator"
+            )
+            send_templated_email([admin_email], template)
+            response_data["adminUser"] = {
+                "email": admin_email,
+                "status": "created",
+                "message": "Club-admin user created and added to group"
+            }
+    except Exception as e:
+        # Don't fail the request if email sending fails
+        print(f"Warning: Failed to send club creation emails: {e}")
+    
+    return flask_success_response(response_data, status_code=201)
 
 
 @app.route('/admin/clubs/<club_id>', methods=['PUT'])
@@ -669,6 +803,21 @@ def create_team():
                         print(f"Warning: Could not add user {username} to group {group_name}: {e}")
                         # Don't fail the request if group creation succeeded
     
+    # Send email notification to club-admin
+    try:
+        event = get_api_gateway_event()
+        user_info = extract_user_info_from_event(event)
+        admin_email = user_info.get("email") if user_info else None
+        
+        if admin_email and validate_email_address(admin_email):
+            club = get_club_by_id(club_id)
+            club_name = club.get("clubName", "Unknown Club") if club else "Unknown Club"
+            template = get_team_creation_template(team_name, club_name, new_team_id)
+            send_templated_email([admin_email], template)
+    except Exception as e:
+        # Don't fail the request if email sending fails
+        print(f"Warning: Failed to send team creation email: {e}")
+    
     return flask_success_response({"team": team}, status_code=201)
 
 
@@ -808,6 +957,29 @@ def create_player():
     table = get_table("ConsistencyTracker-Players")
     table.put_item(Item=player)
     
+    # Send invitation email if player has email
+    if email and validate_email_address(email):
+        try:
+            team = get_team_by_id(team_id)
+            club = get_club_by_id(club_id)
+            team_name = team.get("teamName", "Unknown Team") if team else "Unknown Team"
+            club_name = club.get("clubName", "Unknown Club") if club else "Unknown Club"
+            
+            # Construct unique link URL
+            frontend_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net")
+            unique_link_url = f"{frontend_url}/player?link={unique_link}"
+            
+            template = get_player_invitation_template(
+                player_name=name,
+                unique_link=unique_link_url,
+                team_name=team_name,
+                club_name=club_name
+            )
+            send_templated_email([email], template)
+        except Exception as e:
+            # Don't fail the request if email sending fails
+            print(f"Warning: Failed to send player invitation email: {e}")
+    
     return flask_success_response({"player": player}, status_code=201)
 
 
@@ -878,6 +1050,55 @@ def delete_player(player_id):
     )
     
     return flask_success_response({"message": "Player deactivated successfully"})
+
+
+@app.route('/admin/players/<player_id>/invite', methods=['POST'])
+@require_admin
+@require_club
+@require_resource_access('player', 'player_id', get_player_by_id)
+def invite_player(player_id):
+    """Send invitation email to player."""
+    # Get existing player (already validated by decorator)
+    player = g.current_resource
+    
+    email = player.get("email")
+    if not email:
+        return flask_error_response("Player does not have an email address", status_code=400)
+    
+    if not validate_email_address(email):
+        return flask_error_response("Player email address is invalid", status_code=400)
+    
+    # Get team and club info
+    team_id = player.get("teamId")
+    club_id = player.get("clubId")
+    player_name = player.get("name", "Player")
+    unique_link = player.get("uniqueLink")
+    
+    if not unique_link:
+        return flask_error_response("Player does not have a unique link", status_code=400)
+    
+    try:
+        team = get_team_by_id(team_id) if team_id else None
+        club = get_club_by_id(club_id) if club_id else None
+        team_name = team.get("teamName", "Unknown Team") if team else "Unknown Team"
+        club_name = club.get("clubName", "Unknown Club") if club else "Unknown Club"
+        
+        # Construct unique link URL
+        frontend_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net")
+        unique_link_url = f"{frontend_url}/player?link={unique_link}"
+        
+        template = get_player_invitation_template(
+            player_name=player_name,
+            unique_link=unique_link_url,
+            team_name=team_name,
+            club_name=club_name
+        )
+        send_templated_email([email], template)
+        
+        return flask_success_response({"success": True, "message": "Invitation sent successfully"})
+    except Exception as e:
+        print(f"Error sending player invitation email: {e}")
+        return flask_error_response(f"Failed to send invitation email: {str(e)}", status_code=500)
 
 
 # ============================================================================

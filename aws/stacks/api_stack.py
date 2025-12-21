@@ -20,6 +20,7 @@ from aws_cdk.aws_apigateway import CfnGatewayResponse
 from constructs import Construct
 from stacks.database_stack import DatabaseStack
 from stacks.auth_stack import AuthStack
+from stacks.ses_stack import SesStack
 
 
 class ApiStack(Stack):
@@ -31,6 +32,7 @@ class ApiStack(Stack):
         construct_id: str,
         database_stack: DatabaseStack,
         auth_stack: AuthStack,
+        ses_stack: SesStack = None,
         domain_name: str = None,
         certificate_arn: str = None,
         **kwargs
@@ -43,6 +45,7 @@ class ApiStack(Stack):
         # Store references
         self.database_stack = database_stack
         self.auth_stack = auth_stack
+        self.ses_stack = ses_stack
         self.certificate_arn = certificate_arn
 
         # Get Lambda code directory
@@ -54,12 +57,12 @@ class ApiStack(Stack):
 
         # Create Lambda function for player Flask app
         player_function = self._create_player_function(
-            lambda_dir, layer
+            lambda_dir, layer, ses_stack
         )
 
         # Create Lambda function for admin Flask app
         admin_function = self._create_admin_function(
-            lambda_dir, layer
+            lambda_dir, layer, ses_stack
         )
 
         # Create API Gateway REST API
@@ -117,6 +120,7 @@ class ApiStack(Stack):
         self,
         lambda_dir: Path,
         layer: lambda_.LayerVersion,
+        ses_stack: SesStack = None,
     ) -> lambda_.Function:
         """Create Lambda function for player Flask app."""
         # Environment variables
@@ -132,6 +136,15 @@ class ApiStack(Stack):
             "COGNITO_REGION": self.region,
             "STRIP_STAGE_PATH": "yes",  # Strip /prod from paths when using direct API Gateway URL
         }
+        
+        # Add SES environment variables if SES stack is provided
+        if ses_stack:
+            env_vars["SES_REGION"] = ses_stack.region
+            env_vars["SES_FROM_EMAIL"] = ses_stack.from_email
+            env_vars["SES_FROM_NAME"] = ses_stack.from_name
+        
+        # Add frontend URL for email links
+        env_vars["FRONTEND_URL"] = f"https://{self.domain_name}" if self.domain_name else "https://repwarrior.net"
 
         # IAM role for player function
         player_role = iam.Role(
@@ -153,6 +166,19 @@ class ApiStack(Stack):
         self.database_stack.content_pages_table.grant_read_data(player_role)
         self.database_stack.team_table.grant_read_data(player_role)
         self.database_stack.club_table.grant_read_data(player_role)
+        
+        # Grant SES permissions if SES stack is provided
+        if ses_stack:
+            player_role.add_to_policy(
+                iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        "ses:SendEmail",
+                        "ses:SendRawEmail",
+                    ],
+                    resources=["*"],
+                )
+            )
 
         # Create single Lambda function for player Flask app
         player_function = lambda_.Function(
@@ -179,6 +205,7 @@ class ApiStack(Stack):
         self,
         lambda_dir: Path,
         layer: lambda_.LayerVersion,
+        ses_stack: SesStack = None,
     ) -> lambda_.Function:
         """Create Lambda function for admin Flask app."""
         # Environment variables
@@ -195,6 +222,15 @@ class ApiStack(Stack):
             "CONTENT_IMAGES_BUCKET": "consistency-tracker-content-images",  # Will be set from storage stack
             "STRIP_STAGE_PATH": "yes",  # Strip /prod from paths when using direct API Gateway URL
         }
+        
+        # Add SES environment variables if SES stack is provided
+        if ses_stack:
+            env_vars["SES_REGION"] = ses_stack.region
+            env_vars["SES_FROM_EMAIL"] = ses_stack.from_email
+            env_vars["SES_FROM_NAME"] = ses_stack.from_name
+        
+        # Add frontend URL for email links
+        env_vars["FRONTEND_URL"] = f"https://{self.domain_name}" if self.domain_name else "https://repwarrior.net"
 
         # IAM role for admin function
         admin_role = iam.Role(
@@ -239,6 +275,19 @@ class ApiStack(Stack):
                 resources=[self.auth_stack.user_pool.user_pool_arn],
             )
         )
+        
+        # Grant SES permissions if SES stack is provided
+        if ses_stack:
+            admin_role.add_to_policy(
+                iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        "ses:SendEmail",
+                        "ses:SendRawEmail",
+                    ],
+                    resources=["*"],
+                )
+            )
 
         # Create single Lambda function for admin Flask app
         admin_function = lambda_.Function(

@@ -64,9 +64,10 @@ cdk deploy --all
 **Stack deployment order** (handled automatically by the script):
 1. `ConsistencyTracker-Database` - DynamoDB tables
 2. `ConsistencyTracker-Auth` - Cognito User Pool
-3. `ConsistencyTracker-API` - API Gateway & Lambda functions
-4. `ConsistencyTracker-DNS` - Route 53 & ACM certificates
-5. `ConsistencyTracker-Storage` - S3 buckets & CloudFront distributions
+3. `ConsistencyTracker-SES` - SES email configuration
+4. `ConsistencyTracker-API` - API Gateway & Lambda functions
+5. `ConsistencyTracker-DNS` - Route 53 & ACM certificates
+6. `ConsistencyTracker-Storage` - S3 buckets & CloudFront distributions
 
 **Note**: The DNS stack must deploy before Storage because Storage imports the certificate ARN from DNS.
 
@@ -88,7 +89,19 @@ You can also run it manually (safe/idempotent):
 python aws/post_deploy_configure_domains.py --wait
 ```
 
-### Step 3: Create Admin User
+### Step 3: Configure SES Email (Optional but Recommended)
+
+After deployment, configure SES for email delivery:
+
+1. **Verify your domain in SES** (see [SES_SETUP.md](SES_SETUP.md) for detailed steps)
+2. **Configure Cognito to use SES** for password reset emails
+3. **Request production access** if you need to send to unverified addresses
+
+See [SES_SETUP.md](SES_SETUP.md) for complete SES configuration instructions.
+
+**Note**: The application will work without SES, but email notifications (invitations, confirmations) will not be sent.
+
+### Step 4: Create Admin User
 
 Create the first admin user in Cognito:
 

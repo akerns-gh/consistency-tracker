@@ -12,6 +12,7 @@ This application helps coaches track player consistency across key activities (s
 - **Backend**: AWS Lambda functions (Python) via API Gateway
 - **Database**: AWS DynamoDB (serverless, on-demand pricing)
 - **Authentication**: AWS Cognito (for coaches/admins)
+- **Email**: AWS SES (Simple Email Service) with Proton Mail custom domain
 - **Infrastructure**: AWS CDK (Python)
 - **Domain**: repwarrior.net (Route 53)
 
@@ -26,6 +27,7 @@ consistency-tracker/
 │   └── stacks/           # CDK stack definitions
 │       ├── database_stack.py  # DynamoDB tables
 │       ├── auth_stack.py      # Cognito User Pool
+│       ├── ses_stack.py       # SES email configuration
 │       ├── api_stack.py       # API Gateway & Lambda
 │       ├── storage_stack.py   # S3 & CloudFront
 │       └── dns_stack.py       # Route 53

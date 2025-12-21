@@ -40,6 +40,11 @@ class AuthStack(Stack):
             user_verification=cognito.UserVerificationConfig(
                 email_style=cognito.VerificationEmailStyle.LINK,
             ),
+            # Note: To configure Cognito to use SES for email delivery:
+            # 1. Verify your domain/email in SES (see SES stack)
+            # 2. Go to Cognito Console → User Pool → Messaging tab
+            # 3. Configure email to use SES (select verified SES identity)
+            # This must be done manually after SES domain verification
             # Password history (prevents reuse of last 3 passwords)
             # Note: Cognito doesn't support exact "no repeating characters" rule
             # This would need to be enforced via a Lambda trigger if required

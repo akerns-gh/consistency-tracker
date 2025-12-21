@@ -6,6 +6,7 @@ True Lacrosse Consistency Tracker - CDK App Entry Point
 import aws_cdk as cdk
 from stacks.database_stack import DatabaseStack
 from stacks.auth_stack import AuthStack
+from stacks.ses_stack import SesStack
 from stacks.api_stack import ApiStack
 from stacks.storage_stack import StorageStack
 from stacks.dns_stack import DnsStack
@@ -39,6 +40,20 @@ auth_stack = AuthStack(
     description="Cognito User Pool for admin authentication",
 )
 
+# SES Stack - Simple Email Service configuration
+ses_stack = SesStack(
+    app,
+    "ConsistencyTracker-SES",
+    domain_name=DOMAIN_NAME,
+    from_email=f"noreply@{DOMAIN_NAME}",
+    from_name="Consistency Tracker",
+    env=cdk.Environment(
+        account=app.node.try_get_context("account") or None,
+        region=AWS_REGION,
+    ),
+    description="SES configuration for email delivery",
+)
+
 # API Stack - API Gateway and Lambda functions (Phase 2)
 # Note: Custom domain will be configured after DNS stack creates certificate
 # For now, deploy without custom domain to get API working
@@ -47,6 +62,7 @@ api_stack = ApiStack(
     "ConsistencyTracker-API",
     database_stack=database_stack,
     auth_stack=auth_stack,
+    ses_stack=ses_stack,
     domain_name=DOMAIN_NAME,  # Pass domain name for CORS configuration
     # certificate_arn will be added after DNS stack creates certificate
     # certificate_arn="arn:aws:acm:us-east-1:707406431671:certificate/98d1bf1b-dfd3-45bb-82aa-176aedd2babe",  # Wildcard cert covers api.repwarrior.net

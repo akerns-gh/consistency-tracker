@@ -4,13 +4,16 @@ This document describes the process for creating and managing admin users in the
 
 ## Overview
 
-Admin users are authenticated through AWS Cognito User Pool. When a new admin user is created, they receive a temporary password and must change it on their first login. This manual covers:
+Admin users are authenticated through AWS Cognito User Pool. When a new admin user is created, they receive a temporary password and must change it on their first login. The application sends automated email notifications for user invitations, club/team creation, and password resets via AWS SES.
+
+This manual covers:
 
 1. Admin group hierarchy and permissions
 2. Creating new admin users
-3. First-time login process
-4. Password requirements
-5. Troubleshooting
+3. Email notifications
+4. First-time login process
+5. Password requirements
+6. Troubleshooting
 
 ## Admin Group Hierarchy
 
@@ -65,11 +68,45 @@ The system automatically creates admin groups when clubs and teams are created:
 
 ```
 1. App-admin creates club → `club-{sanitizedClubName}-admins` group created automatically
+   → Email confirmation sent to app-admin
+   → If club-admin created during club creation, invitation email sent with credentials
 2. App-admin assigns users to `club-{sanitizedClubName}-admins` group → Users become club-admins
 3. Club-admin creates team → `coach-{clubId}-{teamId}` group created automatically
+   → Email confirmation sent to club-admin
 4. Club-admin (creator) automatically added to `coach-{clubId}-{teamId}` group
 5. Additional coaches can be manually added to `coach-{clubId}-{teamId}` group
 ```
+
+## Email Notifications
+
+The application automatically sends email notifications for various events:
+
+### Email Types
+
+1. **User Invitation** - Sent when creating a new admin/coach user
+   - Includes temporary password
+   - Includes login URL
+   - Sent to the new user's email address
+
+2. **Club Creation** - Sent when a new club is created
+   - Confirmation to app-admin who created the club
+   - Invitation to new club-admin (if created during club creation)
+
+3. **Team Creation** - Sent when a new team is created
+   - Confirmation to club-admin who created the team
+
+4. **Player Invitation** - Sent when creating or inviting a player
+   - Includes unique access link
+   - Sent to player's email address (if provided)
+
+5. **Password Reset** - Sent via Cognito when user requests password reset
+   - Handled automatically by Cognito via SES
+
+### Email Configuration
+
+Emails are sent via AWS SES using a verified Proton Mail custom domain. See [aws/SES_SETUP.md](../aws/SES_SETUP.md) for configuration instructions.
+
+**Note**: If SES is not configured, the application will still function, but email notifications will not be sent. Check CloudWatch logs for email sending errors.
 
 ## Creating Your First App-Admin
 
