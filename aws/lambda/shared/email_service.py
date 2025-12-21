@@ -240,3 +240,62 @@ def validate_email_addresses(emails: List[str]) -> tuple[List[str], List[str]]:
             invalid.append(email)
     return valid, invalid
 
+
+def verify_email_identity(email: str) -> dict:
+    """
+    Verify an email address in SES by sending a verification email.
+    
+    This initiates the verification process. The recipient must click
+    the verification link in the email to complete verification.
+    
+    Args:
+        email: Email address to verify
+    
+    Returns:
+        dict with 'success' and optional 'message' or 'error'
+    
+    Note: If the email is already verified, this will still succeed
+    (SES returns success for already-verified addresses).
+    """
+    if not validate_email_address(email):
+        return {
+            "success": False,
+            "error": "Invalid email address format"
+        }
+    
+    try:
+        response = ses_client.verify_email_identity(EmailAddress=email)
+        print(f"Verification email sent to {email}")
+        return {
+            "success": True,
+            "message": f"Verification email sent to {email}. The recipient must click the verification link to complete verification.",
+            "email": email
+        }
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "")
+        error_message = e.response.get("Error", {}).get("Message", str(e))
+        
+        # If email is already verified, that's fine
+        if error_code == "AlreadyExistsException":
+            print(f"Email {email} is already verified in SES")
+            return {
+                "success": True,
+                "message": "Email address is already verified",
+                "email": email,
+                "already_verified": True
+            }
+        
+        print(f"Error verifying email {email}: {error_code} - {error_message}")
+        return {
+            "success": False,
+            "error": f"{error_code}: {error_message}",
+            "email": email
+        }
+    except Exception as e:
+        print(f"Unexpected error verifying email {email}: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "email": email
+        }
+

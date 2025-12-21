@@ -498,6 +498,32 @@ def main():
         else:
             print("⚠️  post_deploy_configure_domains.py not found; skipping.")
     
+    # Step 9: Post-deploy email setup (optional)
+    # This sets up SES domain verification and Proton Mail DNS records
+    if success:
+        print("\n📧 Post-deploy email setup (optional)...")
+        aws_dir = Path(__file__).parent
+        email_script = aws_dir / "post_deploy_email_setup.py"
+        email_config = aws_dir / "email" / "config.json"
+        
+        if email_script.exists():
+            # Only run if config file exists, otherwise skip silently
+            if email_config.exists():
+                if not run_command(
+                    f"{sys.executable} {email_script} --skip-if-no-config",
+                    cwd=aws_dir,
+                    timeout=600,
+                    check=False,  # Don't fail deployment if email setup fails
+                ):
+                    print("⚠️  Email setup had issues. You can re-run manually:")
+                    print(f"   python aws/post_deploy_email_setup.py")
+            else:
+                print("ℹ️  Email setup skipped (aws/email/config.json not found)")
+                print("   To enable: create config.json with Proton Mail DNS values")
+                print("   See aws/email/README.md for instructions")
+        else:
+            print("⚠️  post_deploy_email_setup.py not found; skipping.")
+    
     # Summary
     elapsed = datetime.now() - start_time
     print("\n" + "=" * 60)

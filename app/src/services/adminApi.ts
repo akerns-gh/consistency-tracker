@@ -33,6 +33,8 @@ export async function getClubs(): Promise<{ clubs: Club[]; total: number }> {
 export async function createClub(data: {
   clubName: string
   settings?: Record<string, any>
+  adminEmail: string
+  adminPassword: string
 }): Promise<{ club: Club }> {
   const response = await api.post('/admin/clubs', data)
   return response.data.data

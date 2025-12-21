@@ -23,6 +23,7 @@ class SesStack(Stack):
         construct_id: str,
         domain_name: str = None,
         from_email: str = None,
+        club_admin_from_email: str = None,
         from_name: str = "Consistency Tracker",
         **kwargs
     ) -> None:
@@ -31,6 +32,7 @@ class SesStack(Stack):
         # Store configuration
         self.domain_name = domain_name
         self.from_email = from_email or (f"noreply@{domain_name}" if domain_name else "noreply@repwarrior.net")
+        self.club_admin_from_email = club_admin_from_email or self.from_email  # Default to from_email if not specified
         self.from_name = from_name
 
         # Note: SES domain verification must be done manually in AWS Console

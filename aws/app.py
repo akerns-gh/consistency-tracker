@@ -16,6 +16,10 @@ DOMAIN_NAME = "repwarrior.net"
 AWS_REGION = "us-east-1"
 HOSTED_ZONE_ID = "Z0224155HV050F02RZE0"  # Route 53 hosted zone ID for repwarrior.net
 
+# Email configuration
+SES_FROM_EMAIL = f"noreply@{DOMAIN_NAME}"  # Default from email
+SES_CLUB_ADMIN_FROM_EMAIL = f"info@{DOMAIN_NAME}"  # Club admin invitation from email
+
 app = cdk.App()
 
 # Database Stack - Foundation for all data storage
@@ -45,7 +49,8 @@ ses_stack = SesStack(
     app,
     "ConsistencyTracker-SES",
     domain_name=DOMAIN_NAME,
-    from_email=f"noreply@{DOMAIN_NAME}",
+    from_email=SES_FROM_EMAIL,
+    club_admin_from_email=SES_CLUB_ADMIN_FROM_EMAIL,
     from_name="Consistency Tracker",
     env=cdk.Environment(
         account=app.node.try_get_context("account") or None,

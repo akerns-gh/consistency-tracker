@@ -21,6 +21,8 @@ export default function ClubManagement() {
   
   // Form state
   const [clubName, setClubName] = useState('')
+  const [adminEmail, setAdminEmail] = useState('')
+  const [adminPassword, setAdminPassword] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -50,10 +52,38 @@ export default function ClubManagement() {
       return
     }
 
+    const email = adminEmail.trim()
+    const password = adminPassword.trim()
+    
+    // Admin email and password are required
+    if (!email) {
+      setFormError('Please enter an email address for the club administrator')
+      return
+    }
+    
+    if (!password) {
+      setFormError('Please enter a temporary password for the club administrator')
+      return
+    }
+    
+    // Validate email format
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setFormError('Please enter a valid email address')
+      return
+    }
+
     try {
       setSubmitting(true)
-      await createClub({ clubName: name })
+      const createData = {
+        clubName: name,
+        adminEmail: email,
+        adminPassword: password
+      }
+      
+      await createClub(createData)
       setClubName('')
+      setAdminEmail('')
+      setAdminPassword('')
       setShowCreateForm(false)
       await loadClubs()
     } catch (err: any) {
@@ -128,6 +158,8 @@ export default function ClubManagement() {
   const cancelCreate = () => {
     setShowCreateForm(false)
     setClubName('')
+    setAdminEmail('')
+    setAdminPassword('')
     setFormError(null)
   }
 
@@ -256,7 +288,7 @@ export default function ClubManagement() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Club Name
+                    Club Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -267,6 +299,54 @@ export default function ClubManagement() {
                     disabled={submitting}
                   />
                 </div>
+
+                {!editingClub && (
+                  <>
+                    <div className="border-t border-gray-200 pt-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">
+                        Club Administrator <span className="text-red-500">*</span>
+                      </h4>
+                      <p className="text-xs text-gray-500 mb-3">
+                        Create a club administrator account. The admin will receive an invitation email with login credentials.
+                      </p>
+                      
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Admin Email <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="email"
+                            value={adminEmail}
+                            onChange={(e) => setAdminEmail(e.target.value)}
+                            placeholder="admin@example.com"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                            disabled={submitting}
+                            required
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Temporary Password <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="password"
+                            value={adminPassword}
+                            onChange={(e) => setAdminPassword(e.target.value)}
+                            placeholder="Minimum 12 characters"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                            disabled={submitting}
+                            required
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Must be at least 12 characters with uppercase, lowercase, and numbers. The admin will be required to change this on first login.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <div className="flex space-x-2">
                   <Button

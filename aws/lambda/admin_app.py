@@ -44,7 +44,7 @@ from shared.auth_utils import extract_user_info_from_event, verify_admin_role, v
 from shared.flask_auth import get_api_gateway_event
 from shared.html_sanitizer import sanitize_html
 from shared.week_utils import get_current_week_id, get_week_id, get_week_dates
-from shared.email_service import send_templated_email, validate_email_address
+from shared.email_service import send_templated_email, validate_email_address, verify_email_identity
 from shared.email_templates import (
     get_user_invitation_template,
     get_club_creation_template,
@@ -512,7 +512,21 @@ def create_club():
         # If admin email and password provided, create the user and add to group
         admin_email = body.get("adminEmail")
         admin_password = body.get("adminPassword")
+        verification_status = None
         if admin_email and admin_password:
+            # Automatically verify the email address in SES
+            # This allows sending emails to this address even in sandbox mode
+            if validate_email_address(admin_email):
+                verification_result = verify_email_identity(admin_email)
+                verification_status = verification_result
+                if verification_result.get("success"):
+                    if verification_result.get("already_verified"):
+                        print(f"Club admin email {admin_email} is already verified in SES")
+                    else:
+                        print(f"Verification email sent to club admin {admin_email}")
+                else:
+                    print(f"Warning: Failed to verify club admin email {admin_email}: {verification_result.get('error')}")
+            
             user_info = create_cognito_user(
                 COGNITO_USER_POOL_ID,
                 admin_email,
@@ -527,6 +541,8 @@ def create_club():
     
     # Send email notifications
     response_data = {"club": club}
+    email_status = {"appAdminEmail": None, "clubAdminEmail": None, "verification": verification_status}
+    
     try:
         # Get current user info for app-admin notification
         event = get_api_gateway_event()
@@ -535,28 +551,72 @@ def create_club():
         
         # Send confirmation to app-admin
         if app_admin_email and validate_email_address(app_admin_email):
-            template = get_club_creation_template(club_name, new_club_id, admin_email or "Not created")
-            send_templated_email([app_admin_email], template)
+            try:
+                template = get_club_creation_template(club_name, new_club_id, admin_email or "Not created")
+                result = send_templated_email([app_admin_email], template)
+                email_status["appAdminEmail"] = {
+                    "sent": True,
+                    "email": app_admin_email,
+                    "messageId": result.get("message_id") if result else None
+                }
+                print(f"App-admin confirmation email sent to {app_admin_email}")
+            except Exception as e:
+                email_status["appAdminEmail"] = {
+                    "sent": False,
+                    "email": app_admin_email,
+                    "error": str(e)
+                }
+                print(f"Error sending app-admin confirmation email to {app_admin_email}: {e}")
         
         # Send invitation to new club-admin if created
         if admin_email and admin_password and validate_email_address(admin_email):
-            login_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net/admin/login")
-            template = get_user_invitation_template(
-                user_name=admin_email.split("@")[0],
-                email=admin_email,
-                temporary_password=admin_password,
-                login_url=login_url,
-                role="club administrator"
-            )
-            send_templated_email([admin_email], template)
-            response_data["adminUser"] = {
-                "email": admin_email,
-                "status": "created",
-                "message": "Club-admin user created and added to group"
-            }
+            try:
+                login_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net/admin/login")
+                template = get_user_invitation_template(
+                    user_name=admin_email.split("@")[0],
+                    email=admin_email,
+                    temporary_password=admin_password,
+                    login_url=login_url,
+                    role="club administrator"
+                )
+                # Use configured club admin from email, fallback to default
+                club_admin_from_email = os.environ.get("SES_CLUB_ADMIN_FROM_EMAIL") or os.environ.get("SES_FROM_EMAIL", "noreply@repwarrior.net")
+                ses_from_name = os.environ.get("SES_FROM_NAME", "Consistency Tracker")
+                result = send_templated_email(
+                    [admin_email], 
+                    template,
+                    from_email=club_admin_from_email,
+                    from_name=ses_from_name
+                )
+                email_status["clubAdminEmail"] = {
+                    "sent": True,
+                    "email": admin_email,
+                    "messageId": result.get("message_id") if result else None
+                }
+                print(f"Club-admin invitation email sent to {admin_email}")
+            except Exception as e:
+                email_status["clubAdminEmail"] = {
+                    "sent": False,
+                    "email": admin_email,
+                    "error": str(e)
+                }
+                print(f"Error sending club-admin invitation email to {admin_email}: {e}")
+                import traceback
+                print(f"Traceback: {traceback.format_exc()}")
+        
+        response_data["adminUser"] = {
+            "email": admin_email,
+            "status": "created",
+            "message": "Club-admin user created and added to group"
+        }
     except Exception as e:
-        # Don't fail the request if email sending fails
+        # Don't fail the request if email sending fails, but log the error
         print(f"Warning: Failed to send club creation emails: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+    
+    # Include email status in response
+    response_data["emailStatus"] = email_status
     
     return flask_success_response(response_data, status_code=201)
 

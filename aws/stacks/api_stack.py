@@ -141,6 +141,7 @@ class ApiStack(Stack):
         if ses_stack:
             env_vars["SES_REGION"] = ses_stack.region
             env_vars["SES_FROM_EMAIL"] = ses_stack.from_email
+            env_vars["SES_CLUB_ADMIN_FROM_EMAIL"] = ses_stack.club_admin_from_email
             env_vars["SES_FROM_NAME"] = ses_stack.from_name
         
         # Add frontend URL for email links
@@ -227,6 +228,7 @@ class ApiStack(Stack):
         if ses_stack:
             env_vars["SES_REGION"] = ses_stack.region
             env_vars["SES_FROM_EMAIL"] = ses_stack.from_email
+            env_vars["SES_CLUB_ADMIN_FROM_EMAIL"] = ses_stack.club_admin_from_email
             env_vars["SES_FROM_NAME"] = ses_stack.from_name
         
         # Add frontend URL for email links
@@ -271,6 +273,7 @@ class ApiStack(Stack):
                     "cognito-idp:DescribeUserPool",
                     "cognito-idp:GetGroup",
                     "cognito-idp:AdminAddUserToGroup",
+                    "cognito-idp:AdminCreateUser",
                 ],
                 resources=[self.auth_stack.user_pool.user_pool_arn],
             )
@@ -284,6 +287,7 @@ class ApiStack(Stack):
                     actions=[
                         "ses:SendEmail",
                         "ses:SendRawEmail",
+                        "ses:VerifyEmailIdentity",
                     ],
                     resources=["*"],
                 )
