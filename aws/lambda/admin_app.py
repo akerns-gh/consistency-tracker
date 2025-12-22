@@ -50,6 +50,7 @@ from shared.email_templates import (
     get_club_creation_template,
     get_team_creation_template,
     get_player_invitation_template,
+    get_coach_invitation_template,
 )
 
 app = Flask(__name__)
@@ -269,6 +270,102 @@ def get_cognito_groups_for_club(club_id: str) -> List[str]:
             groups.append(coach_group)
     
     return groups
+
+
+def remove_user_from_cognito_group(user_pool_id: str, username: str, group_name: str) -> bool:
+    """
+    Remove a user from a Cognito group.
+    
+    Args:
+        user_pool_id: Cognito User Pool ID
+        username: Username (email)
+        group_name: Name of the group
+    
+    Returns:
+        True if successful, False on error
+    """
+    if not cognito_client:
+        print(f"Warning: Cognito client not initialized. Cannot remove user from group: {group_name}")
+        return False
+    
+    try:
+        cognito_client.admin_remove_user_from_group(
+            UserPoolId=user_pool_id,
+            Username=username,
+            GroupName=group_name
+        )
+        print(f"Removed user {username} from group: {group_name}")
+        return True
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
+        if error_code == 'ResourceNotFoundException':
+            # User or group doesn't exist - that's fine
+            print(f"User {username} or group {group_name} does not exist")
+            return True
+        else:
+            print(f"Error removing user {username} from group {group_name}: {e}")
+            return False
+
+
+def get_coaches_for_team(team_id: str) -> List[dict]:
+    """
+    Get all coaches (Cognito users) for a team.
+    
+    Args:
+        team_id: Team ID
+    
+    Returns:
+        List of coach user info dictionaries with email, username, status
+    """
+    if not COGNITO_USER_POOL_ID or not cognito_client:
+        print(f"Warning: Cognito not configured. Cannot get coaches for team: {team_id}")
+        return []
+    
+    # Get team to find club_id
+    team = get_team_by_id(team_id)
+    if not team:
+        return []
+    
+    club_id = team.get("clubId")
+    if not club_id:
+        return []
+    
+    # Build group name
+    group_name = f"coach-{club_id}-{team_id}"
+    
+    coaches = []
+    try:
+        # List all users in the group
+        paginator = cognito_client.get_paginator('list_users_in_group')
+        pages = paginator.paginate(
+            UserPoolId=COGNITO_USER_POOL_ID,
+            GroupName=group_name
+        )
+        
+        for page in pages:
+            for user in page.get('Users', []):
+                username = user.get('Username')
+                attributes = {attr['Name']: attr['Value'] for attr in user.get('Attributes', [])}
+                email = attributes.get('email', username)
+                status = user.get('UserStatus', 'UNKNOWN')
+                
+                coaches.append({
+                    'email': email,
+                    'username': username,
+                    'status': status
+                })
+        
+        return coaches
+        
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
+        if error_code == 'ResourceNotFoundException':
+            # Group doesn't exist - that's fine, return empty list
+            print(f"Group {group_name} does not exist")
+            return []
+        else:
+            print(f"Error listing coaches for team {team_id}: {e}")
+            return []
 
 
 def remove_all_users_from_group(user_pool_id: str, group_name: str) -> int:
@@ -938,7 +1035,6 @@ def list_teams():
         team_list.append({
             "teamId": team.get("teamId"),
             "teamName": team.get("teamName"),
-            "coachName": team.get("coachName"),
             "clubId": team.get("clubId"),
             "settings": team.get("settings", {}),
             "createdAt": team.get("createdAt"),
@@ -972,7 +1068,6 @@ def create_team():
     body = request.get_json() or {}
     
     team_name = body.get("teamName")
-    coach_name = body.get("coachName", "")
     request_club_id = body.get("clubId")
     
     if not team_name:
@@ -990,7 +1085,6 @@ def create_team():
         "teamId": new_team_id,
         "clubId": club_id,  # Set from coach's club (never trust client)
         "teamName": team_name,
-        "coachName": coach_name,
         "settings": body.get("settings", {
             "weekStartDay": "Monday",
             "autoAdvanceWeek": False,
@@ -1076,10 +1170,6 @@ def update_team(team_id):
         update_expression_parts.append("teamName = :teamName")
         expression_attribute_values[":teamName"] = body["teamName"]
     
-    if "coachName" in body:
-        update_expression_parts.append("coachName = :coachName")
-        expression_attribute_values[":coachName"] = body["coachName"]
-    
     if "settings" in body:
         update_expression_parts.append("settings = :settings")
         expression_attribute_values[":settings"] = body["settings"]
@@ -1103,6 +1193,168 @@ def update_team(team_id):
     # Get updated team
     updated = get_team_by_id(team_id)
     return flask_success_response({"team": updated})
+
+
+@app.route('/admin/teams/<team_id>/coaches', methods=['GET'])
+@require_admin
+@require_club
+def list_team_coaches(team_id):
+    """List all coaches for a team."""
+    club_id = g.club_id
+    
+    # Get team and verify it belongs to the club
+    team = get_team_by_id(team_id)
+    if not team:
+        return flask_error_response("Team not found", status_code=404)
+    
+    if team.get("clubId") != club_id:
+        return flask_error_response("Team not found or access denied", status_code=403)
+    
+    # Get coaches from Cognito group
+    coaches = get_coaches_for_team(team_id)
+    
+    return flask_success_response({"coaches": coaches, "total": len(coaches)})
+
+
+@app.route('/admin/teams/<team_id>/coaches', methods=['POST'])
+@require_admin
+@require_club
+def add_team_coach(team_id):
+    """Add a coach to a team (create Cognito user + add to group + send invitation email)."""
+    if not COGNITO_USER_POOL_ID or not cognito_client:
+        return flask_error_response("Cognito is not configured for coach management", status_code=500)
+    
+    club_id = g.club_id
+    body = request.get_json() or {}
+    
+    coach_email = (body.get("coachEmail") or "").strip()
+    coach_password = (body.get("coachPassword") or "").strip()
+    
+    if not coach_email or not coach_password:
+        return flask_error_response("coachEmail and coachPassword are required", status_code=400)
+    
+    if not validate_email_address(coach_email):
+        return flask_error_response("Invalid coachEmail address", status_code=400)
+    
+    # Get team and verify it belongs to the club
+    team = get_team_by_id(team_id)
+    if not team:
+        return flask_error_response("Team not found", status_code=404)
+    
+    if team.get("clubId") != club_id:
+        return flask_error_response("Team not found or access denied", status_code=403)
+    
+    team_name = team.get("teamName", "Unknown Team")
+    club = get_club_by_id(club_id)
+    club_name = club.get("clubName", "Unknown Club") if club else "Unknown Club"
+    
+    # Build coach group name
+    group_name = f"coach-{club_id}-{team_id}"
+    
+    # Ensure the group exists
+    description = f"Coaches for team {team_name} in club {club_name}"
+    create_cognito_group(COGNITO_USER_POOL_ID, group_name, description)
+    
+    # Create or update the Cognito user (coaches don't need custom:clubId, they're team-scoped)
+    user_info = create_cognito_user(
+        COGNITO_USER_POOL_ID,
+        coach_email,
+        coach_password,
+        club_id=None,  # Coaches are team-scoped, not club-scoped
+    )
+    
+    if not user_info:
+        return flask_error_response("Failed to create or update coach user", status_code=500)
+    
+    # Add user to the coach group
+    add_user_to_cognito_group(
+        COGNITO_USER_POOL_ID,
+        user_info["username"],
+        group_name,
+    )
+    
+    # Send invitation email
+    email_status = None
+    try:
+        # Get login URL from environment or use default
+        login_url = os.environ.get("ADMIN_LOGIN_URL", "https://app.repwarrior.net/admin/login")
+        
+        template = get_coach_invitation_template(
+            coach_email,
+            coach_email,
+            coach_password,
+            login_url,
+            team_name,
+            club_name
+        )
+        
+        # Verify email if needed (for SES sandbox)
+        verification_result = verify_email_identity(coach_email)
+        if verification_result.get("verified"):
+            send_templated_email([coach_email], template)
+            email_status = {
+                "sent": True,
+                "message": "Coach invitation email sent successfully"
+            }
+            print(f"Coach invitation email sent to {coach_email}")
+        else:
+            email_status = {
+                "sent": False,
+                "message": f"Email verification required: {verification_result.get('error', 'Unknown error')}"
+            }
+            print(f"Warning: Could not send coach invitation email to {coach_email}: {verification_result.get('error')}")
+    except Exception as e:
+        email_status = {
+            "sent": False,
+            "message": f"Failed to send invitation email: {str(e)}"
+        }
+        print(f"Error sending coach invitation email to {coach_email}: {e}")
+    
+    return flask_success_response({
+        "coach": {
+            "email": coach_email,
+            "username": user_info["username"],
+            "status": user_info["status"]
+        },
+        "emailStatus": email_status,
+        "message": "Coach added successfully"
+    }, status_code=201)
+
+
+@app.route('/admin/teams/<team_id>/coaches/<coach_email>', methods=['DELETE'])
+@require_admin
+@require_club
+def remove_team_coach(team_id, coach_email):
+    """Remove a coach from a team (remove from Cognito group)."""
+    if not COGNITO_USER_POOL_ID or not cognito_client:
+        return flask_error_response("Cognito is not configured for coach management", status_code=500)
+    
+    club_id = g.club_id
+    
+    # Get team and verify it belongs to the club
+    team = get_team_by_id(team_id)
+    if not team:
+        return flask_error_response("Team not found", status_code=404)
+    
+    if team.get("clubId") != club_id:
+        return flask_error_response("Team not found or access denied", status_code=403)
+    
+    # Build coach group name
+    group_name = f"coach-{club_id}-{team_id}"
+    
+    # Remove user from group
+    success = remove_user_from_cognito_group(
+        COGNITO_USER_POOL_ID,
+        coach_email,
+        group_name
+    )
+    
+    if not success:
+        return flask_error_response("Failed to remove coach from team", status_code=500)
+    
+    return flask_success_response({
+        "message": "Coach removed from team successfully"
+    })
 
 
 # ============================================================================

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { createTeam, getTeams, Team, advanceWeek } from '../../../services/adminApi'
+import { getTeams, Team, advanceWeek } from '../../../services/adminApi'
 import Card from '../../ui/Card'
 import Button from '../../ui/Button'
 import Loading from '../../ui/Loading'
@@ -8,9 +8,6 @@ export default function SettingsForm() {
   const [teams, setTeams] = useState<Team[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedTeam, setSelectedTeam] = useState<string>('')
-  const [teamCreateName, setTeamCreateName] = useState('')
-  const [teamCreateCoachName, setTeamCreateCoachName] = useState('')
-  const [teamCreateError, setTeamCreateError] = useState<string | null>(null)
   const [teamLoadError, setTeamLoadError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -33,24 +30,6 @@ export default function SettingsForm() {
       setTeamLoadError((err as any)?.message || 'Failed to load teams')
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleCreateTeam = async () => {
-    setTeamCreateError(null)
-    const name = teamCreateName.trim()
-    if (!name) {
-      setTeamCreateError('Please enter a team name')
-      return
-    }
-
-    try {
-      await createTeam({ teamName: name, coachName: teamCreateCoachName.trim() || undefined })
-      setTeamCreateName('')
-      setTeamCreateCoachName('')
-      await loadData()
-    } catch (err: any) {
-      setTeamCreateError(err?.message || 'Failed to create team')
     }
   }
 
@@ -90,42 +69,10 @@ export default function SettingsForm() {
               </p>
             </div>
           ) : teams.length === 0 ? (
-            // Show create team form when no teams exist AND user has club
             <div className="space-y-4">
               <p className="text-sm text-gray-700">
-                No teams exist in your club yet. Create your first team so you can add players and team-scoped activities.
+                No teams exist in your club yet. Go to the Teams tab to create your first team.
               </p>
-
-              {teamCreateError && (
-                <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
-                  {teamCreateError}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">Team name</label>
-                  <input
-                    type="text"
-                    value={teamCreateName}
-                    onChange={(e) => setTeamCreateName(e.target.value)}
-                    placeholder="e.g. 2028 Boys"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">Coach name (optional)</label>
-                  <input
-                    type="text"
-                    value={teamCreateCoachName}
-                    onChange={(e) => setTeamCreateCoachName(e.target.value)}
-                    placeholder="e.g. Coach Adams"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              <Button onClick={handleCreateTeam}>Create Team</Button>
             </div>
           ) : (
             // Show dropdown when teams exist
@@ -153,11 +100,6 @@ export default function SettingsForm() {
                   <p className="text-sm text-gray-600">
                     <strong>Team Name:</strong> {teams.find((t) => t.teamId === selectedTeam)?.teamName}
                   </p>
-                  {teams.find((t) => t.teamId === selectedTeam)?.coachName && (
-                    <p className="text-sm text-gray-600 mt-1">
-                      <strong>Coach:</strong> {teams.find((t) => t.teamId === selectedTeam)?.coachName}
-                    </p>
-                  )}
                 </>
               )}
             </div>

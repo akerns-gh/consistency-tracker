@@ -14,9 +14,14 @@ export interface Team {
   teamId: string
   clubId: string
   teamName: string
-  coachName?: string
   settings?: Record<string, any>
   createdAt?: string
+}
+
+export interface Coach {
+  email: string
+  username: string
+  status: string
 }
 
 /**
@@ -91,10 +96,47 @@ export async function getTeams(): Promise<{ teams: Team[]; total: number }> {
  */
 export async function createTeam(data: {
   teamName: string
-  coachName?: string
   settings?: Record<string, any>
 }): Promise<{ team: Team }> {
   const response = await api.post('/admin/teams', data)
+  return response.data.data
+}
+
+/**
+ * Get coaches for a team
+ */
+export async function getTeamCoaches(teamId: string): Promise<{ coaches: Coach[]; total: number }> {
+  const response = await api.get(`/admin/teams/${teamId}/coaches`)
+  return response.data.data
+}
+
+/**
+ * Add a coach to a team
+ */
+export async function addTeamCoach(
+  teamId: string,
+  data: { coachEmail: string; coachPassword: string }
+): Promise<{ coach: Coach; emailStatus: any; message: string }> {
+  const response = await api.post(`/admin/teams/${teamId}/coaches`, data)
+  return response.data.data
+}
+
+/**
+ * Remove a coach from a team
+ */
+export async function removeTeamCoach(teamId: string, coachEmail: string): Promise<{ message: string }> {
+  const response = await api.delete(`/admin/teams/${teamId}/coaches/${encodeURIComponent(coachEmail)}`)
+  return response.data.data
+}
+
+/**
+ * Update a team
+ */
+export async function updateTeam(
+  teamId: string,
+  data: Partial<Team>
+): Promise<{ team: Team }> {
+  const response = await api.put(`/admin/teams/${teamId}`, data)
   return response.data.data
 }
 

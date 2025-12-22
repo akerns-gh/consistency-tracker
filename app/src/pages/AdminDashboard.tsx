@@ -9,6 +9,7 @@ import SummaryCards from '../components/admin/overview/SummaryCards'
 import Charts from '../components/admin/overview/Charts'
 import ReflectionHighlights from '../components/admin/overview/ReflectionHighlights'
 import SettingsForm from '../components/admin/settings/SettingsForm'
+import TeamManagement from '../components/admin/teams/TeamManagement'
 import AppAdminDashboard from './AppAdminDashboard'
 
 export default function AdminDashboard() {
@@ -48,6 +49,12 @@ export default function AdminDashboard() {
             <SummaryCards />
             <Charts />
             <ReflectionHighlights />
+          </div>
+        )
+      case 'teams':
+        return (
+          <div>
+            <TeamManagement />
           </div>
         )
       case 'settings':

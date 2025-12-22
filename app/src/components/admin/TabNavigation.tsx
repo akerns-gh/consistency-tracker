@@ -1,5 +1,5 @@
 
-export type AdminTab = 'players' | 'activities' | 'content' | 'overview' | 'settings'
+export type AdminTab = 'players' | 'activities' | 'content' | 'overview' | 'settings' | 'teams'
 
 interface TabNavigationProps {
   activeTab: AdminTab
@@ -12,6 +12,7 @@ export default function TabNavigation({ activeTab, onTabChange }: TabNavigationP
     { id: 'activities', label: 'Activities', icon: '🏃' },
     { id: 'content', label: 'Content', icon: '📄' },
     { id: 'overview', label: 'Overview', icon: '📊' },
+    { id: 'teams', label: 'Teams', icon: '🏆' },
     { id: 'settings', label: 'Settings', icon: '⚙️' },
   ]
 

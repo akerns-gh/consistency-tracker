@@ -286,3 +286,71 @@ def get_player_invitation_template(
         "subject": f"Welcome to {team_name} - Consistency Tracker"
     }
 
+
+def get_coach_invitation_template(
+    coach_name: str,
+    email: str,
+    temporary_password: str,
+    login_url: str,
+    team_name: str,
+    club_name: str
+) -> dict:
+    """Generate coach invitation email template."""
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Welcome to Consistency Tracker</title>
+    </head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin-bottom: 20px;">
+            <h1 style="color: #2c3e50; margin-top: 0;">Welcome to Consistency Tracker</h1>
+        </div>
+        <p>Hello {coach_name},</p>
+        <p>You have been invited to join <strong>{team_name}</strong> in <strong>{club_name}</strong> as a coach.</p>
+        <p>Your account has been created with the following credentials:</p>
+        <div style="background-color: #ecf0f1; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <p style="margin: 5px 0;"><strong>Email:</strong> {email}</p>
+            <p style="margin: 5px 0;"><strong>Temporary Password:</strong> {temporary_password}</p>
+        </div>
+        <p><strong>Important:</strong> You must change your password on first login.</p>
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{login_url}" style="background-color: #27ae60; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">Login Now</a>
+        </div>
+        <p>After logging in, you'll be prompted to set a new password and can start managing your team.</p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+        <p style="color: #7f8c8d; font-size: 12px;">This is an automated message from Consistency Tracker. Please do not reply to this email.</p>
+    </body>
+    </html>
+    """
+    
+    text_body = f"""
+    Welcome to Consistency Tracker
+    
+    Hello {coach_name},
+    
+    You have been invited to join {team_name} in {club_name} as a coach.
+    
+    Your account has been created with the following credentials:
+    
+    Email: {email}
+    Temporary Password: {temporary_password}
+    
+    Important: You must change your password on first login.
+    
+    Login at: {login_url}
+    
+    After logging in, you'll be prompted to set a new password and can start managing your team.
+    
+    ---
+    This is an automated message from Consistency Tracker. Please do not reply to this email.
+    """
+    
+    return {
+        "html": html_body,
+        "text": text_body,
+        "subject": f"Welcome to {team_name} - Coach Account Created"
+    }
+
