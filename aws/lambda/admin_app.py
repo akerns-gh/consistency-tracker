@@ -142,7 +142,7 @@ def create_cognito_group(user_pool_id: str, group_name: str, description: str = 
             return False
 
 
-def create_cognito_user(user_pool_id: str, email: str, temporary_password: str) -> dict:
+def create_cognito_user(user_pool_id: str, email: str, temporary_password: str, club_id: str = None) -> dict:
     """
     Create a Cognito user if it doesn't exist. Returns user info or None on error.
     
@@ -150,6 +150,7 @@ def create_cognito_user(user_pool_id: str, email: str, temporary_password: str) 
         user_pool_id: Cognito User Pool ID
         email: User's email address (used as username)
         temporary_password: Temporary password (must meet password policy)
+        club_id: Optional club ID to set as custom:clubId attribute
     
     Returns:
         Dict with user info if successful, None on error
@@ -159,13 +160,19 @@ def create_cognito_user(user_pool_id: str, email: str, temporary_password: str) 
         return None
     
     try:
+        user_attributes = [
+            {'Name': 'email', 'Value': email},
+            {'Name': 'email_verified', 'Value': 'true'}
+        ]
+        
+        # Add custom:clubId if provided
+        if club_id:
+            user_attributes.append({'Name': 'custom:clubId', 'Value': club_id})
+        
         response = cognito_client.admin_create_user(
             UserPoolId=user_pool_id,
             Username=email,
-            UserAttributes=[
-                {'Name': 'email', 'Value': email},
-                {'Name': 'email_verified', 'Value': 'true'}
-            ],
+            UserAttributes=user_attributes,
             TemporaryPassword=temporary_password,
             MessageAction='SUPPRESS',  # Don't send welcome email (we'll send our own)
             DesiredDeliveryMediums=['EMAIL']
@@ -179,6 +186,19 @@ def create_cognito_user(user_pool_id: str, email: str, temporary_password: str) 
         error_code = e.response.get('Error', {}).get('Code', '')
         if error_code == 'UsernameExistsException':
             print(f"User '{email}' already exists")
+            # If user exists, try to update the clubId attribute
+            if club_id:
+                try:
+                    cognito_client.admin_update_user_attributes(
+                        UserPoolId=user_pool_id,
+                        Username=email,
+                        UserAttributes=[
+                            {'Name': 'custom:clubId', 'Value': club_id}
+                        ]
+                    )
+                    print(f"Updated custom:clubId for existing user {email}")
+                except Exception as update_error:
+                    print(f"Warning: Could not update custom:clubId for user {email}: {update_error}")
             return {'username': email, 'status': 'EXISTS'}
         else:
             print(f"Error creating Cognito user {email}: {e}")
@@ -575,7 +595,8 @@ def create_club():
             user_info = create_cognito_user(
                 COGNITO_USER_POOL_ID,
                 admin_email,
-                admin_password
+                admin_password,
+                club_id=new_club_id  # Set custom:clubId attribute
             )
             if user_info and group_name:
                 add_user_to_cognito_group(

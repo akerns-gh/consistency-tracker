@@ -1,0 +1,30 @@
+{
+  "domain": "repwarrior.net",
+  "aws_region": "us-east-1",
+  "hosted_zone_id": "Z0224155HV050F02RZE0",
+  "mail_subdomain": "mail",
+  
+  "proton": {
+    "verification": "protonmail-verification=032dff03daf1857ad3525e8730d2daaea8417e8e",
+    "mx": [
+      "10 mail.protonmail.ch",
+      "20 mailsec.protonmail.ch"
+    ],
+    "spf": "v=spf1 include:_spf.protonmail.ch include:amazonses.com mx ~all",
+    "dkim": [
+      {
+        "host": "protonmail._domainkey",
+        "value": "protonmail.domainkey.dyfym34xhtkunhuiacmav2fzxkugehaqys2lmta5dloyen6jvnlca.domains.proton.ch."
+      },
+      {
+        "host": "protonmail2._domainkey",
+        "value": "protonmail2.domainkey.dyfym34xhtkunhuiacmav2fzxkugehaqys2lmta5dloyen6jvnlca.domains.proton.ch."
+      },
+      {
+        "host": "protonmail3._domainkey",
+        "value": "protonmail3.domainkey.dyfym34xhtkunhuiacmav2fzxkugehaqys2lmta5dloyen6jvnlca.domains.proton.ch."
+      }
+    ],
+    "dmarc": "v=DMARC1; p=quarantine; rua=mailto:admin@repwarrior.net"
+  }
+}

@@ -504,7 +504,8 @@ def main():
         print("\n📧 Post-deploy email setup (optional)...")
         aws_dir = Path(__file__).parent
         email_script = aws_dir / "post_deploy_email_setup.py"
-        email_config = aws_dir / "email" / "config.json"
+        # Config now lives under aws/email_tools to avoid shadowing stdlib email module
+        email_config = aws_dir / "email_tools" / "config.json"
         
         if email_script.exists():
             # Only run if config file exists, otherwise skip silently
@@ -518,9 +519,9 @@ def main():
                     print("⚠️  Email setup had issues. You can re-run manually:")
                     print(f"   python aws/post_deploy_email_setup.py")
             else:
-                print("ℹ️  Email setup skipped (aws/email/config.json not found)")
+                print("ℹ️  Email setup skipped (aws/email_tools/config.json not found)")
                 print("   To enable: create config.json with Proton Mail DNS values")
-                print("   See aws/email/README.md for instructions")
+                print("   See aws/email_tools/README.md for instructions")
         else:
             print("⚠️  post_deploy_email_setup.py not found; skipping.")
     

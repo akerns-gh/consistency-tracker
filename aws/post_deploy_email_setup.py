@@ -3,7 +3,7 @@
 Post-deploy email domain setup automation.
 
 Integrates email_domain_setup.py into the deployment process.
-Reads configuration from aws/app.py and aws/email/config.json.
+Reads configuration from aws/app.py and aws/email_tools/config.json.
 """
 
 import argparse
@@ -112,7 +112,8 @@ def main():
     
     # Get script directory
     aws_dir = Path(__file__).parent
-    email_dir = aws_dir / 'email'
+    # Use email_tools directory to avoid shadowing Python's built-in email module
+    email_dir = aws_dir / 'email_tools'
     config_path = email_dir / 'config.json'
     
     # Get defaults from app.py
@@ -137,10 +138,10 @@ def main():
             print("=" * 70)
             print("📧 EMAIL DOMAIN SETUP")
             print("=" * 70)
-            print("\n⚠️  Configuration file not found: aws/email/config.json")
+            print("\n⚠️  Configuration file not found: aws/email_tools/config.json")
             print("\nTo set up email domain configuration:")
-            print("  1. Copy aws/email/config.template.json to aws/email/config.json")
-            print("  2. Collect Proton Mail DNS values (see aws/email/README.md)")
+            print("  1. Copy aws/email_tools/config.template.json to aws/email_tools/config.json")
+            print("  2. Collect Proton Mail DNS values (see aws/email_tools/README.md)")
             print("  3. Fill in the Proton values in config.json")
             print("  4. Re-run this script or deploy again")
             print("\n💡 This step is optional and can be done manually later.")
@@ -155,11 +156,11 @@ def main():
         print("📧 EMAIL DOMAIN SETUP")
         print("=" * 70)
         print("\n⚠️  Proton Mail configuration is incomplete or contains placeholders")
-        print("\nPlease update aws/email/config.json with your Proton Mail DNS values:")
+        print("\nPlease update aws/email_tools/config.json with your Proton Mail DNS values:")
         print("  - proton.verification")
         print("  - proton.dkim[0-2] (3 records)")
         print("  - proton.dmarc")
-        print("\nSee aws/email/README.md for instructions on collecting these values.")
+        print("\nSee aws/email_tools/README.md for instructions on collecting these values.")
         return 1
     
     # Run the email setup script directly to avoid import conflicts with Python's built-in email module

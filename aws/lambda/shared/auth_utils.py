@@ -272,8 +272,6 @@ def get_club_id_from_user(event: Dict[str, Any]) -> Optional[str]:
         return club_id
     
     # Try extracting from group names using pattern matching
-    # Note: With new format (club-{name}-admins), we can't extract club ID from group name
-    # So we rely on custom:clubId claim (checked above) or coach groups
     user_info = extract_user_info_from_event(event)
     if user_info:
         groups = user_info.get("groups", [])
@@ -284,6 +282,52 @@ def get_club_id_from_user(event: Dict[str, Any]) -> Optional[str]:
             match = coach_pattern.match(group)
             if match:
                 return match.group(1)  # Return clubId from coach group
+        
+        # Pattern for club-{sanitizedName}-admins (need to look up club by name)
+        club_admin_pattern = re.compile(r'^club-([a-z0-9_-]+)-admins$')
+        for group in groups:
+            match = club_admin_pattern.match(group)
+            if match:
+                sanitized_name = match.group(1)
+                # Look up club by matching sanitized name
+                # This is a fallback for existing users without custom:clubId
+                try:
+                    from shared.db_utils import get_table
+                    table = get_table("ConsistencyTracker-Clubs")
+                    response = table.scan()
+                    clubs = response.get("Items", [])
+                    
+                    # Import sanitize function from admin_app (or define it here)
+                    # For now, we'll do a simple match - sanitize each club name and compare
+                    def sanitize_for_group(name: str) -> str:
+                        """Sanitize club name for group name comparison."""
+                        if not name:
+                            return ""
+                        sanitized = re.sub(r'[^a-zA-Z0-9_-]', '_', name)
+                        sanitized = sanitized.lower()
+                        if not sanitized or not sanitized[0].isalpha():
+                            sanitized = 'club_' + sanitized
+                        sanitized = re.sub(r'_+', '_', sanitized)
+                        sanitized = sanitized.strip('_')
+                        if not sanitized:
+                            sanitized = "club"
+                        if len(sanitized) > 100:
+                            sanitized = sanitized[:100].rstrip('_')
+                        return sanitized
+                    
+                    # Find club whose sanitized name matches
+                    for club in clubs:
+                        club_name = club.get("clubName", "")
+                        if club_name:
+                            club_sanitized = sanitize_for_group(club_name)
+                            if club_sanitized == sanitized_name:
+                                club_id = club.get("clubId")
+                                if club_id:
+                                    print(f"DEBUG get_club_id_from_user: Found club {club_id} by matching sanitized name '{sanitized_name}'")
+                                    return club_id
+                except Exception as e:
+                    print(f"Warning: Could not look up club by sanitized name '{sanitized_name}': {e}")
+                    # Continue to return None if lookup fails
     
     return None
 
