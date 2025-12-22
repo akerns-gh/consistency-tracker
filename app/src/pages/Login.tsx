@@ -17,6 +17,14 @@ export default function Login() {
   const { login, changePassword, requiresNewPassword, isAdmin, resetPassword, confirmResetPassword } = useAuth()
   const navigate = useNavigate()
 
+  // Reset loading state when password change form is shown
+  useEffect(() => {
+    if (requiresNewPassword) {
+      setIsLoading(false)
+      setError('')
+    }
+  }, [requiresNewPassword])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -70,6 +78,11 @@ export default function Login() {
     e.preventDefault()
     setError('')
 
+    // Prevent multiple submissions
+    if (isLoading) {
+      return
+    }
+
     // Validate passwords match
     if (newPassword !== confirmPassword) {
       setError('Passwords do not match')
@@ -100,17 +113,19 @@ export default function Login() {
     setIsLoading(true)
 
     try {
+      console.log('Starting password change...')
       const roleResult = await changePassword(newPassword)
+      console.log('Password change successful, roleResult:', roleResult)
       // After password change, navigate based on role result
-      if (roleResult.isAdmin) {
+      if (roleResult?.isAdmin) {
         navigate('/admin')
       } else {
         navigate('/player')
       }
     } catch (err: any) {
+      console.error('Password change error:', err)
       setError(err.message || 'Failed to change password. Please try again.')
-    } finally {
-      setIsLoading(false)
+      setIsLoading(false) // Explicitly reset loading state on error
     }
   }
 
@@ -235,7 +250,8 @@ export default function Login() {
                   type="password"
                   autoComplete="new-password"
                   required
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-green-500 focus:border-green-500 focus:z-10 sm:text-sm"
+                  disabled={isLoading}
+                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-green-500 focus:border-green-500 focus:z-10 sm:text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                   placeholder="New Password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
@@ -251,7 +267,8 @@ export default function Login() {
                   type="password"
                   autoComplete="new-password"
                   required
-                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-green-500 focus:border-green-500 focus:z-10 sm:text-sm"
+                  disabled={isLoading}
+                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-green-500 focus:border-green-500 focus:z-10 sm:text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                   placeholder="Confirm Password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}

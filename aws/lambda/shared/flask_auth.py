@@ -10,6 +10,7 @@ from flask import request, g, abort, jsonify
 from typing import Optional, Dict, Any
 from shared.auth_utils import (
     extract_user_info_from_event,
+    extract_user_info_from_jwt_token,
     verify_admin_role,
     verify_app_admin_role,
     get_club_id_from_user,
@@ -46,11 +47,57 @@ def require_admin(f):
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # Check if event exists in request.environ before retrieving
+        event_exists = 'serverless.event' in request.environ
         event = get_api_gateway_event()
         user_info = extract_user_info_from_event(event)
         
+        # Fallback: if no user info from event, try to extract from Authorization header
+        if not user_info:
+            auth_header = request.headers.get('Authorization', '')
+            if auth_header.startswith('Bearer '):
+                token = auth_header[7:]  # Remove 'Bearer ' prefix
+                user_info = extract_user_info_from_jwt_token(token)
+                print(f"DEBUG require_admin: Extracted user_info from Authorization header")
+        
         if not user_info:
             abort(401, description="Authentication required")
+        
+        # Ensure event has authorizer context for verify_admin_role
+        # verify_admin_role expects event with authorizer.claims containing cognito:groups
+        if not event.get("requestContext", {}).get("authorizer", {}).get("claims", {}).get("cognito:groups"):
+            # If no groups in authorizer context, create one from user_info
+            if not event.get("requestContext"):
+                event["requestContext"] = {}
+            if not event["requestContext"].get("authorizer"):
+                event["requestContext"]["authorizer"] = {}
+            if not event["requestContext"]["authorizer"].get("claims"):
+                event["requestContext"]["authorizer"]["claims"] = {}
+            
+            # Update claims with user_info - ensure groups is a list
+            claims = event["requestContext"]["authorizer"]["claims"]
+            groups_raw = user_info.get("groups", [])
+            if isinstance(groups_raw, str):
+                groups = [g.strip() for g in groups_raw.split(",") if g.strip()]
+            elif isinstance(groups_raw, list):
+                groups = groups_raw
+            else:
+                groups = []
+            
+            claims["cognito:username"] = user_info.get("username")
+            claims["email"] = user_info.get("email")
+            claims["sub"] = user_info.get("user_id")
+            claims["cognito:groups"] = groups
+            # Include custom attributes if present
+            if user_info.get("custom:clubId"):
+                claims["custom:clubId"] = user_info.get("custom:clubId")
+            if user_info.get("custom:teamIds"):
+                claims["custom:teamIds"] = user_info.get("custom:teamIds")
+            print(f"DEBUG require_admin: Created authorizer claims from user_info, groups: {groups}, clubId: {claims.get('custom:clubId')}")
+            
+            # Store modified event back to request.environ if it wasn't there originally
+            if not event_exists:
+                request.environ['serverless.event'] = event
         
         if not verify_admin_role(event):
             abort(403, description="Admin access required")

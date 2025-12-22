@@ -96,6 +96,8 @@ def extract_user_info_from_event(event: Dict[str, Any]) -> Optional[Dict[str, An
         "email": claims.get("email"),
         "user_id": claims.get("sub"),
         "groups": groups,
+        "custom:clubId": claims.get("custom:clubId"),  # Include custom attributes
+        "custom:teamIds": claims.get("custom:teamIds"),
     }
     
     return user_info
@@ -145,9 +147,11 @@ def extract_user_info_from_jwt_token(token: str) -> Optional[Dict[str, Any]]:
             "email": decoded.get("email"),
             "user_id": decoded.get("sub"),
             "groups": groups,
+            "custom:clubId": decoded.get("custom:clubId"),  # Include custom attributes
+            "custom:teamIds": decoded.get("custom:teamIds"),
         }
         
-        print(f"DEBUG extract_user_info_from_jwt_token: Extracted user info - email: {user_info.get('email')}, username: {user_info.get('username')}, groups: {groups}")
+        print(f"DEBUG extract_user_info_from_jwt_token: Extracted user info - email: {user_info.get('email')}, username: {user_info.get('username')}, groups: {groups}, clubId: {user_info.get('custom:clubId')}")
         return user_info
     except Exception as e:
         import traceback
@@ -264,12 +268,16 @@ def get_club_id_from_user(event: Dict[str, Any]) -> Optional[str]:
     claims = authorizer.get("claims", {})
     
     if not claims:
+        print("DEBUG get_club_id_from_user: No claims in event")
         return None
     
     # Try custom:clubId attribute first (preferred)
     club_id = claims.get("custom:clubId")
     if club_id:
+        print(f"DEBUG get_club_id_from_user: Found clubId from custom:clubId attribute: {club_id}")
         return club_id
+    
+    print(f"DEBUG get_club_id_from_user: No custom:clubId in claims, trying group lookup")
     
     # Try extracting from group names using pattern matching
     user_info = extract_user_info_from_event(event)
@@ -326,9 +334,12 @@ def get_club_id_from_user(event: Dict[str, Any]) -> Optional[str]:
                                     print(f"DEBUG get_club_id_from_user: Found club {club_id} by matching sanitized name '{sanitized_name}'")
                                     return club_id
                 except Exception as e:
-                    print(f"Warning: Could not look up club by sanitized name '{sanitized_name}': {e}")
+                    import traceback
+                    print(f"ERROR get_club_id_from_user: Could not look up club by sanitized name '{sanitized_name}': {e}")
+                    traceback.print_exc()
                     # Continue to return None if lookup fails
     
+    print(f"DEBUG get_club_id_from_user: Could not extract clubId from user")
     return None
 
 

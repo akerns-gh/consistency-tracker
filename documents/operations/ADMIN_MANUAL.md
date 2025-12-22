@@ -70,7 +70,10 @@ The system automatically creates admin groups when clubs and teams are created:
 1. App-admin creates club → `club-{sanitizedClubName}-admins` group created automatically
    → Email confirmation sent to app-admin
    → If club-admin created during club creation, invitation email sent with credentials
-2. App-admin assigns users to `club-{sanitizedClubName}-admins` group → Users become club-admins
+   → The initial club-admin's `custom:clubId` attribute is automatically set
+2. App-admin can add additional club-admins via Club Management UI → Users created with `custom:clubId` set
+   → Invitation email sent with credentials
+   → Users automatically added to `club-{sanitizedClubName}-admins` group
 3. Club-admin creates team → `coach-{clubId}-{teamId}` group created automatically
    → Email confirmation sent to club-admin
 4. Club-admin (creator) automatically added to `coach-{clubId}-{teamId}` group
@@ -166,7 +169,41 @@ python create_admin_user.py
 
 ## Creating New Admin Users
 
-### Option 1: Using Python Script (Recommended)
+### Option 1: Using Admin Dashboard UI (Recommended for Club-Admins)
+
+**For App-Admins Adding Club-Admins to Existing Clubs:**
+
+App-admins can add additional club-admins to existing clubs directly through the Club Management interface:
+
+1. **Navigate to Club Management:**
+   - Log in as an app-admin
+   - Go to the "Clubs" section in the admin dashboard
+   - Find the club you want to add an admin to
+
+2. **Edit the Club:**
+   - Click "Edit" on the club
+   - Scroll to the "Additional Club Administrator (optional)" section
+   - Enter the new admin's email address
+   - Enter a temporary password (must meet password requirements)
+   - Click "Update Club"
+
+3. **What Happens:**
+   - The club name is updated (if changed)
+   - A new club-admin user is created in Cognito
+   - The `custom:clubId` attribute is automatically set to the club's ID
+   - The user is added to the `club-{sanitizedClubName}-admins` group
+   - An invitation email is sent to the new admin with login credentials
+
+**Note:** This method ensures the `custom:clubId` attribute is properly set, which is required for club-admins to access admin endpoints.
+
+**For Creating Clubs with Initial Club-Admin:**
+
+When creating a new club through the UI:
+- The initial club-admin email and password are **required**
+- The club-admin is automatically created with `custom:clubId` set
+- An invitation email is sent immediately
+
+### Option 2: Using Python Script
 
 The easiest way to create a new admin user is using the provided Python script:
 
@@ -201,7 +238,9 @@ The easiest way to create a new admin user is using the provided Python script:
    - Temporary Password: The temporary password you set
    - Login URL: `https://repwarrior.net/login` (for players) or `https://repwarrior.net/admin/login` (for admins)
 
-### Option 2: Using AWS Console
+### Option 3: Using AWS Console
+
+**⚠️ Important Note for Club-Admins:** If manually creating a club-admin user via AWS Console, you **must** also set the `custom:clubId` attribute to the club's ID. Otherwise, the user will not be able to access admin endpoints. It's recommended to use the Admin Dashboard UI (Option 1) instead, which handles this automatically.
 
 1. **Navigate to Cognito:**
    - Go to AWS Console → Cognito → User Pools
@@ -211,6 +250,7 @@ The easiest way to create a new admin user is using the provided Python script:
    - Click "Create user"
    - Enter the user's email address
    - Set a temporary password (must meet password policy)
+   - **For club-admins:** Add custom attribute `clubId` with the club's ID value
    - Uncheck "Send an invitation" if you want to share credentials manually
    - Click "Create user"
 
@@ -224,7 +264,9 @@ The easiest way to create a new admin user is using the provided Python script:
      - `coach-{clubId}-{teamId}` for team coaches (replace with actual club and team IDs)
    - Click "Add"
 
-### Option 3: Using AWS CLI
+### Option 4: Using AWS CLI
+
+**⚠️ Important Note for Club-Admins:** If manually creating a club-admin user via AWS CLI, you **must** also set the `custom:clubId` attribute to the club's ID. Otherwise, the user will not be able to access admin endpoints. It's recommended to use the Admin Dashboard UI (Option 1) instead, which handles this automatically.
 
 ```bash
 # First, get the User Pool ID
@@ -235,10 +277,23 @@ USER_POOL_ID=$(aws cloudformation describe-stacks \
   --output text)
 
 # Create the admin user
+# For app-admin:
 aws cognito-idp admin-create-user \
   --user-pool-id $USER_POOL_ID \
   --username admin@example.com \
   --user-attributes Name=email,Value=admin@example.com \
+  --temporary-password "TempPass123!2025" \
+  --message-action SUPPRESS \
+  --region us-east-1
+
+# For club-admin (include custom:clubId attribute):
+# Replace CLUB_ID with the actual club ID from your database
+aws cognito-idp admin-create-user \
+  --user-pool-id $USER_POOL_ID \
+  --username clubadmin@example.com \
+  --user-attributes \
+    Name=email,Value=clubadmin@example.com \
+    Name=custom:clubId,Value=CLUB_ID \
   --temporary-password "TempPass123!2025" \
   --message-action SUPPRESS \
   --region us-east-1
@@ -254,7 +309,7 @@ aws cognito-idp admin-add-user-to-group \
 # For club-admin (replace with actual sanitized club name, e.g., club-acme_club-admins):
 # aws cognito-idp admin-add-user-to-group \
 #   --user-pool-id $USER_POOL_ID \
-#   --username admin@example.com \
+#   --username clubadmin@example.com \
 #   --group-name club-{sanitizedClubName}-admins \
 #   --region us-east-1
 ```
@@ -372,7 +427,8 @@ When viewing users in the AWS Cognito console, you may see different statuses:
    - `club-{sanitizedClubName}-admins` for club-specific access (e.g., `club-acme_club-admins`)
    - `coach-{clubId}-{teamId}` for team-specific access (check club and team IDs)
 5. If not in the correct group, click "Add user to group" and select the appropriate group
-6. **Note**: Dynamic groups (`club-{sanitizedClubName}-admins` and `coach-{clubId}-{teamId}`) are created automatically when clubs/teams are created, but users must be manually added to them
+6. **Note**: Dynamic groups (`club-{sanitizedClubName}-admins` and `coach-{clubId}-{teamId}`) are created automatically when clubs/teams are created
+7. **For club-admins**: Verify the `custom:clubId` attribute is set correctly. If missing, the user will get 403 errors when accessing admin endpoints. Use the Admin Dashboard UI to add club-admins, which handles this automatically.
 
 ### Temporary Password Expired
 
@@ -386,6 +442,26 @@ When viewing users in the AWS Cognito console, you may see different statuses:
 5. Share the new temporary password with the user
 6. User must log in and change password within 7 days
 
+### Club-Admin Getting 403 Errors
+
+**Issue**: Club-admin user can log in successfully but gets "403 Forbidden" errors when trying to access admin endpoints (players, overview, reflections, etc.)
+
+**Cause**: The user's `custom:clubId` attribute is not set or is incorrect. This attribute is required for club-admins to access admin endpoints.
+
+**Solution**:
+1. **Recommended**: Use the Admin Dashboard UI to add the club-admin (see "Creating New Admin Users" → Option 1). This automatically sets the `custom:clubId` attribute.
+
+2. **If user already exists**, update the attribute:
+   - Go to AWS Console → Cognito → User Pools → ConsistencyTracker-AdminPool
+   - Select the user
+   - Go to "Attributes" tab
+   - Find or add `custom:clubId` attribute
+   - Set the value to the club's ID (found in the Clubs table in DynamoDB)
+   - Save changes
+   - User must log out and log back in to get a new JWT token with the updated attribute
+
+3. **Alternative**: Use the `aws/update_user_club_id.py` script (if available) to automatically set the attribute based on the user's group membership.
+
 ## Best Practices
 
 1. **Secure Temporary Passwords**: Use strong temporary passwords that meet the password policy
@@ -396,9 +472,37 @@ When viewing users in the AWS Cognito console, you may see different statuses:
 
 ## Managing Dynamic Groups
 
+### Adding Additional Club-Admins to Existing Clubs
+
+**Recommended Method: Use Admin Dashboard UI**
+
+The easiest and most reliable way to add additional club-admins to an existing club is through the Admin Dashboard:
+
+1. Log in as an app-admin
+2. Navigate to "Clubs" in the admin dashboard
+3. Click "Edit" on the club you want to add an admin to
+4. Scroll to "Additional Club Administrator (optional)" section
+5. Enter the new admin's email and temporary password
+6. Click "Update Club"
+
+This method:
+- Automatically sets the `custom:clubId` attribute (required for access)
+- Adds the user to the correct `club-{sanitizedClubName}-admins` group
+- Sends an invitation email with login credentials
+- Handles user creation or updates existing users
+
+**Manual Method: AWS Console/CLI**
+
+If you must use AWS Console or CLI, remember to:
+1. Set the `custom:clubId` attribute to the club's ID
+2. Add the user to the `club-{sanitizedClubName}-admins` group
+3. The group name must match exactly (sanitized club name)
+
+See "Creating New Admin Users" → Options 3 and 4 for detailed instructions.
+
 ### Finding Club and Team IDs
 
-To assign users to dynamic groups, you need to know the club and team IDs:
+To assign users to dynamic groups manually, you need to know the club and team IDs:
 
 1. **From the Application UI:**
    - Log in as an admin

@@ -738,6 +738,110 @@ def update_club(club_id):
     return flask_success_response({"club": updated})
 
 
+@app.route('/admin/clubs/<club_id>/admins', methods=['POST'])
+@require_admin
+@require_app_admin
+def add_club_admin(club_id):
+    """
+    Add an additional club administrator to an existing club.
+    
+    - Restricted to app-admins only
+    - Ensures the user has custom:clubId set
+    - Adds the user to the club-{sanitizedName}-admins Cognito group
+    """
+    if not COGNITO_USER_POOL_ID or not cognito_client:
+        return flask_error_response("Cognito is not configured for admin management", status_code=500)
+    
+    # Ensure club exists
+    club = get_club_by_id(club_id)
+    if not club:
+        return flask_error_response("Club not found", status_code=404)
+    
+    body = request.get_json() or {}
+    admin_email = (body.get("adminEmail") or "").strip()
+    admin_password = (body.get("adminPassword") or "").strip()
+    
+    if not admin_email or not admin_password:
+        return flask_error_response("adminEmail and adminPassword are required", status_code=400)
+    
+    if not validate_email_address(admin_email):
+        return flask_error_response("Invalid adminEmail address", status_code=400)
+    
+    # Build club-admin group name
+    sanitized_name = sanitize_club_name_for_group(club.get("clubName", ""))
+    group_name = f"club-{sanitized_name}-admins"
+    
+    # Ensure the group exists
+    create_cognito_group(
+        COGNITO_USER_POOL_ID,
+        group_name,
+        f"Administrators for club {club.get('clubName', club_id)}"
+    )
+    
+    # Create or update the Cognito user and set custom:clubId
+    user_info = create_cognito_user(
+        COGNITO_USER_POOL_ID,
+        admin_email,
+        admin_password,
+        club_id=club_id,  # Ensure custom:clubId is set for this club
+    )
+    
+    if not user_info:
+        return flask_error_response("Failed to create or update club admin user", status_code=500)
+    
+    # Add user to the club-admin group
+    add_user_to_cognito_group(
+        COGNITO_USER_POOL_ID,
+        user_info["username"],
+        group_name,
+    )
+    
+    # Optionally send an invitation email (reuse existing template)
+    email_status = None
+    try:
+        login_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net/admin/login")
+        template = get_user_invitation_template(
+            user_name=admin_email.split("@")[0],
+            email=admin_email,
+            temporary_password=admin_password,
+            login_url=login_url,
+            role="club administrator",
+        )
+        club_admin_from_email = os.environ.get("SES_CLUB_ADMIN_FROM_EMAIL") or os.environ.get(
+            "SES_FROM_EMAIL", "noreply@repwarrior.net"
+        )
+        ses_from_name = os.environ.get("SES_FROM_NAME", "Consistency Tracker")
+        result = send_templated_email(
+            [admin_email],
+            template,
+            from_email=club_admin_from_email,
+            from_name=ses_from_name,
+        )
+        email_status = {
+            "sent": True,
+            "email": admin_email,
+            "messageId": result.get("message_id") if result else None,
+        }
+        print(f"Additional club-admin invitation email sent to {admin_email} for club {club_id}")
+    except Exception as e:
+        email_status = {
+            "sent": False,
+            "email": admin_email,
+            "error": str(e),
+        }
+        print(f"Error sending additional club-admin invitation email to {admin_email}: {e}")
+    
+    return flask_success_response(
+        {
+            "message": "Club administrator added successfully",
+            "clubId": club_id,
+            "adminEmail": admin_email,
+            "emailStatus": email_status,
+        },
+        status_code=201,
+    )
+
+
 @app.route('/admin/clubs/<club_id>/disable', methods=['POST'])
 @require_admin
 @require_app_admin

@@ -162,8 +162,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const changePassword = async (newPassword: string) => {
     try {
+      console.log('changePassword: Starting password change confirmation...')
       // Confirm sign-in with new password
       await confirmSignIn({ challengeResponse: newPassword })
+      console.log('changePassword: Password confirmed, waiting for session...')
       
       // Wait for session to be established - retry until we have a valid token
       let sessionEstablished = false
@@ -175,17 +177,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const session = await fetchAuthSession()
           if (session.tokens?.idToken) {
             sessionEstablished = true
+            console.log('changePassword: Session established')
           } else {
             await new Promise(resolve => setTimeout(resolve, 200))
             retries++
           }
         } catch (error) {
+          console.log('changePassword: Session fetch error, retrying...', error)
           await new Promise(resolve => setTimeout(resolve, 200))
           retries++
         }
       }
       
+      if (!sessionEstablished) {
+        console.warn('changePassword: Session not established after max retries, continuing anyway...')
+      }
+      
       // Get user details
+      console.log('changePassword: Getting user details...')
       const currentUser = await getCurrentUser()
       setUser({
         email: currentUser.signInDetails?.loginId || pendingEmail,
@@ -197,10 +206,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setPendingEmail('')
       
       // Check admin role and return the result
+      console.log('changePassword: Checking admin role...')
       const roleResult = await checkRole()
+      console.log('changePassword: Role check complete:', roleResult)
       return roleResult
     } catch (error: any) {
+      console.error('changePassword: Error occurred:', error)
       const errorMessage = error.message || error.name || 'Failed to change password'
+      // Ensure state is reset on error
+      setRequiresNewPassword(false)
       throw new Error(errorMessage)
     }
   }

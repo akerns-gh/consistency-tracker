@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { getClubs, createClub, updateClub, disableClub, enableClub, Club } from '../../../services/adminApi'
+import { getClubs, createClub, updateClub, disableClub, enableClub, addClubAdmin, Club } from '../../../services/adminApi'
 import Card from '../../ui/Card'
 import Button from '../../ui/Button'
 import Loading from '../../ui/Loading'
@@ -103,11 +103,25 @@ export default function ClubManagement() {
       return
     }
 
+    const email = adminEmail.trim()
+    const password = adminPassword.trim()
+
     try {
       setSubmitting(true)
       await updateClub(editingClub.clubId, { clubName: name })
+
+      // Optionally add an additional club admin if email/password provided
+      if (email && password) {
+        await addClubAdmin(editingClub.clubId, {
+          adminEmail: email,
+          adminPassword: password,
+        })
+      }
+
       setEditingClub(null)
       setClubName('')
+      setAdminEmail('')
+      setAdminPassword('')
       await loadClubs()
     } catch (err: any) {
       setFormError(err?.message || 'Failed to update club')
@@ -300,7 +314,7 @@ export default function ClubManagement() {
                   />
                 </div>
 
-                {!editingClub && (
+                {!editingClub ? (
                   <>
                     <div className="border-t border-gray-200 pt-4">
                       <h4 className="text-sm font-medium text-gray-700 mb-2">
@@ -338,6 +352,50 @@ export default function ClubManagement() {
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                             disabled={submitting}
                             required
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Must be at least 12 characters with uppercase, lowercase, and numbers. The admin will be required to change this on first login.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="border-t border-gray-200 pt-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">
+                        Additional Club Administrator <span className="text-gray-500 text-xs font-normal">(optional)</span>
+                      </h4>
+                      <p className="text-xs text-gray-500 mb-3">
+                        Optionally add another club administrator for this club. If provided, they will receive an invitation email with login credentials.
+                      </p>
+                      
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Admin Email
+                          </label>
+                          <input
+                            type="email"
+                            value={adminEmail}
+                            onChange={(e) => setAdminEmail(e.target.value)}
+                            placeholder="admin2@example.com"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                            disabled={submitting}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Temporary Password
+                          </label>
+                          <input
+                            type="password"
+                            value={adminPassword}
+                            onChange={(e) => setAdminPassword(e.target.value)}
+                            placeholder="Minimum 12 characters"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                            disabled={submitting}
                           />
                           <p className="text-xs text-gray-500 mt-1">
                             Must be at least 12 characters with uppercase, lowercase, and numbers. The admin will be required to change this on first login.

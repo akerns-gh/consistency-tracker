@@ -41,6 +41,17 @@ export async function createClub(data: {
 }
 
 /**
+ * Add an additional club administrator to an existing club (app-admin only)
+ */
+export async function addClubAdmin(
+  clubId: string,
+  data: { adminEmail: string; adminPassword: string }
+): Promise<{ message: string; clubId: string; adminEmail: string }> {
+  const response = await api.post(`/admin/clubs/${clubId}/admins`, data)
+  return response.data.data
+}
+
+/**
  * Update a club
  */
 export async function updateClub(

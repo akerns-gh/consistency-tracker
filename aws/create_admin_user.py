@@ -24,9 +24,9 @@ AWS_REGION = "us-east-1"
 STACK_NAME = "ConsistencyTracker-Auth"
 
 # Admin User Configuration
-ADMIN_EMAIL = "adamckerns@gmail.com"  # Change to your admin email
-ADMIN_USERNAME = "adamckerns@gmail.com"  # Usually same as email
-TEMPORARY_PASSWORD = "8u88l3Gum!2025"  # Must meet password policy (12+ chars, uppercase, lowercase, number)
+ADMIN_EMAIL = ""  # Change to your admin email
+ADMIN_USERNAME = ""  # Usually same as email
+TEMPORARY_PASSWORD = ""  # Must meet password policy (12+ chars, uppercase, lowercase, number)
 
 # Group Configuration
 # Options:
