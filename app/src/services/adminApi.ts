@@ -200,6 +200,88 @@ export async function invitePlayer(
   return response.data.data
 }
 
+// ========================================================================
+// CSV Upload helpers
+// ========================================================================
+
+export interface CsvValidationRow {
+  row: number
+  errors: string[]
+  warnings: string[]
+  // Flexible payload – concrete fields depend on type
+  [key: string]: any
+}
+
+export interface CsvValidationResponse {
+  valid: boolean
+  preview: CsvValidationRow[]
+  summary: {
+    totalRows: number
+    validRows: number
+    invalidRows: number
+  }
+}
+
+export interface CsvUploadResults {
+  created: any[]
+  skipped: any[]
+  errors: { row: number; error: string }[]
+  summary: {
+    total: number
+    created: number
+    skipped: number
+    errors: number
+  }
+}
+
+export interface TeamCsvRow {
+  row: number
+  teamName: string
+  teamId?: string
+}
+
+export interface PlayerCsvRow {
+  row: number
+  name: string
+  email?: string
+  teamId: string
+  playerId?: string
+}
+
+export async function validateTeamsCsv(file: File): Promise<CsvValidationResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await api.post('/admin/teams/validate-csv', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+  return response.data.data
+}
+
+export async function uploadTeamsCsv(rows: TeamCsvRow[]): Promise<CsvUploadResults> {
+  const response = await api.post('/admin/teams/upload-csv', { rows })
+  return response.data.data
+}
+
+export async function validatePlayersCsv(file: File): Promise<CsvValidationResponse> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await api.post('/admin/players/validate-csv', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+  return response.data.data
+}
+
+export async function uploadPlayersCsv(rows: PlayerCsvRow[]): Promise<CsvUploadResults> {
+  const response = await api.post('/admin/players/upload-csv', { rows })
+  return response.data.data
+}
+
 export interface Activity {
   activityId: string
   name: string

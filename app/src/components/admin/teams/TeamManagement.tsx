@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
-import { getTeams, createTeam, updateTeam, getTeamCoaches, addTeamCoach, removeTeamCoach, Team, Coach } from '../../../services/adminApi'
+import { getTeams, createTeam, updateTeam, getTeamCoaches, addTeamCoach, removeTeamCoach, Team, Coach, CsvUploadResults } from '../../../services/adminApi'
 import Card from '../../ui/Card'
 import Button from '../../ui/Button'
 import Loading from '../../ui/Loading'
+import CsvUpload from '../csv/CsvUpload'
 
 type SortColumn = 'teamName' | 'teamId' | 'createdAt'
 type SortDirection = 'asc' | 'desc'
@@ -31,6 +32,8 @@ export default function TeamManagement() {
   const [coachForms, setCoachForms] = useState<Record<string, { email: string; password: string }>>({})
   const [coachErrors, setCoachErrors] = useState<Record<string, string>>({})
   const [submittingCoach, setSubmittingCoach] = useState<Set<string>>(new Set())
+  const [showCsvUpload, setShowCsvUpload] = useState(false)
+  const [csvSummary, setCsvSummary] = useState<CsvUploadResults | null>(null)
 
   useEffect(() => {
     loadTeams()
@@ -305,16 +308,28 @@ export default function TeamManagement() {
             </div>
           )}
 
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center gap-4">
             <p className="text-sm text-gray-700">
-              Manage all teams in your club. Create new teams, edit existing ones, and manage coaches for each team.
+              Manage all teams in your club. Create new teams, edit existing ones, manage coaches, or bulk-import teams from CSV.
             </p>
-            {!showCreateForm && !editingTeam && (
-              <Button onClick={() => setShowCreateForm(true)}>
-                Create New Team
+            <div className="flex items-center space-x-2">
+              {!showCreateForm && !editingTeam && (
+                <Button onClick={() => setShowCreateForm(true)}>
+                  Create New Team
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => setShowCsvUpload(true)}>
+                Upload Teams CSV
               </Button>
-            )}
+            </div>
           </div>
+
+          {csvSummary && (
+            <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded text-sm">
+              Imported teams from CSV – Created: {csvSummary.summary.created}, Skipped:{' '}
+              {csvSummary.summary.skipped}, Errors: {csvSummary.summary.errors}
+            </div>
+          )}
 
           {/* Create/Edit Form */}
           {(showCreateForm || editingTeam) && (
@@ -524,6 +539,17 @@ export default function TeamManagement() {
           )}
         </div>
       </Card>
+      {showCsvUpload && (
+        <CsvUpload
+          type="teams"
+          onUploadComplete={async (results) => {
+            setCsvSummary(results)
+            setShowCsvUpload(false)
+            await loadTeams()
+          }}
+          onCancel={() => setShowCsvUpload(false)}
+        />
+      )}
     </div>
   )
 }

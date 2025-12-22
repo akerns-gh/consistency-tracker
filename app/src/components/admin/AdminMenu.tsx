@@ -15,6 +15,7 @@ export default function AdminMenu({ isOpen, onClose, activeTab, onTabChange }: A
     { path: '/player/leaderboard', label: 'Leaderboard', icon: '🏆' },
     { path: '/player/reflection', label: 'Reflection', icon: '💭' },
     { path: '/player/resource-list', label: 'Resources', icon: '📚' },
+    { path: '/help', label: 'Help & Support', icon: '❓' },
   ]
 
   const adminTabs: { id: AdminTab; label: string; icon: string }[] = [

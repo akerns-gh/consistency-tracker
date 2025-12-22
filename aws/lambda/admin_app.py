@@ -15,7 +15,7 @@ import base64
 import secrets
 import boto3
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Dict, Any, Tuple
 from flask import Flask, request, g
 from serverless_wsgi import handle_request
 from botocore.exceptions import ClientError
@@ -65,6 +65,33 @@ COGNITO_REGION = os.environ.get("COGNITO_REGION", "us-east-1")
 cognito_client = boto3.client("cognito-idp", region_name=COGNITO_REGION) if COGNITO_USER_POOL_ID else None
 
 
+def parse_csv_from_request() -> Tuple[List[Dict[str, str]], str]:
+    """
+    Parse CSV file from a multipart/form-data request.
+
+    Returns:
+        (rows, error_message) tuple. If error_message is not empty, parsing failed.
+    """
+    if "file" not in request.files:
+        return [], "No file part named 'file' in request"
+
+    file_storage = request.files["file"]
+    if file_storage.filename == "":
+        return [], "No selected file"
+
+    try:
+        stream = io.StringIO(file_storage.stream.read().decode("utf-8"))
+        reader = csv.DictReader(stream)
+        rows: List[Dict[str, str]] = []
+        for row in reader:
+            rows.append({k: (v or "").strip() for k, v in row.items()})
+        if not rows:
+            return [], "CSV file is empty"
+        return rows, ""
+    except Exception as e:
+        return [], f"Failed to parse CSV file: {str(e)}"
+
+
 def sanitize_club_name_for_group(club_name: str) -> str:
     """
     Sanitize club name for use in Cognito group names.
@@ -107,6 +134,134 @@ def sanitize_club_name_for_group(club_name: str) -> str:
     
     return sanitized
 
+
+def validate_team_csv_row(row: Dict[str, str], row_num: int) -> Dict[str, Any]:
+    """Validate a single team CSV row for preview."""
+    team_name = (row.get("teamName") or "").strip()
+    team_id = (row.get("teamId") or "").strip()
+    errors: List[str] = []
+    warnings: List[str] = []
+
+    if not team_name:
+        errors.append("Missing required column: teamName")
+
+    return {
+        "row": row_num,
+        "teamName": team_name,
+        "teamId": team_id or None,
+        "errors": errors,
+        "warnings": warnings,
+    }
+
+
+def validate_player_csv_row(row: Dict[str, str], row_num: int, club_id: str) -> Dict[str, Any]:
+    """Validate a single player CSV row for preview."""
+    name = (row.get("name") or "").strip()
+    email = (row.get("email") or "").strip()
+    team_id = (row.get("teamId") or "").strip()
+    team_name = (row.get("teamName") or "").strip()
+
+    errors: List[str] = []
+    warnings: List[str] = []
+
+    if not name:
+        errors.append("Missing required column: name")
+
+    if not team_id and not team_name:
+        errors.append("Either teamId or teamName is required")
+
+    resolved_team_id = team_id
+    if team_id:
+        team = get_team_by_id(team_id)
+        if not team or team.get("clubId") != club_id:
+            errors.append("teamId does not exist in your club")
+        else:
+            team_name = team.get("teamName", team_name)
+            resolved_team_id = team.get("teamId")
+
+    return {
+        "row": row_num,
+        "name": name,
+        "email": email or None,
+        "teamName": team_name or None,
+        "teamId": resolved_team_id or None,
+        "errors": errors,
+        "warnings": warnings,
+    }
+
+
+def check_team_duplicate(team_name: str, team_id: str, club_id: str) -> Dict[str, Any]:
+    """
+    Check if a team with the same name (case-insensitive) or ID already exists in the club.
+    """
+    table = get_table("ConsistencyTracker-Teams")
+
+    # First check by teamId if provided
+    if team_id:
+        existing = table.get_item(Key={"teamId": team_id}).get("Item")
+        if existing and existing.get("clubId") == club_id:
+            return {
+                "is_duplicate": True,
+                "reason": "Duplicate team ID",
+                "existingTeamId": existing.get("teamId"),
+            }
+
+    # Fallback: scan by clubId + case-insensitive teamName match
+    response = table.scan(
+        FilterExpression="clubId = :clubId",
+        ExpressionAttributeValues={":clubId": club_id},
+    )
+    teams = response.get("Items", [])
+    lower_name = (team_name or "").strip().lower()
+    for t in teams:
+        if (t.get("teamName") or "").strip().lower() == lower_name:
+            return {
+                "is_duplicate": True,
+                "reason": "Duplicate team name",
+                "existingTeamId": t.get("teamId"),
+            }
+
+    return {"is_duplicate": False, "reason": "", "existingTeamId": None}
+
+
+def check_player_duplicate(name: str, team_id: str, player_id: str, club_id: str) -> Dict[str, Any]:
+    """
+    Check if a player already exists in the club by:
+      - playerId, or
+      - (name, teamId) combination (case-insensitive name).
+    """
+    table = get_table("ConsistencyTracker-Players")
+
+    # Check by explicit playerId if provided
+    if player_id:
+        existing = table.get_item(Key={"playerId": player_id}).get("Item")
+        if existing and existing.get("clubId") == club_id:
+            return {
+                "is_duplicate": True,
+                "reason": "Duplicate player ID",
+                "existingPlayerId": existing.get("playerId"),
+            }
+
+    # Query by clubId index then check name+teamId combination
+    response = table.query(
+        IndexName="clubId-index",
+        KeyConditionExpression="clubId = :clubId",
+        ExpressionAttributeValues={":clubId": club_id},
+    )
+    players = response.get("Items", [])
+    lower_name = (name or "").strip().lower()
+    for p in players:
+        if (
+            (p.get("name") or "").strip().lower() == lower_name
+            and (p.get("teamId") or "") == (team_id or "")
+        ):
+            return {
+                "is_duplicate": True,
+                "reason": "Duplicate player name for team",
+                "existingPlayerId": p.get("playerId"),
+            }
+
+    return {"is_duplicate": False, "reason": "", "existingPlayerId": None}
 
 def create_cognito_group(user_pool_id: str, group_name: str, description: str = None) -> bool:
     """
@@ -1145,6 +1300,121 @@ def create_team():
     return flask_success_response({"team": team}, status_code=201)
 
 
+@app.route('/admin/teams/validate-csv', methods=['POST'])
+@require_admin
+@require_club
+def validate_teams_csv():
+    """Validate teams CSV upload and return preview (no writes)."""
+    rows, error = parse_csv_from_request()
+    if error:
+        return flask_error_response(error, status_code=400)
+
+    preview: List[Dict[str, Any]] = []
+    valid_rows = 0
+    invalid_rows = 0
+
+    for idx, row in enumerate(rows, start=2):  # header is row 1
+        result = validate_team_csv_row(row, idx)
+        if result["errors"]:
+            invalid_rows += 1
+        else:
+            valid_rows += 1
+        preview.append(result)
+
+    return flask_success_response({
+        "valid": invalid_rows == 0 and valid_rows > 0,
+        "preview": preview,
+        "summary": {
+            "totalRows": len(preview),
+            "validRows": valid_rows,
+            "invalidRows": invalid_rows,
+        },
+    })
+
+
+@app.route('/admin/teams/upload-csv', methods=['POST'])
+@require_admin
+@require_club
+def upload_teams_csv():
+    """
+    Process validated team CSV rows.
+
+    Expects JSON body:
+      { "rows": [ { "row": int, "teamName": str, "teamId": str | null } ] }
+    """
+    club_id = g.club_id
+    body = request.get_json() or {}
+    items = body.get("rows") or []
+
+    if not isinstance(items, list) or not items:
+        return flask_error_response("Request body must include non-empty 'rows' array", status_code=400)
+
+    created: List[Dict[str, Any]] = []
+    skipped: List[Dict[str, Any]] = []
+    errors: List[Dict[str, Any]] = []
+
+    table = get_table("ConsistencyTracker-Teams")
+    now = datetime.utcnow().isoformat() + "Z"
+
+    for item in items:
+        try:
+            row_num = int(item.get("row") or 0)
+        except Exception:
+            row_num = 0
+
+        team_name = (item.get("teamName") or "").strip()
+        explicit_team_id = (item.get("teamId") or "").strip()
+
+        if not team_name:
+            errors.append({"row": row_num, "error": "Missing teamName"})
+            continue
+
+        dup_info = check_team_duplicate(team_name, explicit_team_id, club_id)
+        if dup_info.get("is_duplicate"):
+            skipped.append({
+                "teamName": team_name,
+                "reason": dup_info.get("reason"),
+                "row": row_num,
+                "existingTeamId": dup_info.get("existingTeamId"),
+            })
+            continue
+
+        new_team_id = explicit_team_id or str(uuid.uuid4())
+        team_item = {
+            "teamId": new_team_id,
+            "clubId": club_id,
+            "teamName": team_name,
+            "settings": {
+                "weekStartDay": "Monday",
+                "autoAdvanceWeek": False,
+                "scoringMethod": "points",
+            },
+            "createdAt": now,
+        }
+
+        try:
+            table.put_item(Item=team_item)
+            created.append({
+                "teamId": new_team_id,
+                "teamName": team_name,
+                "row": row_num,
+            })
+        except Exception as e:
+            errors.append({"row": row_num, "error": f"Failed to create team: {str(e)}"})
+
+    return flask_success_response({
+        "created": created,
+        "skipped": skipped,
+        "errors": errors,
+        "summary": {
+            "total": len(items),
+            "created": len(created),
+            "skipped": len(skipped),
+            "errors": len(errors),
+        },
+    })
+
+
 @app.route('/admin/teams/<team_id>', methods=['PUT'])
 @require_admin
 @require_club
@@ -1463,6 +1733,137 @@ def create_player():
             print(f"Warning: Failed to send player invitation email: {e}")
     
     return flask_success_response({"player": player}, status_code=201)
+
+
+@app.route('/admin/players/validate-csv', methods=['POST'])
+@require_admin
+@require_club
+def validate_players_csv():
+    """Validate players CSV upload and return preview (no writes)."""
+    club_id = g.club_id
+    rows, error = parse_csv_from_request()
+    if error:
+        return flask_error_response(error, status_code=400)
+
+    preview: List[Dict[str, Any]] = []
+    valid_rows = 0
+    invalid_rows = 0
+
+    for idx, row in enumerate(rows, start=2):  # header is row 1
+        result = validate_player_csv_row(row, idx, club_id)
+        if result["errors"]:
+            invalid_rows += 1
+        else:
+            valid_rows += 1
+        preview.append(result)
+
+    return flask_success_response({
+        "valid": invalid_rows == 0 and valid_rows > 0,
+        "preview": preview,
+        "summary": {
+            "totalRows": len(preview),
+            "validRows": valid_rows,
+            "invalidRows": invalid_rows,
+        },
+    })
+
+
+@app.route('/admin/players/upload-csv', methods=['POST'])
+@require_admin
+@require_club
+def upload_players_csv():
+    """
+    Process validated player CSV rows.
+
+    Expects JSON body:
+      { "rows": [ { \"row\": int, \"name\": str, \"email\": str | null, \"teamId\": str, \"playerId\": str | null } ] }
+    """
+    club_id = g.club_id
+    body = request.get_json() or {}
+    items = body.get("rows") or []
+
+    if not isinstance(items, list) or not items:
+        return flask_error_response("Request body must include non-empty 'rows' array", status_code=400)
+
+    created: List[Dict[str, Any]] = []
+    skipped: List[Dict[str, Any]] = []
+    errors: List[Dict[str, Any]] = []
+
+    table = get_table("ConsistencyTracker-Players")
+
+    for item in items:
+        try:
+            row_num = int(item.get("row") or 0)
+        except Exception:
+            row_num = 0
+
+        name = (item.get("name") or "").strip()
+        email = (item.get("email") or "").strip()
+        team_id = (item.get("teamId") or "").strip()
+        explicit_player_id = (item.get("playerId") or "").strip()
+
+        if not name:
+            errors.append({"row": row_num, "error": "Missing name"})
+            continue
+        if not team_id:
+            errors.append({"row": row_num, "error": "Missing teamId"})
+            continue
+
+        # Ensure team belongs to this club
+        team = get_team_by_id(team_id)
+        if not team or team.get("clubId") != club_id:
+            errors.append({"row": row_num, "error": "Team not found or access denied"})
+            continue
+
+        dup_info = check_player_duplicate(name, team_id, explicit_player_id, club_id)
+        if dup_info.get("is_duplicate"):
+            skipped.append({
+                "name": name,
+                "teamId": team_id,
+                "reason": dup_info.get("reason"),
+                "row": row_num,
+                "existingPlayerId": dup_info.get("existingPlayerId"),
+            })
+            continue
+
+        # Create player
+        player_id = explicit_player_id or str(uuid.uuid4())
+        unique_link = secrets.token_urlsafe(32)
+        now = datetime.utcnow().isoformat() + "Z"
+
+        player_item = {
+            "playerId": player_id,
+            "name": name,
+            "email": email,
+            "uniqueLink": unique_link,
+            "clubId": club_id,
+            "teamId": team_id,
+            "isActive": True,
+            "createdAt": now,
+        }
+
+        try:
+            table.put_item(Item=player_item)
+            created.append({
+                "playerId": player_id,
+                "name": name,
+                "teamId": team_id,
+                "row": row_num,
+            })
+        except Exception as e:
+            errors.append({"row": row_num, "error": f"Failed to create player: {str(e)}"})
+
+    return flask_success_response({
+        "created": created,
+        "skipped": skipped,
+        "errors": errors,
+        "summary": {
+            "total": len(items),
+            "created": len(created),
+            "skipped": len(skipped),
+            "errors": len(errors),
+        },
+    })
 
 
 @app.route('/admin/players/<player_id>', methods=['PUT'])

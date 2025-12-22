@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { getPlayers, Player, deactivatePlayer, invitePlayer } from '../../../services/adminApi'
+import { getPlayers, Player, deactivatePlayer, invitePlayer, CsvUploadResults } from '../../../services/adminApi'
 import Loading from '../../ui/Loading'
 import Card from '../../ui/Card'
 import Button from '../../ui/Button'
 import PlayerForm from './PlayerForm'
 import PlayerCard from './PlayerCard'
+import CsvUpload from '../csv/CsvUpload'
 
 export default function PlayerList() {
   const [players, setPlayers] = useState<Player[]>([])
@@ -13,6 +14,8 @@ export default function PlayerList() {
   const [searchTerm, setSearchTerm] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null)
+  const [showCsvUpload, setShowCsvUpload] = useState(false)
+  const [csvSummary, setCsvSummary] = useState<CsvUploadResults | null>(null)
 
   useEffect(() => {
     loadPlayers()
@@ -79,15 +82,29 @@ export default function PlayerList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <h2 className="text-2xl font-bold text-gray-800">Players</h2>
-        <Button onClick={() => {
-          setEditingPlayer(null)
-          setShowForm(true)
-        }}>
-          Add Player
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Button
+            onClick={() => {
+              setEditingPlayer(null)
+              setShowForm(true)
+            }}
+          >
+            Add Player
+          </Button>
+          <Button variant="outline" onClick={() => setShowCsvUpload(true)}>
+            Upload Players CSV
+          </Button>
+        </div>
       </div>
+
+      {csvSummary && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded text-sm">
+          Imported players from CSV – Created: {csvSummary.summary.created}, Skipped:{' '}
+          {csvSummary.summary.skipped}, Errors: {csvSummary.summary.errors}
+        </div>
+      )}
 
       {showForm && (
         <PlayerForm
@@ -134,6 +151,17 @@ export default function PlayerList() {
             />
           ))}
         </div>
+      )}
+      {showCsvUpload && (
+        <CsvUpload
+          type="players"
+          onUploadComplete={async (results) => {
+            setCsvSummary(results)
+            setShowCsvUpload(false)
+            await loadPlayers()
+          }}
+          onCancel={() => setShowCsvUpload(false)}
+        />
       )}
     </div>
   )

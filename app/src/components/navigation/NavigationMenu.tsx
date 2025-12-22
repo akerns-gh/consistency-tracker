@@ -18,6 +18,7 @@ export default function NavigationMenu({ player, isOpen, onClose }: NavigationMe
     { path: '/player/leaderboard', label: 'Leaderboard', icon: '🏆' },
     { path: '/player/reflection', label: 'Reflection', icon: '💭' },
     { path: '/player/resource-list', label: 'Resources', icon: '📚' },
+    { path: '/help', label: 'Help & Support', icon: '❓' },
   ]
 
   // Add admin link if user is admin

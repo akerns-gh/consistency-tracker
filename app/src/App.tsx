@@ -8,6 +8,7 @@ import LeaderboardView from './pages/LeaderboardView'
 import ReflectionView from './pages/ReflectionView'
 import ContentListView from './pages/ContentListView'
 import ContentPageView from './pages/ContentPageView'
+import HelpView from './pages/HelpView'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import ErrorBoundary from './components/ui/ErrorBoundary'
 
@@ -67,6 +68,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <ContentPageView />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/help"
+              element={
+                <ProtectedRoute>
+                  <HelpView />
                 </ProtectedRoute>
               }
             />
