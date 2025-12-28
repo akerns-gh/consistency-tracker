@@ -13,9 +13,10 @@ import csv
 import io
 import base64
 import secrets
+import string
 import boto3
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from flask import Flask, request, g
 from serverless_wsgi import handle_request
 from botocore.exceptions import ClientError
@@ -296,6 +297,36 @@ def create_cognito_group(user_pool_id: str, group_name: str, description: str = 
         else:
             print(f"Error creating Cognito group {group_name}: {e}")
             return False
+
+
+def generate_temporary_password() -> str:
+    """
+    Generate a secure temporary password that meets Cognito password policy.
+    
+    Requirements:
+    - Minimum 12 characters
+    - At least one uppercase letter
+    - At least one lowercase letter
+    - At least one number
+    
+    Returns:
+        A secure temporary password string
+    """
+    # Generate password with required characters
+    uppercase = secrets.choice(string.ascii_uppercase)
+    lowercase = secrets.choice(string.ascii_lowercase)
+    number = secrets.choice(string.digits)
+    
+    # Fill remaining length with random characters (mix of upper, lower, digits)
+    remaining_length = 12 - 3  # 12 total, minus the 3 required chars
+    chars = string.ascii_letters + string.digits
+    remaining = ''.join(secrets.choice(chars) for _ in range(remaining_length))
+    
+    # Combine and shuffle
+    password_chars = list(uppercase + lowercase + number + remaining)
+    secrets.SystemRandom().shuffle(password_chars)
+    
+    return ''.join(password_chars)
 
 
 def create_cognito_user(user_pool_id: str, email: str, temporary_password: str, club_id: str = None) -> dict:
@@ -1895,7 +1926,6 @@ def list_players():
             "playerId": player.get("playerId"),
             "name": player.get("name"),
             "email": player.get("email"),
-            "uniqueLink": player.get("uniqueLink"),
             "isActive": player.get("isActive", True),
             "createdAt": player.get("createdAt"),
         })
@@ -1929,10 +1959,33 @@ def create_player():
     if team.get("clubId") != club_id:
         return flask_error_response("Team not found or access denied", status_code=403)
     
-    # Generate unique link (secure random token)
-    unique_link = secrets.token_urlsafe(32)
+    # Email is required for player accounts (needed for Cognito authentication)
+    if not email or not validate_email_address(email):
+        return flask_error_response("Valid email address is required for player accounts", status_code=400)
     
-    # Create player
+    # Generate temporary password
+    temporary_password = generate_temporary_password()
+    
+    # Create Cognito user account
+    cognito_user = None
+    if COGNITO_USER_POOL_ID:
+        try:
+            cognito_user = create_cognito_user(
+                COGNITO_USER_POOL_ID,
+                email,
+                temporary_password,
+                club_id=club_id
+            )
+            print(f"Created Cognito user for player: {email}")
+        except Exception as e:
+            # If user already exists, that's okay - we'll just send invitation
+            if 'UsernameExistsException' not in str(e) and 'already exists' not in str(e).lower():
+                print(f"Warning: Failed to create Cognito user for player {email}: {e}")
+                # Continue anyway - player can be created without Cognito account initially
+    else:
+        print("Warning: COGNITO_USER_POOL_ID not configured. Cannot create Cognito user.")
+    
+    # Create player record
     player_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat() + "Z"
     
@@ -1940,7 +1993,6 @@ def create_player():
         "playerId": player_id,
         "name": name,
         "email": email,
-        "uniqueLink": unique_link,
         "clubId": club_id,  # Set from coach's club
         "teamId": team_id,  # From request body (validated above)
         "isActive": True,
@@ -1950,28 +2002,30 @@ def create_player():
     table = get_table("ConsistencyTracker-Players")
     table.put_item(Item=player)
     
-    # Send invitation email if player has email
-    if email and validate_email_address(email):
-        try:
-            team = get_team_by_id(team_id)
-            club = get_club_by_id(club_id)
-            team_name = team.get("teamName", "Unknown Team") if team else "Unknown Team"
-            club_name = club.get("clubName", "Unknown Club") if club else "Unknown Club"
-            
-            # Construct unique link URL
-            frontend_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net")
-            unique_link_url = f"{frontend_url}/player?link={unique_link}"
-            
-            template = get_player_invitation_template(
-                player_name=name,
-                unique_link=unique_link_url,
-                team_name=team_name,
-                club_name=club_name
-            )
-            send_templated_email([email], template)
-        except Exception as e:
-            # Don't fail the request if email sending fails
-            print(f"Warning: Failed to send player invitation email: {e}")
+    # Send invitation email with temporary password
+    try:
+        team = get_team_by_id(team_id)
+        club = get_club_by_id(club_id)
+        team_name = team.get("teamName", "Unknown Team") if team else "Unknown Team"
+        club_name = club.get("clubName", "Unknown Club") if club else "Unknown Club"
+        
+        # Construct login URL
+        frontend_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net")
+        login_url = f"{frontend_url}/login"
+        
+        template = get_player_invitation_template(
+            player_name=name,
+            email=email,
+            temporary_password=temporary_password,
+            login_url=login_url,
+            team_name=team_name,
+            club_name=club_name
+        )
+        send_templated_email([email], template)
+        print(f"Player invitation email sent to {email}")
+    except Exception as e:
+        # Don't fail the request if email sending fails
+        print(f"Warning: Failed to send player invitation email: {e}")
     
     return flask_success_response({"player": player}, status_code=201)
 
@@ -2067,16 +2121,39 @@ def upload_players_csv():
             })
             continue
 
-        # Create player
+        # Email is required for player accounts (needed for Cognito authentication)
+        if not email or not validate_email_address(email):
+            errors.append({"row": row_num, "error": "Valid email address is required for player accounts"})
+            continue
+
+        # Generate temporary password
+        temporary_password = generate_temporary_password()
+        
+        # Create Cognito user account
+        if COGNITO_USER_POOL_ID:
+            try:
+                cognito_user = create_cognito_user(
+                    COGNITO_USER_POOL_ID,
+                    email,
+                    temporary_password,
+                    club_id=club_id
+                )
+                if cognito_user:
+                    print(f"Created Cognito user for player from CSV: {email}")
+            except Exception as e:
+                # If user already exists, that's okay
+                if 'UsernameExistsException' not in str(e) and 'already exists' not in str(e).lower():
+                    print(f"Warning: Failed to create Cognito user for player {email} from CSV: {e}")
+                    # Continue anyway - player can be created without Cognito account initially
+
+        # Create player record
         player_id = explicit_player_id or str(uuid.uuid4())
-        unique_link = secrets.token_urlsafe(32)
         now = datetime.utcnow().isoformat() + "Z"
 
         player_item = {
             "playerId": player_id,
             "name": name,
             "email": email,
-            "uniqueLink": unique_link,
             "clubId": club_id,
             "teamId": team_id,
             "isActive": True,
@@ -2085,6 +2162,30 @@ def upload_players_csv():
 
         try:
             table.put_item(Item=player_item)
+            
+            # Send invitation email if email is valid
+            try:
+                team = get_team_by_id(team_id) if team_id else None
+                club = get_club_by_id(club_id) if club_id else None
+                team_name = team.get("teamName", "Unknown Team") if team else "Unknown Team"
+                club_name = club.get("clubName", "Unknown Club") if club else "Unknown Club"
+                
+                frontend_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net")
+                login_url = f"{frontend_url}/login"
+                
+                template = get_player_invitation_template(
+                    player_name=name,
+                    email=email,
+                    temporary_password=temporary_password,
+                    login_url=login_url,
+                    team_name=team_name,
+                    club_name=club_name
+                )
+                send_templated_email([email], template)
+                print(f"Invitation email sent to {email} from CSV upload")
+            except Exception as e:
+                print(f"Warning: Failed to send invitation email to {email} from CSV: {e}")
+            
             created.append({
                 "playerId": player_id,
                 "name": name,
@@ -2190,7 +2291,7 @@ def delete_player(player_id):
 @require_club
 @require_resource_access('player', 'player_id', get_player_by_id)
 def invite_player(player_id):
-    """Send invitation email to player."""
+    """Send invitation email to player (create Cognito user if needed)."""
     # Get existing player (already validated by decorator)
     player = g.current_resource
     
@@ -2205,10 +2306,28 @@ def invite_player(player_id):
     team_id = player.get("teamId")
     club_id = player.get("clubId")
     player_name = player.get("name", "Player")
-    unique_link = player.get("uniqueLink")
     
-    if not unique_link:
-        return flask_error_response("Player does not have a unique link", status_code=400)
+    # Generate temporary password
+    temporary_password = generate_temporary_password()
+    
+    # Create or update Cognito user account
+    if COGNITO_USER_POOL_ID:
+        try:
+            cognito_user = create_cognito_user(
+                COGNITO_USER_POOL_ID,
+                email,
+                temporary_password,
+                club_id=club_id
+            )
+            if cognito_user:
+                print(f"Cognito user ready for player: {email}")
+            else:
+                print(f"Warning: Could not create/update Cognito user for {email}")
+        except Exception as e:
+            print(f"Warning: Error creating Cognito user for player {email}: {e}")
+            # Continue anyway - we'll still try to send email
+    else:
+        print("Warning: COGNITO_USER_POOL_ID not configured. Cannot create Cognito user.")
     
     try:
         team = get_team_by_id(team_id) if team_id else None
@@ -2216,13 +2335,15 @@ def invite_player(player_id):
         team_name = team.get("teamName", "Unknown Team") if team else "Unknown Team"
         club_name = club.get("clubName", "Unknown Club") if club else "Unknown Club"
         
-        # Construct unique link URL
+        # Construct login URL
         frontend_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net")
-        unique_link_url = f"{frontend_url}/player?link={unique_link}"
+        login_url = f"{frontend_url}/login"
         
         template = get_player_invitation_template(
             player_name=player_name,
-            unique_link=unique_link_url,
+            email=email,
+            temporary_password=temporary_password,
+            login_url=login_url,
             team_name=team_name,
             club_name=club_name
         )

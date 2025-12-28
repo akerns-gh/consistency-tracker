@@ -90,7 +90,7 @@ Located in: `/prototype/`
 ### Features Documented in Requirements
 
 #### From `consistency-tracker-requirements.md`:
-- ✅ User access & authentication (passwordless links, Cognito)
+- ✅ User access & authentication (Cognito email/password for all users)
 - ✅ Activity tracking interface
 - ✅ Leaderboard
 - ✅ Weekly reflection questions
@@ -147,7 +147,7 @@ Located in: `/prototype/`
 ### Logic & Requirements Coverage
 
 #### Authentication Logic
-- ✅ Documented: Passwordless links for players, Cognito for admins
+- ✅ Documented: Cognito email/password authentication for all users (players and admins)
 - ✅ Documented: Password requirements (12+ chars, uppercase, lowercase, number)
 - ✅ Documented: Password change flow
 - ✅ Documented: JWT token management

@@ -33,7 +33,7 @@ This prototype is built with vanilla HTML, CSS, and JavaScript - no build proces
 - **Navigation**: Easy navigation between content pages
 
 ### Admin Dashboard
-- **Player Management**: Add, edit, and manage players with unique links
+- **Player Management**: Add, edit, and manage players with Cognito user accounts
 - **Activity Management**: Configure activities, frequencies, and point values
 - **Content Management**: Create and edit HTML content pages with WYSIWYG editor
 - **Overview**: Team statistics, charts, and reflection highlights
@@ -131,7 +131,7 @@ prototype/
 
 The prototype includes comprehensive mock data:
 
-- **8 Players**: Sample players with unique links
+- **8 Players**: Sample players with email accounts
 - **5 Activities**: Default activities (Sleep, Hydration, Wall Ball, Run, Bodyweight Training)
 - **Tracking Data**: 4 weeks of tracking data for all active players
 - **Reflections**: Sample weekly reflections

@@ -10,16 +10,18 @@ Build a web-based consistency tracking application for a youth lacrosse team tha
 - **Database**: AWS DynamoDB (serverless, on-demand pricing)
 - **API**: AWS API Gateway + Lambda functions (Python)
 - **Authentication**: 
-  - Players/Parents: Passwordless via unique links (magic links)
-  - Coaches/Admin: AWS Cognito User Pool with email/password
+  - All users (Players, Parents, Coaches, Admin): AWS Cognito User Pool with email/password
 - **Domain**: To be provided by user (will be configured in AWS Route 53)
 - **SSL/TLS**: AWS Certificate Manager (ACM)
 
 ## Target Users
 - **Players**: Youth lacrosse team members (ages 10-18 estimated)
-- **Parents**: View their child's progress (same unique link as player)
-- **Coaches/Admin**: Manage activities, view all players, generate player links, view analytics
-  - Requires authenticated login via AWS Cognito
+  - Access player dashboard at `app.domain.com/player`
+  - Login with email and password through AWS Cognito User Pool
+- **Parents**: View their child's progress (can use player's account credentials)
+- **Coaches/Admin**: Manage activities, view all players, manage player accounts, view analytics
+  - Access admin dashboard at `app.domain.com/admin`
+  - Login with email and password through AWS Cognito User Pool
   - Multiple coaches can have access (email/password based)
   - Coach accounts created and managed by primary admin
 
@@ -27,19 +29,16 @@ Build a web-based consistency tracking application for a youth lacrosse team tha
 
 ### 1. User Access & Authentication
 
-**Player/Parent Passwordless Access via Unique Links**
-- Each player receives a unique URL (e.g., `app.domain.com/player/abc123xyz`)
-- No username/password required - bookmark the link to access
-- Link provides access to both player view and parent view (same permissions)
-- Links should be non-guessable (UUID or similar)
-
-**Coach/Admin Authentication via AWS Cognito**
-- Coaches access admin dashboard at `app.domain.com/admin`
-- Login with email and password through AWS Cognito User Pool
-- Support for multiple coach accounts with same permissions
-- Password requirements: minimum 8 characters, including uppercase, lowercase, number
+**All Users Authentication via AWS Cognito**
+- All users (Players, Parents, Coaches, Admin) authenticate using AWS Cognito User Pool
+- Login with email and password
+- Players access player dashboard at `app.domain.com/player`
+- Coaches/Admin access admin dashboard at `app.domain.com/admin`
+- Support for multiple user accounts with role-based permissions
+- Password requirements: minimum 12 characters, including uppercase, lowercase, number
 - Password reset functionality via email
 - Session management with JWT tokens
+- First-time login requires password change from temporary password
 - Optional: MFA (Multi-Factor Authentication) for enhanced security
 
 **Coach Account Management**
@@ -100,10 +99,10 @@ Build a web-based consistency tracking application for a youth lacrosse team tha
 
 ### 5. Admin/Coach Dashboard
 **Player Management**
-- Add new players (generate unique link automatically)
-- Edit player information (name, email for parent notifications if implemented later)
+- Add new players (create Cognito user accounts)
+- Edit player information (name, email)
 - Deactivate players (archive, don't delete data)
-- View/copy unique links for distribution
+- Invite players via email with temporary passwords
 
 **Activity Management**
 - Create/edit/delete tracked activities
@@ -175,11 +174,11 @@ Cognito stores:
 {
   playerId: string (UUID, primary key),
   name: string,
-  email: string (optional, for future parent notifications),
-  uniqueLink: string (secure token),
+  email: string (required, used for Cognito authentication),
   createdAt: timestamp,
   isActive: boolean,
-  teamId: string (for future multi-team support)
+  clubId: string,
+  teamId: string
 }
 ```
 
@@ -280,19 +279,20 @@ Cognito stores:
 
 ## API Endpoints
 
-### Player Endpoints (No Authentication Required - Validated by Unique Link)
-- `GET /player/{uniqueLink}` - Get player data and activities
-- `GET /player/{uniqueLink}/week/{weekId}` - Get specific week data
-- `POST /player/{uniqueLink}/checkin` - Mark activity complete
-- `PUT /player/{uniqueLink}/reflection` - Save weekly reflection
-- `GET /leaderboard/{weekId}` - Get leaderboard for week (requires valid uniqueLink as query param for context)
-- `GET /content` - List all published content/resources
-- `GET /content/{slug}` - Get specific content page by slug
+### Player Endpoints (Require Cognito JWT Token in Authorization Header)
+- `GET /player` - Get player data and activities (authenticated via JWT)
+- `GET /player/week/{weekId}` - Get specific week data (authenticated via JWT)
+- `POST /player/checkin` - Mark activity complete (authenticated via JWT)
+- `PUT /player/reflection` - Save weekly reflection (authenticated via JWT)
+- `GET /leaderboard/{weekId}` - Get leaderboard for week (authenticated via JWT, uses player context from token)
+- `GET /player/progress` - Get player progress statistics (authenticated via JWT)
+- `GET /content` - List all published content/resources (authenticated via JWT)
+- `GET /content/{slug}` - Get specific content page by slug (authenticated via JWT)
 
 ### Admin Endpoints (Require Cognito JWT Token in Authorization Header)
 - `POST /admin/auth` - Exchange Cognito credentials for JWT (handled by Cognito, not custom endpoint)
 - `GET /admin/players` - List all players
-- `POST /admin/players` - Create new player (returns unique link)
+- `POST /admin/players` - Create new player (creates Cognito user account)
 - `PUT /admin/players/{playerId}` - Update player info
 - `DELETE /admin/players/{playerId}` - Deactivate player
 - `GET /admin/activities` - List all activities
@@ -314,13 +314,15 @@ Cognito stores:
 - `POST /admin/content/image-upload-url` - Generate pre-signed S3 URL for image upload
 
 ### Authentication Flow
-**Coach Login:**
-1. Frontend sends email/password to Cognito via AWS SDK
+**User Login (Players and Admins):**
+1. Frontend sends email/password to Cognito via AWS Amplify
 2. Cognito returns JWT access token, ID token, and refresh token
-3. Frontend stores tokens in secure storage (httpOnly cookies or localStorage)
-4. All subsequent admin API calls include: `Authorization: Bearer {accessToken}`
+3. Frontend stores tokens in secure storage (managed by AWS Amplify)
+4. All subsequent API calls include: `Authorization: Bearer {accessToken}`
 5. API Gateway validates JWT against Cognito User Pool
 6. Lambda functions receive authenticated user info in event context
+7. Player endpoints extract player information from JWT token claims (email)
+8. Admin endpoints validate user has appropriate admin role/group membership
 
 ## Design & Branding
 
@@ -652,23 +654,28 @@ The app should match the True Lacrosse brand aesthetic from https://truelacrosse
 ## Security & Privacy
 
 ### Data Protection
-- Unique links should be cryptographically secure (UUID v4 or similar)
 - No personally identifiable information exposed in URLs
 - HTTPS only (enforced by CloudFront)
 - DynamoDB data encrypted at rest (AWS default)
 - API rate limiting to prevent abuse (via API Gateway throttling)
 
 ### Access Control
-- **Players/Parents**: Can only view/edit their own data via unique link validation
-- **Coaches**: 
+- **Players/Parents**: 
   - Authenticated via AWS Cognito User Pool
   - JWT tokens validated by API Gateway Cognito Authorizer
-  - Can view all player data and manage team settings
+  - Can only view/edit their own data (validated via email in JWT token)
+  - Session timeout after 1 hour (configurable via Cognito)
+  - Refresh tokens valid for 30 days
+- **Coaches/Admin**: 
+  - Authenticated via AWS Cognito User Pool
+  - JWT tokens validated by API Gateway Cognito Authorizer
+  - Can view all player data and manage team settings based on role/group membership
   - Session timeout after 1 hour (configurable via Cognito)
   - Refresh tokens valid for 30 days
 - **API Protection**:
-  - All admin endpoints protected by Cognito JWT authorizer
-  - Player endpoints validate unique link exists in database
+  - All endpoints (player and admin) protected by Cognito JWT authorizer
+  - Player endpoints extract player information from JWT token (email) and validate against database
+  - Admin endpoints validate user has appropriate admin role/group membership
   - CORS configured to only allow requests from approved domains
 
 ### Content Security
@@ -694,11 +701,12 @@ The app should match the True Lacrosse brand aesthetic from https://truelacrosse
   - Use sandbox attribute on iframes
 
 ### Cognito Security Configuration
-- Password policy: Minimum 8 characters, require uppercase, lowercase, number
+- Password policy: Minimum 12 characters, require uppercase, lowercase, number
 - Account lockout after 5 failed login attempts (15 minute lockout)
-- Email verification required for new coach accounts
+- Email verification required for new user accounts
 - Optional MFA (TOTP or SMS) for enhanced security
 - Secure password reset flow via email
+- First-time login requires password change from temporary password
 - JWT token expiration: 1 hour access tokens, 30 day refresh tokens
 
 ### Content Management Security
@@ -745,12 +753,12 @@ The app should match the True Lacrosse brand aesthetic from https://truelacrosse
 ## Development Phases
 
 ### Phase 1: MVP (Minimum Viable Product)
-- Player tracking interface with unique links
+- Player tracking interface with Cognito authentication
 - Basic leaderboard
 - Admin player management
 - Fixed set of 5 activities
 - Current week view only
-- Coach authentication via Cognito
+- User authentication via Cognito (players and coaches)
 
 ### Phase 2: Core Features
 - Weekly reflection questions
@@ -770,11 +778,13 @@ The app should match the True Lacrosse brand aesthetic from https://truelacrosse
 - Test with 5-10 players initially
 - Verify concurrent check-ins don't cause data loss
 - Test on multiple devices (iOS, Android, various browsers)
-- Validate unique link security
+- Validate Cognito authentication and JWT token security
 - Load test with 50+ simulated users
 - Test HTML sanitization with malicious input attempts
 - Verify content page rendering on all device sizes
 - Test WYSIWYG editor across browsers
+- Test password reset flow
+- Test first-time login password change flow
 
 ## Technical Implementation Notes
 
@@ -1115,8 +1125,8 @@ Most services will stay within AWS Free Tier limits, potentially keeping costs u
 - Coach satisfaction: Easy to manage, valuable insights
 
 ## Documentation Needed
-- Player quick-start guide (how to use unique link, check in)
-- Parent guide (how to view progress)
+- Player quick-start guide (how to login, check in)
+- Parent guide (how to view progress using player account)
 - Admin manual (managing players, activities, and content pages)
 - Content creation guide (using WYSIWYG editor, image uploads, video embeds)
 - Technical documentation (architecture, deployment, troubleshooting)
@@ -1185,10 +1195,12 @@ To build this application with AWS CDK (Python), follow these steps:
    - Shared UI components (buttons, cards, etc.)
 
 4. **Implement routing**:
-   - `/player/:uniqueLink` - Player view
-   - `/leaderboard` - Team leaderboard
-   - `/admin` - Admin login
-   - `/admin/dashboard` - Admin dashboard (protected route)
+   - `/player` - Player view (protected route)
+   - `/player/progress` - Player progress tracking
+   - `/player/leaderboard` - Team leaderboard
+   - `/player/reflection` - Weekly reflection
+   - `/login` - Login page (for players and admins)
+   - `/admin` - Admin dashboard (protected route, requires admin role)
 
 5. **Configure AWS Amplify Auth**:
    - Connect to Cognito User Pool
@@ -1198,9 +1210,9 @@ To build this application with AWS CDK (Python), follow these steps:
 
 ### Phase 3: Integration & Testing
 1. **Connect frontend to API Gateway endpoints**
-2. **Test player flows**: Unique link access, activity tracking, reflections
+2. **Test player flows**: Login, activity tracking, reflections, progress viewing
 3. **Test admin flows**: Login, player management, activity management
-4. **Test authentication**: Cognito login, token refresh, logout
+4. **Test authentication**: Cognito login, token refresh, logout, password reset, first-time password change
 5. **Test on multiple devices**: Mobile, tablet, desktop
 
 ### Phase 4: Deployment

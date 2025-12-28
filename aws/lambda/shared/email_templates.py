@@ -232,7 +232,9 @@ def get_team_creation_template(team_name: str, club_name: str, team_id: str) -> 
 
 def get_player_invitation_template(
     player_name: str,
-    unique_link: str,
+    email: str,
+    temporary_password: str,
+    login_url: str,
     team_name: str,
     club_name: str
 ) -> dict:
@@ -251,13 +253,16 @@ def get_player_invitation_template(
         </div>
         <p>Hello {player_name},</p>
         <p>You have been invited to join <strong>{team_name}</strong> in <strong>{club_name}</strong> on Consistency Tracker.</p>
-        <p>Click the button below to access your player dashboard:</p>
-        <div style="text-align: center; margin: 30px 0;">
-            <a href="{unique_link}" style="background-color: #27ae60; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">Access Your Dashboard</a>
+        <p>Your account has been created with the following credentials:</p>
+        <div style="background-color: #ecf0f1; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <p style="margin: 5px 0;"><strong>Email:</strong> {email}</p>
+            <p style="margin: 5px 0;"><strong>Temporary Password:</strong> {temporary_password}</p>
         </div>
-        <p>Or copy and paste this link into your browser:</p>
-        <p style="word-break: break-all; color: #7f8c8d; font-size: 12px;">{unique_link}</p>
-        <p>This link is unique to you and will give you access to track your consistency and view your progress.</p>
+        <p><strong>Important:</strong> You must change your password on first login.</p>
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{login_url}" style="background-color: #27ae60; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">Login Now</a>
+        </div>
+        <p>After logging in, you'll be prompted to set a new password and can start tracking your consistency.</p>
         <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
         <p style="color: #7f8c8d; font-size: 12px;">This is an automated message from Consistency Tracker. Please do not reply to this email.</p>
     </body>
@@ -271,10 +276,16 @@ def get_player_invitation_template(
     
     You have been invited to join {team_name} in {club_name} on Consistency Tracker.
     
-    Click the link below to access your player dashboard:
-    {unique_link}
+    Your account has been created with the following credentials:
     
-    This link is unique to you and will give you access to track your consistency and view your progress.
+    Email: {email}
+    Temporary Password: {temporary_password}
+    
+    Important: You must change your password on first login.
+    
+    Login at: {login_url}
+    
+    After logging in, you'll be prompted to set a new password and can start tracking your consistency.
     
     ---
     This is an automated message from Consistency Tracker. Please do not reply to this email.

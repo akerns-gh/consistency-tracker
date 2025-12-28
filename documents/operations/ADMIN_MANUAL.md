@@ -99,8 +99,8 @@ The application automatically sends email notifications for various events:
    - Confirmation to club-admin who created the team
 
 4. **Player Invitation** - Sent when creating or inviting a player
-   - Includes unique access link
-   - Sent to player's email address (if provided)
+   - Includes temporary password and login credentials
+   - Sent to player's email address
 
 5. **Password Reset** - Sent via Cognito when user requests password reset
    - Handled automatically by Cognito via SES
@@ -236,7 +236,7 @@ The easiest way to create a new admin user is using the provided Python script:
 4. **Share credentials with the new admin:**
    - Email: The email address you configured
    - Temporary Password: The temporary password you set
-   - Login URL: `https://repwarrior.net/login` (for players) or `https://repwarrior.net/admin/login` (for admins)
+   - Login URL: `https://repwarrior.net/login` (for all users - players and admins use the same login page)
 
 ### Option 3: Using AWS Console
 
@@ -321,8 +321,7 @@ When a new admin user logs in for the first time, they must change their tempora
 ### Step 1: Initial Login
 
 1. Navigate to the login page:
-   - Admin login: `https://repwarrior.net/admin/login`
-   - Player login: `https://repwarrior.net/login`
+   - All users: `https://repwarrior.net/login` (players and admins use the same login page)
 
 2. Enter credentials:
    - **Email**: The email address used when creating the user

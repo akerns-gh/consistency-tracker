@@ -135,7 +135,7 @@ The application includes HTML email templates for:
 - User invitation (with temporary password)
 - Club creation confirmation
 - Team creation confirmation
-- Player invitation (with unique link)
+- Player invitation (with temporary password)
 
 Templates are located in `aws/lambda/shared/email_templates.py` and can be customized as needed.
 
