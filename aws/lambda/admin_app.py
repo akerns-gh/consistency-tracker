@@ -462,6 +462,70 @@ def remove_user_from_cognito_group(user_pool_id: str, username: str, group_name:
             return False
 
 
+def enable_cognito_user(user_pool_id: str, username: str) -> bool:
+    """
+    Enable a Cognito user account.
+    
+    Args:
+        user_pool_id: Cognito User Pool ID
+        username: Username (email)
+    
+    Returns:
+        True if successful, False on error
+    """
+    if not cognito_client:
+        print(f"Warning: Cognito client not initialized. Cannot enable user: {username}")
+        return False
+    
+    try:
+        cognito_client.admin_enable_user(
+            UserPoolId=user_pool_id,
+            Username=username
+        )
+        print(f"Enabled Cognito user: {username}")
+        return True
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
+        if error_code == 'ResourceNotFoundException':
+            print(f"User {username} does not exist")
+            return False
+        else:
+            print(f"Error enabling user {username}: {e}")
+            return False
+
+
+def disable_cognito_user(user_pool_id: str, username: str) -> bool:
+    """
+    Disable a Cognito user account.
+    
+    Args:
+        user_pool_id: Cognito User Pool ID
+        username: Username (email)
+    
+    Returns:
+        True if successful, False on error
+    """
+    if not cognito_client:
+        print(f"Warning: Cognito client not initialized. Cannot disable user: {username}")
+        return False
+    
+    try:
+        cognito_client.admin_disable_user(
+            UserPoolId=user_pool_id,
+            Username=username
+        )
+        print(f"Disabled Cognito user: {username}")
+        return True
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', '')
+        if error_code == 'ResourceNotFoundException':
+            print(f"User {username} does not exist")
+            return False
+        else:
+            print(f"Error disabling user {username}: {e}")
+            return False
+
+
 def get_coaches_for_team(team_id: str) -> List[dict]:
     """
     Get all coaches (Cognito users) for a team.
@@ -503,11 +567,17 @@ def get_coaches_for_team(team_id: str) -> List[dict]:
                 attributes = {attr['Name']: attr['Value'] for attr in user.get('Attributes', [])}
                 email = attributes.get('email', username)
                 status = user.get('UserStatus', 'UNKNOWN')
+                enabled = user.get('Enabled', True)
+                
+                # Determine if coach is active (enabled and confirmed)
+                is_active = enabled and status in ['CONFIRMED', 'FORCE_CHANGE_PASSWORD']
                 
                 coaches.append({
                     'email': email,
                     'username': username,
-                    'status': status
+                    'status': status,
+                    'enabled': enabled,
+                    'isActive': is_active
                 })
         
         return coaches
@@ -1182,7 +1252,8 @@ def enable_club(club_id):
 def list_teams():
     """List teams in coach's club."""
     club_id = g.club_id
-    teams = get_teams_by_club(club_id)
+    active_only = request.args.get('active_only', 'false').lower() == 'true'
+    teams = get_teams_by_club(club_id, active_only=active_only)
     
     # Format response
     team_list = []
@@ -1192,6 +1263,7 @@ def list_teams():
             "teamName": team.get("teamName"),
             "clubId": team.get("clubId"),
             "settings": team.get("settings", {}),
+            "isActive": team.get("isActive", True),
             "createdAt": team.get("createdAt"),
         })
     
@@ -1245,6 +1317,7 @@ def create_team():
             "autoAdvanceWeek": False,
             "scoringMethod": "points",
         }),
+        "isActive": body.get("isActive", True),
         "createdAt": now,
     }
     
@@ -1444,6 +1517,10 @@ def update_team(team_id):
         update_expression_parts.append("settings = :settings")
         expression_attribute_values[":settings"] = body["settings"]
     
+    if "isActive" in body:
+        update_expression_parts.append("isActive = :isActive")
+        expression_attribute_values[":isActive"] = bool(body["isActive"])
+    
     if not update_expression_parts:
         return flask_error_response("No fields to update", status_code=400)
     
@@ -1463,6 +1540,80 @@ def update_team(team_id):
     # Get updated team
     updated = get_team_by_id(team_id)
     return flask_success_response({"team": updated})
+
+
+@app.route('/admin/teams/<team_id>/activate', methods=['PUT'])
+@require_admin
+@require_club
+def activate_team(team_id):
+    """Activate a team."""
+    club_id = g.club_id
+    
+    # Get existing team
+    existing = get_team_by_id(team_id)
+    if not existing:
+        return flask_error_response("Team not found", status_code=404)
+    
+    # Validate team belongs to coach's club
+    if existing.get("clubId") != club_id:
+        return flask_error_response("Team not found or access denied", status_code=403)
+    
+    # Check if already active
+    if existing.get("isActive", True):
+        return flask_error_response("Team is already active", status_code=400)
+    
+    # Update isActive flag
+    table = get_table("ConsistencyTracker-Teams")
+    table.update_item(
+        Key={"teamId": team_id},
+        UpdateExpression="SET isActive = :isActive, updatedAt = :updatedAt",
+        ExpressionAttributeValues={
+            ":isActive": True,
+            ":updatedAt": datetime.utcnow().isoformat() + "Z",
+        },
+        ReturnValues="ALL_NEW",
+    )
+    
+    # Get updated team
+    updated = get_team_by_id(team_id)
+    return flask_success_response({"team": updated, "message": "Team activated successfully"})
+
+
+@app.route('/admin/teams/<team_id>/deactivate', methods=['PUT'])
+@require_admin
+@require_club
+def deactivate_team(team_id):
+    """Deactivate a team."""
+    club_id = g.club_id
+    
+    # Get existing team
+    existing = get_team_by_id(team_id)
+    if not existing:
+        return flask_error_response("Team not found", status_code=404)
+    
+    # Validate team belongs to coach's club
+    if existing.get("clubId") != club_id:
+        return flask_error_response("Team not found or access denied", status_code=403)
+    
+    # Check if already inactive
+    if not existing.get("isActive", True):
+        return flask_error_response("Team is already inactive", status_code=400)
+    
+    # Update isActive flag
+    table = get_table("ConsistencyTracker-Teams")
+    table.update_item(
+        Key={"teamId": team_id},
+        UpdateExpression="SET isActive = :isActive, updatedAt = :updatedAt",
+        ExpressionAttributeValues={
+            ":isActive": False,
+            ":updatedAt": datetime.utcnow().isoformat() + "Z",
+        },
+        ReturnValues="ALL_NEW",
+    )
+    
+    # Get updated team
+    updated = get_team_by_id(team_id)
+    return flask_success_response({"team": updated, "message": "Team deactivated successfully"})
 
 
 @app.route('/admin/teams/<team_id>/coaches', methods=['GET'])
@@ -1624,6 +1775,96 @@ def remove_team_coach(team_id, coach_email):
     
     return flask_success_response({
         "message": "Coach removed from team successfully"
+    })
+
+
+@app.route('/admin/teams/<team_id>/coaches/<coach_email>/activate', methods=['PUT'])
+@require_admin
+@require_club
+def activate_team_coach(team_id, coach_email):
+    """Activate a coach (enable Cognito user account)."""
+    if not COGNITO_USER_POOL_ID or not cognito_client:
+        return flask_error_response("Cognito is not configured for coach management", status_code=500)
+    
+    club_id = g.club_id
+    
+    # Get team and verify it belongs to the club
+    team = get_team_by_id(team_id)
+    if not team:
+        return flask_error_response("Team not found", status_code=404)
+    
+    if team.get("clubId") != club_id:
+        return flask_error_response("Team not found or access denied", status_code=403)
+    
+    # Verify coach is in the team's coach group
+    coaches = get_coaches_for_team(team_id)
+    coach = next((c for c in coaches if c.get('email') == coach_email), None)
+    if not coach:
+        return flask_error_response("Coach not found in this team", status_code=404)
+    
+    # Check if already enabled
+    if coach.get('enabled', True):
+        return flask_error_response("Coach is already active", status_code=400)
+    
+    # Enable the Cognito user
+    username = coach.get('username', coach_email)
+    success = enable_cognito_user(COGNITO_USER_POOL_ID, username)
+    
+    if not success:
+        return flask_error_response("Failed to activate coach", status_code=500)
+    
+    # Get updated coach info
+    coaches = get_coaches_for_team(team_id)
+    updated_coach = next((c for c in coaches if c.get('email') == coach_email), None)
+    
+    return flask_success_response({
+        "coach": updated_coach,
+        "message": "Coach activated successfully"
+    })
+
+
+@app.route('/admin/teams/<team_id>/coaches/<coach_email>/deactivate', methods=['PUT'])
+@require_admin
+@require_club
+def deactivate_team_coach(team_id, coach_email):
+    """Deactivate a coach (disable Cognito user account)."""
+    if not COGNITO_USER_POOL_ID or not cognito_client:
+        return flask_error_response("Cognito is not configured for coach management", status_code=500)
+    
+    club_id = g.club_id
+    
+    # Get team and verify it belongs to the club
+    team = get_team_by_id(team_id)
+    if not team:
+        return flask_error_response("Team not found", status_code=404)
+    
+    if team.get("clubId") != club_id:
+        return flask_error_response("Team not found or access denied", status_code=403)
+    
+    # Verify coach is in the team's coach group
+    coaches = get_coaches_for_team(team_id)
+    coach = next((c for c in coaches if c.get('email') == coach_email), None)
+    if not coach:
+        return flask_error_response("Coach not found in this team", status_code=404)
+    
+    # Check if already disabled
+    if not coach.get('enabled', True):
+        return flask_error_response("Coach is already inactive", status_code=400)
+    
+    # Disable the Cognito user
+    username = coach.get('username', coach_email)
+    success = disable_cognito_user(COGNITO_USER_POOL_ID, username)
+    
+    if not success:
+        return flask_error_response("Failed to deactivate coach", status_code=500)
+    
+    # Get updated coach info
+    coaches = get_coaches_for_team(team_id)
+    updated_coach = next((c for c in coaches if c.get('email') == coach_email), None)
+    
+    return flask_success_response({
+        "coach": updated_coach,
+        "message": "Coach deactivated successfully"
     })
 
 
@@ -1890,6 +2131,10 @@ def update_player(player_id):
         update_expression_parts.append("email = :email")
         expression_attribute_values[":email"] = body["email"]
     
+    if "isActive" in body:
+        update_expression_parts.append("isActive = :isActive")
+        expression_attribute_values[":isActive"] = bool(body["isActive"])
+    
     if not update_expression_parts:
         return flask_error_response("No fields to update", status_code=400)
     
@@ -1916,9 +2161,13 @@ def update_player(player_id):
 @require_club
 @require_resource_access('player', 'player_id', get_player_by_id)
 def delete_player(player_id):
-    """Deactivate player (soft delete)."""
+    """Toggle player activation status (soft delete/restore)."""
     # Get existing player (already validated by decorator)
     existing = g.current_resource
+    
+    # Determine new status based on current status
+    current_status = existing.get("isActive", True)
+    new_status = not current_status
     
     # Update isActive flag
     table = get_table("ConsistencyTracker-Players")
@@ -1926,13 +2175,14 @@ def delete_player(player_id):
         Key={"playerId": player_id},
         UpdateExpression="SET isActive = :isActive, updatedAt = :updatedAt",
         ExpressionAttributeValues={
-            ":isActive": False,
+            ":isActive": new_status,
             ":updatedAt": datetime.utcnow().isoformat() + "Z",
         },
         ReturnValues="ALL_NEW",
     )
     
-    return flask_success_response({"message": "Player deactivated successfully"})
+    action = "activated" if new_status else "deactivated"
+    return flask_success_response({"message": f"Player {action} successfully"})
 
 
 @app.route('/admin/players/<player_id>/invite', methods=['POST'])

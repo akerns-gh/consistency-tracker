@@ -117,6 +117,7 @@ def seed_teams(dynamodb, rows: List[Dict[str, str]], table_name: str, clubs_by_n
             "teamName": team_name,
             "coachName": (r.get("coachName", "") or "").strip(),
             "settings": {},
+            "isActive": _parse_bool(r.get("isActive", ""), default=True),
             "createdAt": r.get("createdAt", "") or _now(),
         }
         _put_item(table, item)

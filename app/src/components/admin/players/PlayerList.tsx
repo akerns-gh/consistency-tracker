@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getPlayers, Player, deactivatePlayer, invitePlayer, CsvUploadResults } from '../../../services/adminApi'
+import { getPlayers, Player, togglePlayerActivation, invitePlayer, CsvUploadResults } from '../../../services/adminApi'
 import Loading from '../../ui/Loading'
 import Card from '../../ui/Card'
 import Button from '../../ui/Button'
@@ -64,7 +64,7 @@ export default function PlayerList() {
       return
     }
     try {
-      await deactivatePlayer(player.playerId)
+      await togglePlayerActivation(player.playerId)
       loadPlayers()
     } catch (err: any) {
       alert(err.message || 'Failed to update player status')

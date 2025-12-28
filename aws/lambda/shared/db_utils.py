@@ -191,8 +191,8 @@ def get_team_by_id(team_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def get_teams_by_club(club_id: str) -> List[Dict[str, Any]]:
-    """Get all teams for a club."""
+def get_teams_by_club(club_id: str, active_only: bool = False) -> List[Dict[str, Any]]:
+    """Get all teams for a club, optionally filtered to active only."""
     try:
         table = get_table(TEAM_TABLE)
         response = table.query(
@@ -200,7 +200,12 @@ def get_teams_by_club(club_id: str) -> List[Dict[str, Any]]:
             KeyConditionExpression="clubId = :clubId",
             ExpressionAttributeValues={":clubId": club_id},
         )
-        return response.get("Items", [])
+        teams = response.get("Items", [])
+        
+        if active_only:
+            teams = [t for t in teams if t.get("isActive", True)]
+        
+        return teams
     except ClientError as e:
         print(f"Error getting teams for club {club_id}: {e}")
         return []

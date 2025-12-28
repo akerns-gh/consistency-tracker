@@ -24,6 +24,7 @@ from shared.db_utils import (
     get_content_pages_by_team,
     get_content_pages_by_club,
     get_player_by_id,
+    get_team_by_id,
 )
 from shared.week_utils import get_current_week_id, get_week_id, get_week_dates
 
@@ -165,6 +166,14 @@ def get_player_from_jwt():
         
         if not club_id or not team_id:
             return None, flask_error_response("Player missing clubId or teamId", status_code=500)
+        
+        # Validate team is active
+        team = get_team_by_id(team_id)
+        if not team:
+            return None, flask_error_response("Team not found", status_code=404)
+        
+        if not team.get("isActive", True):
+            return None, flask_error_response("Team is inactive", status_code=403)
         
         print(f"DEBUG get_player_from_jwt: Successfully authenticated player: {player.get('playerId')}")
         return player, None
@@ -598,6 +607,14 @@ def get_player(unique_link):
     if not club_id or not team_id:
         return flask_error_response("Player missing clubId or teamId", status_code=500)
     
+    # Validate team is active
+    team = get_team_by_id(team_id)
+    if not team:
+        return flask_error_response("Team not found", status_code=404)
+    
+    if not team.get("isActive", True):
+        return flask_error_response("Team is inactive", status_code=403)
+    
     # Get club-wide activities
     club_activities = get_activities_by_club(club_id, active_only=True)
     
@@ -680,6 +697,14 @@ def get_week(unique_link, week_id):
     
     if not club_id or not team_id:
         return flask_error_response("Player missing clubId or teamId", status_code=500)
+    
+    # Validate team is active
+    team = get_team_by_id(team_id)
+    if not team:
+        return flask_error_response("Team not found", status_code=404)
+    
+    if not team.get("isActive", True):
+        return flask_error_response("Team is inactive", status_code=403)
     
     # Get club-wide activities
     club_activities = get_activities_by_club(club_id, active_only=True)
@@ -845,6 +870,14 @@ def checkin(unique_link):
     
     if not club_id or not team_id:
         return flask_error_response("Player missing clubId or teamId", status_code=500)
+    
+    # Validate team is active
+    team = get_team_by_id(team_id)
+    if not team:
+        return flask_error_response("Team not found", status_code=404)
+    
+    if not team.get("isActive", True):
+        return flask_error_response("Team is inactive", status_code=403)
     
     # Get club-wide activities
     club_activities = get_activities_by_club(club_id, active_only=True)

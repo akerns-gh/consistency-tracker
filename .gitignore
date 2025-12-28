@@ -73,3 +73,4 @@ aws/lambda/layer/python/python/
 
 # Email configuration (contains Proton Mail DNS values)
 aws/email/config.json
+creds.csv

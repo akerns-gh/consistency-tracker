@@ -15,6 +15,7 @@ export interface Team {
   clubId: string
   teamName: string
   settings?: Record<string, any>
+  isActive?: boolean
   createdAt?: string
 }
 
@@ -22,6 +23,8 @@ export interface Coach {
   email: string
   username: string
   status: string
+  enabled?: boolean
+  isActive?: boolean
 }
 
 /**
@@ -130,6 +133,22 @@ export async function removeTeamCoach(teamId: string, coachEmail: string): Promi
 }
 
 /**
+ * Activate a coach
+ */
+export async function activateCoach(teamId: string, coachEmail: string): Promise<{ coach: Coach; message: string }> {
+  const response = await api.put(`/admin/teams/${teamId}/coaches/${encodeURIComponent(coachEmail)}/activate`)
+  return response.data.data
+}
+
+/**
+ * Deactivate a coach
+ */
+export async function deactivateCoach(teamId: string, coachEmail: string): Promise<{ coach: Coach; message: string }> {
+  const response = await api.put(`/admin/teams/${teamId}/coaches/${encodeURIComponent(coachEmail)}/deactivate`)
+  return response.data.data
+}
+
+/**
  * Update a team
  */
 export async function updateTeam(
@@ -137,6 +156,22 @@ export async function updateTeam(
   data: Partial<Team>
 ): Promise<{ team: Team }> {
   const response = await api.put(`/admin/teams/${teamId}`, data)
+  return response.data.data
+}
+
+/**
+ * Activate a team
+ */
+export async function activateTeam(teamId: string): Promise<{ team: Team; message: string }> {
+  const response = await api.put(`/admin/teams/${teamId}/activate`)
+  return response.data.data
+}
+
+/**
+ * Deactivate a team
+ */
+export async function deactivateTeam(teamId: string): Promise<{ team: Team; message: string }> {
+  const response = await api.put(`/admin/teams/${teamId}/deactivate`)
   return response.data.data
 }
 
@@ -179,6 +214,21 @@ export async function updatePlayer(
   data: Partial<Player>
 ): Promise<{ player: Player }> {
   const response = await api.put(`/admin/players/${playerId}`, data)
+  return response.data.data
+}
+
+/**
+ * Toggle player activation status (activate if inactive, deactivate if active)
+ */
+export async function togglePlayerActivation(playerId: string): Promise<void> {
+  await api.delete(`/admin/players/${playerId}`)
+}
+
+/**
+ * Activate a player
+ */
+export async function activatePlayer(playerId: string): Promise<{ player: Player }> {
+  const response = await api.put(`/admin/players/${playerId}`, { isActive: true })
   return response.data.data
 }
 

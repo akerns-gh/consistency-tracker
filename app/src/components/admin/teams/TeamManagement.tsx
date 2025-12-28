@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { getTeams, createTeam, updateTeam, getTeamCoaches, addTeamCoach, removeTeamCoach, Team, Coach, CsvUploadResults } from '../../../services/adminApi'
+import { getTeams, createTeam, updateTeam, activateTeam, deactivateTeam, getTeamCoaches, addTeamCoach, removeTeamCoach, activateCoach, deactivateCoach, Team, Coach, CsvUploadResults } from '../../../services/adminApi'
 import Card from '../../ui/Card'
 import Button from '../../ui/Button'
 import Loading from '../../ui/Loading'
@@ -192,6 +192,62 @@ export default function TeamManagement() {
       setCoachesByTeam(prev => ({ ...prev, [teamId]: data.coaches || [] }))
     } catch (err: any) {
       alert(err?.message || 'Failed to remove coach')
+    }
+  }
+
+  const handleActivateTeam = async (team: Team) => {
+    if (!confirm(`Are you sure you want to activate "${team.teamName}"?`)) {
+      return
+    }
+
+    try {
+      await activateTeam(team.teamId)
+      await loadTeams()
+    } catch (err: any) {
+      alert(err?.message || 'Failed to activate team')
+    }
+  }
+
+  const handleDeactivateTeam = async (team: Team) => {
+    if (!confirm(`Are you sure you want to deactivate "${team.teamName}"?`)) {
+      return
+    }
+
+    try {
+      await deactivateTeam(team.teamId)
+      await loadTeams()
+    } catch (err: any) {
+      alert(err?.message || 'Failed to deactivate team')
+    }
+  }
+
+  const handleActivateCoach = async (teamId: string, coachEmail: string) => {
+    if (!confirm(`Are you sure you want to activate ${coachEmail}?`)) {
+      return
+    }
+
+    try {
+      await activateCoach(teamId, coachEmail)
+      // Reload coaches
+      const data = await getTeamCoaches(teamId)
+      setCoachesByTeam(prev => ({ ...prev, [teamId]: data.coaches || [] }))
+    } catch (err: any) {
+      alert(err?.message || 'Failed to activate coach')
+    }
+  }
+
+  const handleDeactivateCoach = async (teamId: string, coachEmail: string) => {
+    if (!confirm(`Are you sure you want to deactivate ${coachEmail}?`)) {
+      return
+    }
+
+    try {
+      await deactivateCoach(teamId, coachEmail)
+      // Reload coaches
+      const data = await getTeamCoaches(teamId)
+      setCoachesByTeam(prev => ({ ...prev, [teamId]: data.coaches || [] }))
+    } catch (err: any) {
+      alert(err?.message || 'Failed to deactivate coach')
     }
   }
 
@@ -416,7 +472,18 @@ export default function TeamManagement() {
                       <div className="flex-1">
                         <div className="flex items-center space-x-4">
                           <div>
+                            <div className="flex items-center space-x-2">
                             <div className="text-sm font-medium text-gray-900">{team.teamName}</div>
+                              <span
+                                className={`px-2 py-1 rounded text-xs ${
+                                  team.isActive !== false
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-gray-100 text-gray-800'
+                                }`}
+                              >
+                                {team.isActive !== false ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
                             <div className="text-xs text-gray-500 font-mono mt-1">{team.teamId}</div>
                           </div>
                           {team.createdAt && (
@@ -435,6 +502,23 @@ export default function TeamManagement() {
                         >
                           Edit
                         </Button>
+                        {team.isActive !== false ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeactivateTeam(team)}
+                          >
+                            Deactivate
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleActivateTeam(team)}
+                          >
+                            Activate
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
@@ -458,12 +542,41 @@ export default function TeamManagement() {
                           <div className="space-y-2 mb-4">
                             {coaches.map((coach) => (
                               <div key={coach.email} className="flex items-center justify-between bg-white px-4 py-2 rounded border border-gray-200">
-                                <div>
+                                <div className="flex-1">
+                                  <div className="flex items-center space-x-2">
                                   <div className="text-sm font-medium text-gray-900">{coach.email}</div>
-                                  <div className="text-xs text-gray-500">
+                                    <span
+                                      className={`px-2 py-1 rounded text-xs ${
+                                        coach.isActive !== false
+                                          ? 'bg-green-100 text-green-800'
+                                          : 'bg-gray-100 text-gray-800'
+                                      }`}
+                                    >
+                                      {coach.isActive !== false ? 'Active' : 'Inactive'}
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-gray-500 mt-1">
                                     Status: {coach.status}
                                   </div>
                                 </div>
+                                <div className="flex items-center space-x-2">
+                                  {coach.isActive !== false ? (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleDeactivateCoach(team.teamId, coach.email)}
+                                    >
+                                      Deactivate
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleActivateCoach(team.teamId, coach.email)}
+                                    >
+                                      Activate
+                                    </Button>
+                                  )}
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -472,6 +585,7 @@ export default function TeamManagement() {
                                 >
                                   Remove
                                 </Button>
+                                </div>
                               </div>
                             ))}
                           </div>
