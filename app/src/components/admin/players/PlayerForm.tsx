@@ -44,7 +44,8 @@ export default function PlayerForm({ player, onSave, onCancel }: PlayerFormProps
 
     try {
       if (player) {
-        await updatePlayer(player.playerId, { firstName, lastName, email, teamId })
+        // Don't include email in update - it cannot be changed
+        await updatePlayer(player.playerId, { firstName, lastName, teamId })
       } else {
         await createPlayer({ firstName, lastName, email, teamId })
       }
@@ -66,6 +67,13 @@ export default function PlayerForm({ player, onSave, onCancel }: PlayerFormProps
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-4">
             {error}
+          </div>
+        )}
+
+        {player && (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded mb-4 text-sm">
+            <strong>Note:</strong> Email addresses cannot be changed here. To change a player's email address, please send a request to{' '}
+            <a href="mailto:admin@repwarrior.net" className="underline font-semibold">admin@repwarrior.net</a>.
           </div>
         )}
 
@@ -105,7 +113,10 @@ export default function PlayerForm({ player, onSave, onCancel }: PlayerFormProps
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              disabled={!!player}
+              className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent ${
+                player ? 'bg-gray-100 cursor-not-allowed' : ''
+              }`}
             />
           </div>
 

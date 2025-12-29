@@ -105,6 +105,61 @@ The application automatically sends email notifications for various events:
 5. **Password Reset** - Sent via Cognito when user requests password reset
    - Handled automatically by Cognito via SES
 
+## Managing Players
+
+### Creating Players
+
+Players can be created through the Admin Dashboard:
+
+1. Navigate to the "Players" section in the admin dashboard
+2. Click "Add Player"
+3. Fill in the required fields:
+   - **First Name** (required)
+   - **Last Name** (required)
+   - **Email** (required) - Used as the Cognito username for authentication
+   - **Team** (required) - Select from available teams in your club
+4. Click "Create"
+
+When a player is created:
+- A Cognito user account is automatically created using the email address as the username
+- A temporary password is generated
+- An invitation email is sent to the player with login credentials
+- The player record is stored in DynamoDB
+
+### Editing Players
+
+Players can be edited through the Admin Dashboard:
+
+1. Navigate to the "Players" section
+2. Click "Edit" on the player you want to modify
+3. You can update:
+   - **First Name**
+   - **Last Name**
+   - **Team** assignment
+   - **Status** (Active/Inactive)
+
+**⚠️ Important: Email Address Cannot Be Changed**
+
+The email field is **disabled** when editing existing players. This is because:
+- Player email addresses are tied to AWS Cognito user accounts
+- The email is used as the Cognito username, which cannot be changed through the UI
+- Changing the email without updating Cognito would break authentication
+
+**To change a player's email address:**
+- Send a request to **admin@repwarrior.net** with:
+  - Player's current email
+  - New email address
+  - Player's name for identification
+- An administrator will manually update both the DynamoDB record and the Cognito user account
+
+### Player Status
+
+Players can be activated or deactivated:
+- **Active**: Player can log in and access the application
+- **Inactive**: Player cannot log in (account is disabled)
+
+Use the "Disable" or "Enable" button in the Players table to change a player's status.
+
 ### Email Configuration
 
 Emails are sent via AWS SES using a verified Proton Mail custom domain. See [aws/SES_SETUP.md](../aws/SES_SETUP.md) for configuration instructions.
