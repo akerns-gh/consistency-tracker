@@ -2,7 +2,8 @@ import api from './api'
 
 export interface Player {
   playerId: string
-  name: string
+  firstName: string
+  lastName: string
   email?: string
   clubId: string
   teamId: string
@@ -64,7 +65,8 @@ export interface ProgressData {
 
 export interface LeaderboardEntry {
   playerId: string
-  name: string
+  firstName: string
+  lastName: string
   weeklyScore: number
   daysCompleted: number
   rank: number

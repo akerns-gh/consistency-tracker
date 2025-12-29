@@ -1924,8 +1924,12 @@ def list_players():
     for player in players:
         player_list.append({
             "playerId": player.get("playerId"),
-            "name": player.get("name"),
+            "firstName": player.get("firstName", ""),
+            "lastName": player.get("lastName", ""),
+            "name": player.get("name", ""),  # Keep for backward compatibility
             "email": player.get("email"),
+            "clubId": player.get("clubId"),
+            "teamId": player.get("teamId"),
             "isActive": player.get("isActive", True),
             "createdAt": player.get("createdAt"),
         })
@@ -1941,12 +1945,16 @@ def create_player():
     club_id = g.club_id
     body = request.get_json() or {}
     
-    name = body.get("name")
+    first_name = body.get("firstName")
+    last_name = body.get("lastName")
     email = body.get("email", "")
     team_id = body.get("teamId")
     
-    if not name:
-        return flask_error_response("Missing required field: name", status_code=400)
+    if not first_name:
+        return flask_error_response("Missing required field: firstName", status_code=400)
+    
+    if not last_name:
+        return flask_error_response("Missing required field: lastName", status_code=400)
     
     if not team_id:
         return flask_error_response("Missing required field: teamId", status_code=400)
@@ -1989,9 +1997,14 @@ def create_player():
     player_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat() + "Z"
     
+    # Construct full name for backward compatibility
+    full_name = f"{first_name} {last_name}".strip()
+    
     player = {
         "playerId": player_id,
-        "name": name,
+        "firstName": first_name,
+        "lastName": last_name,
+        "name": full_name,  # Keep for backward compatibility
         "email": email,
         "clubId": club_id,  # Set from coach's club
         "teamId": team_id,  # From request body (validated above)
@@ -2014,7 +2027,7 @@ def create_player():
         login_url = f"{frontend_url}/login"
         
         template = get_player_invitation_template(
-            player_name=name,
+            player_name=full_name,
             email=email,
             temporary_password=temporary_password,
             login_url=login_url,
@@ -2224,13 +2237,54 @@ def update_player(player_id):
     update_expression_parts = []
     expression_attribute_values = {}
     
-    if "name" in body:
-        update_expression_parts.append("name = :name")
-        expression_attribute_values[":name"] = body["name"]
+    # Get existing firstName/lastName, handling old records that might not have these fields
+    existing_first_name = existing.get("firstName") or ""
+    existing_last_name = existing.get("lastName") or ""
+    
+    # If firstName/lastName don't exist, try to parse from name field (for backward compatibility)
+    if not existing_first_name and not existing_last_name and existing.get("name"):
+        name_parts = existing.get("name", "").split()
+        if name_parts:
+            existing_first_name = name_parts[0]
+            existing_last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+    
+    # Determine what firstName and lastName will be after update
+    new_first_name = body.get("firstName") if "firstName" in body else existing_first_name
+    new_last_name = body.get("lastName") if "lastName" in body else existing_last_name
+    
+    # Update firstName if provided
+    if "firstName" in body:
+        update_expression_parts.append("firstName = :firstName")
+        expression_attribute_values[":firstName"] = body["firstName"]
+    
+    # Update lastName if provided
+    if "lastName" in body:
+        update_expression_parts.append("lastName = :lastName")
+        expression_attribute_values[":lastName"] = body["lastName"]
+    
+    # Update name field for backward compatibility (always update if firstName or lastName changed)
+    # Note: "name" is a reserved keyword in DynamoDB, so we need to use ExpressionAttributeNames
+    expression_attribute_names = {}
+    if "firstName" in body or "lastName" in body:
+        full_name = f"{new_first_name} {new_last_name}".strip()
+        update_expression_parts.append("#name = :name")
+        expression_attribute_names["#name"] = "name"
+        expression_attribute_values[":name"] = full_name
     
     if "email" in body:
         update_expression_parts.append("email = :email")
         expression_attribute_values[":email"] = body["email"]
+    
+    if "teamId" in body:
+        team_id = body["teamId"]
+        # Validate team belongs to coach's club
+        team = get_team_by_id(team_id)
+        if not team:
+            return flask_error_response("Team not found", status_code=404)
+        if team.get("clubId") != club_id:
+            return flask_error_response("Team not found or access denied", status_code=403)
+        update_expression_parts.append("teamId = :teamId")
+        expression_attribute_values[":teamId"] = team_id
     
     if "isActive" in body:
         update_expression_parts.append("isActive = :isActive")
@@ -2245,12 +2299,17 @@ def update_player(player_id):
     
     # Perform update
     table = get_table("ConsistencyTracker-Players")
-    table.update_item(
-        Key={"playerId": player_id},
-        UpdateExpression="SET " + ", ".join(update_expression_parts),
-        ExpressionAttributeValues=expression_attribute_values,
-        ReturnValues="ALL_NEW",
-    )
+    update_params = {
+        "Key": {"playerId": player_id},
+        "UpdateExpression": "SET " + ", ".join(update_expression_parts),
+        "ExpressionAttributeValues": expression_attribute_values,
+        "ReturnValues": "ALL_NEW",
+    }
+    # Only add ExpressionAttributeNames if we're updating the name field
+    if expression_attribute_names:
+        update_params["ExpressionAttributeNames"] = expression_attribute_names
+    
+    table.update_item(**update_params)
     
     # Get updated player
     updated = get_player_by_id(player_id)
@@ -3114,9 +3173,15 @@ def export_week(week_id):
         
         if player_id not in player_data:
             player = get_player_by_id(player_id)
+            if player:
+                first_name = player.get("firstName", "")
+                last_name = player.get("lastName", "")
+                player_name = f"{first_name} {last_name}".strip() if first_name or last_name else player.get("name", "Unknown")
+            else:
+                player_name = "Unknown"
             player_data[player_id] = {
                 "playerId": player_id,
-                "playerName": player.get("name") if player else "Unknown",
+                "playerName": player_name,
                 "dailyScores": {},
                 "weeklyScore": 0,
             }
@@ -3274,10 +3339,13 @@ def list_reflections():
         player = get_player_by_id(player_id)
         
         if player and player.get("isActive", True):
+            first_name = player.get("firstName", "")
+            last_name = player.get("lastName", "")
+            player_name = f"{first_name} {last_name}".strip() if first_name or last_name else player.get("name", "Unknown")
             reflections_with_players.append({
                 "reflectionId": reflection.get("reflectionId"),
                 "playerId": player_id,
-                "playerName": player.get("name"),
+                "playerName": player_name,
                 "weekId": reflection.get("weekId"),
                 "wentWell": reflection.get("wentWell"),
                 "doBetter": reflection.get("doBetter"),

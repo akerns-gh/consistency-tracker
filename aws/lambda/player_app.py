@@ -247,7 +247,8 @@ def get_player_by_jwt():
         response_data = {
             "player": {
                 "playerId": player_id,
-                "name": player.get("name"),
+                "firstName": player.get("firstName", ""),
+                "lastName": player.get("lastName", ""),
                 "email": player.get("email"),
                 "clubId": club_id,
                 "teamId": team_id,
@@ -651,7 +652,8 @@ def get_player(unique_link):
     response_data = {
         "player": {
             "playerId": player_id,
-            "name": player.get("name"),
+            "firstName": player.get("firstName", ""),
+            "lastName": player.get("lastName", ""),
             "email": player.get("email"),
             "clubId": club_id,
             "teamId": team_id,
@@ -1079,7 +1081,8 @@ def get_leaderboard(week_id):
         if player and player.get("isActive", True):
             leaderboard.append({
                 "playerId": player_id,
-                "name": player.get("name"),
+                "firstName": player.get("firstName", ""),
+                "lastName": player.get("lastName", ""),
                 "weeklyScore": score_data["weeklyScore"],
                 "daysCompleted": score_data["daysCompleted"],
                 "isCurrentPlayer": player_id == current_player_id,

@@ -10,7 +10,8 @@ interface PlayerFormProps {
 }
 
 export default function PlayerForm({ player, onSave, onCancel }: PlayerFormProps) {
-  const [name, setName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [teamId, setTeamId] = useState('')
   const [teams, setTeams] = useState<any[]>([])
@@ -20,7 +21,8 @@ export default function PlayerForm({ player, onSave, onCancel }: PlayerFormProps
   useEffect(() => {
     loadTeams()
     if (player) {
-      setName(player.name)
+      setFirstName(player.firstName || '')
+      setLastName(player.lastName || '')
       setEmail(player.email || '')
       setTeamId(player.teamId)
     }
@@ -42,9 +44,9 @@ export default function PlayerForm({ player, onSave, onCancel }: PlayerFormProps
 
     try {
       if (player) {
-        await updatePlayer(player.playerId, { name, email, teamId })
+        await updatePlayer(player.playerId, { firstName, lastName, email, teamId })
       } else {
-        await createPlayer({ name, email, teamId })
+        await createPlayer({ firstName, lastName, email, teamId })
       }
       onSave()
     } catch (err: any) {
@@ -70,12 +72,25 @@ export default function PlayerForm({ player, onSave, onCancel }: PlayerFormProps
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Name *
+              First Name *
             </label>
             <input
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              required
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Last Name *
+            </label>
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
               required
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
             />

@@ -54,7 +54,7 @@ export default function NavigationMenu({ player, isOpen, onClose }: NavigationMe
           
           {/* Player Info */}
           <div className="mb-6 pb-6 border-b">
-            <h2 className="text-xl font-bold text-gray-800">{player.name}</h2>
+            <h2 className="text-xl font-bold text-gray-800">{`${player.firstName || ''} ${player.lastName || ''}`.trim() || 'Player'}</h2>
             {player.clubId && (
               <p className="text-sm text-gray-600 mt-1">Club: {player.clubId}</p>
             )}

@@ -13,7 +13,7 @@ export default function PlayerCard({ player, onEdit, onInvite, onDeactivate }: P
     <div className="bg-white rounded-lg shadow-md p-4 border border-gray-200">
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <h3 className="text-lg font-semibold text-gray-800">{player.name}</h3>
+          <h3 className="text-lg font-semibold text-gray-800">{`${player.firstName || ''} ${player.lastName || ''}`.trim() || 'Player'}</h3>
           <p className="text-sm text-gray-600 mt-1">{player.email || 'No email'}</p>
           <div className="mt-2 flex items-center space-x-2">
             <span

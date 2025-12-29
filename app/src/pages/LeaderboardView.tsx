@@ -144,7 +144,7 @@ export default function LeaderboardView() {
                 <div className="text-center">
                   <div className="bg-gray-300 rounded-t-lg p-4 mb-2" style={{ height: '120px' }}>
                     <div className="text-3xl font-bold">2</div>
-                    <div className="text-sm mt-2">{leaderboardData.leaderboard[1].name}</div>
+                    <div className="text-sm mt-2">{`${leaderboardData.leaderboard[1].firstName || ''} ${leaderboardData.leaderboard[1].lastName || ''}`.trim() || 'Player'}</div>
                     <div className="text-lg font-semibold">{leaderboardData.leaderboard[1].weeklyScore}</div>
                   </div>
                 </div>
@@ -152,7 +152,7 @@ export default function LeaderboardView() {
                 <div className="text-center">
                   <div className="bg-yellow-400 rounded-t-lg p-4 mb-2" style={{ height: '150px' }}>
                     <div className="text-3xl font-bold">1</div>
-                    <div className="text-sm mt-2">{leaderboardData.leaderboard[0].name}</div>
+                    <div className="text-sm mt-2">{`${leaderboardData.leaderboard[0].firstName || ''} ${leaderboardData.leaderboard[0].lastName || ''}`.trim() || 'Player'}</div>
                     <div className="text-lg font-semibold">{leaderboardData.leaderboard[0].weeklyScore}</div>
                   </div>
                 </div>
@@ -160,7 +160,7 @@ export default function LeaderboardView() {
                 <div className="text-center">
                   <div className="bg-orange-300 rounded-t-lg p-4 mb-2" style={{ height: '100px' }}>
                     <div className="text-3xl font-bold">3</div>
-                    <div className="text-sm mt-2">{leaderboardData.leaderboard[2].name}</div>
+                    <div className="text-sm mt-2">{`${leaderboardData.leaderboard[2].firstName || ''} ${leaderboardData.leaderboard[2].lastName || ''}`.trim() || 'Player'}</div>
                     <div className="text-lg font-semibold">{leaderboardData.leaderboard[2].weeklyScore}</div>
                   </div>
                 </div>
@@ -189,7 +189,7 @@ export default function LeaderboardView() {
                       >
                         <td className="py-3 px-4 font-semibold">{entry.rank}</td>
                         <td className="py-3 px-4">
-                          {entry.name}
+                          {`${entry.firstName || ''} ${entry.lastName || ''}`.trim() || 'Player'}
                           {entry.isCurrentPlayer && (
                             <span className="ml-2 text-xs text-primary">(You)</span>
                           )}

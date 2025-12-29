@@ -133,7 +133,7 @@ export default function PlayerView() {
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">{player.name}</h1>
+            <h1 className="text-2xl font-bold text-gray-800">{`${player.firstName || ''} ${player.lastName || ''}`.trim() || 'Player'}</h1>
             {player.clubId && (
               <p className="text-sm text-gray-600">Club: {player.clubId}</p>
             )}

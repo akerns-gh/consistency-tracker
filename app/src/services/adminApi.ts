@@ -177,7 +177,8 @@ export async function deactivateTeam(teamId: string): Promise<{ team: Team; mess
 
 export interface Player {
   playerId: string
-  name: string
+  firstName: string
+  lastName: string
   email?: string
   clubId: string
   teamId: string
@@ -198,7 +199,8 @@ export async function getPlayers(): Promise<{ players: Player[]; total: number }
  * Create a new player
  */
 export async function createPlayer(data: {
-  name: string
+  firstName: string
+  lastName: string
   email: string
   teamId: string
 }): Promise<{ player: Player }> {
