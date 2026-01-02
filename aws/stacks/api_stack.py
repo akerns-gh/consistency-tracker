@@ -254,6 +254,8 @@ class ApiStack(Stack):
         self.database_stack.content_pages_table.grant_read_write_data(admin_role)
         self.database_stack.team_table.grant_read_write_data(admin_role)
         self.database_stack.club_table.grant_read_write_data(admin_role)
+        self.database_stack.coach_table.grant_read_write_data(admin_role)
+        self.database_stack.club_admin_table.grant_read_write_data(admin_role)
 
         # Grant S3 permissions for image upload
         admin_role.add_to_policy(

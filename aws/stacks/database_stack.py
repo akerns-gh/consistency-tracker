@@ -235,3 +235,73 @@ class DatabaseStack(Stack):
             ),
         )
 
+        # Coaches Table
+        # Partition Key: coachId
+        # GSIs: teamId, clubId, email (for querying coaches)
+        self.coach_table = dynamodb.Table(
+            self,
+            "CoachTable",
+            table_name="ConsistencyTracker-Coaches",
+            partition_key=dynamodb.Attribute(
+                name="coachId", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery=True,
+            removal_policy=RemovalPolicy.RETAIN,
+        )
+
+        # GSI: teamId for querying coaches by team
+        self.coach_table.add_global_secondary_index(
+            index_name="teamId-index",
+            partition_key=dynamodb.Attribute(
+                name="teamId", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
+        # GSI: clubId for querying coaches by club
+        self.coach_table.add_global_secondary_index(
+            index_name="clubId-index",
+            partition_key=dynamodb.Attribute(
+                name="clubId", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
+        # GSI: email for looking up coaches by email
+        self.coach_table.add_global_secondary_index(
+            index_name="email-index",
+            partition_key=dynamodb.Attribute(
+                name="email", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
+        # Club Admins Table
+        # Partition Key: adminId
+        # GSIs: clubId, email (for querying club admins)
+        self.club_admin_table = dynamodb.Table(
+            self,
+            "ClubAdminTable",
+            table_name="ConsistencyTracker-ClubAdmins",
+            partition_key=dynamodb.Attribute(
+                name="adminId", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery=True,
+            removal_policy=RemovalPolicy.RETAIN,
+        )
+
+        # GSI: clubId for querying club admins by club
+        self.club_admin_table.add_global_secondary_index(
+            index_name="clubId-index",
+            partition_key=dynamodb.Attribute(
+                name="clubId", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
+        # GSI: email for looking up club admins by email
+        self.club_admin_table.add_global_secondary_index(
+            index_name="email-index",
+            partition_key=dynamodb.Attribute(
+                name="email", type=dynamodb.AttributeType.STRING
+            ),
+        )
+

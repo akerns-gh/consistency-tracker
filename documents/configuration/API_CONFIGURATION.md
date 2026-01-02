@@ -1,5 +1,25 @@
 # API Configuration
 
+## DynamoDB Tables
+
+The application uses the following DynamoDB tables:
+
+- **ConsistencyTracker-Players**: Player records
+- **ConsistencyTracker-Coaches**: Coach records with firstName, lastName, email, teamId, clubId
+- **ConsistencyTracker-ClubAdmins**: Club admin records with firstName, lastName, email, clubId
+- **ConsistencyTracker-Activities**: Activity definitions
+- **ConsistencyTracker-Tracking**: Player activity tracking records
+- **ConsistencyTracker-Reflections**: Player weekly reflections
+- **ConsistencyTracker-ContentPages**: Content pages for teams/clubs
+- **ConsistencyTracker-Teams**: Team configuration
+- **ConsistencyTracker-Clubs**: Club configuration
+
+### User Data Storage
+
+- **Players, Coaches, Club Admins**: Stored in DynamoDB with rich metadata (firstName, lastName, etc.)
+- **App Admins**: Stored only in Cognito (not in DynamoDB)
+- **Authentication**: All user types use Cognito for authentication
+
 ## Custom Domain Setup
 
 The API is configured to use a custom domain: `https://api.repwarrior.net`
@@ -14,7 +34,7 @@ The frontend automatically uses the custom domain. The API base URL is configure
 
 ### Deployment Script
 
-The deployment script (`scripts-frontend/deploy-frontend.sh`) is configured to:
+The deployment script (`scripts/deploy-frontend.sh`) is configured to:
 1. Use the custom domain `https://api.repwarrior.net` by default
 2. Fall back to direct API Gateway URL if custom domain is unavailable
 3. Automatically set `VITE_API_URL` during build
@@ -40,7 +60,7 @@ curl https://api.repwarrior.net/player/test-link
 ### Configuration Files
 
 - `app/src/services/api.ts` - Frontend API client configuration
-- `scripts-frontend/deploy-frontend.sh` - Deployment script with API URL configuration
+- `scripts/deploy-frontend.sh` - Deployment script with API URL configuration
 - `app/src/config/aws-config.ts` - AWS Amplify/Cognito configuration
 
 ### Environment Variables

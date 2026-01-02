@@ -21,7 +21,7 @@ These scripts should be run in the following order for a complete deployment:
 
 3. **Frontend Deployment**:
    ```bash
-   ./scripts-frontend/deploy-frontend.sh
+   ./scripts/deploy-frontend.sh
    ```
    Builds and deploys the React application to S3 and CloudFront
 
@@ -63,7 +63,7 @@ Builds and deploys the frontend application to S3 and CloudFront.
 ### Usage:
 
 ```bash
-./scripts-frontend/deploy-frontend.sh
+./scripts/deploy-frontend.sh
 ```
 
 ### Configuration:

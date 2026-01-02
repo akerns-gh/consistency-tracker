@@ -120,7 +120,7 @@ Or via AWS Console:
 Build and deploy the React frontend:
 
 ```bash
-./scripts-frontend/deploy-frontend.sh
+./scripts/deploy-frontend.sh
 ```
 
 This script:
@@ -194,7 +194,7 @@ python aws/seed_from_csv.py \
 python aws/create_admin_user.py
 
 # 4. Deploy frontend
-./scripts-frontend/deploy-frontend.sh
+./scripts/deploy-frontend.sh
 
 # 5. Configure IP allowlisting (optional)
 ./aws/scripts/update-waf-ip-allowlist.sh
@@ -800,6 +800,8 @@ Check that all DynamoDB tables were created:
 - ConsistencyTracker-Reflections
 - ConsistencyTracker-ContentPages
 - ConsistencyTracker-Teams
+- ConsistencyTracker-Coaches
+- ConsistencyTracker-ClubAdmins
 
 ## Notes
 

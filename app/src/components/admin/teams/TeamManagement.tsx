@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { getTeams, createTeam, updateTeam, activateTeam, deactivateTeam, getTeamCoaches, addTeamCoach, removeTeamCoach, activateCoach, deactivateCoach, Team, Coach, CsvUploadResults } from '../../../services/adminApi'
+import { getTeams, createTeam, updateTeam, activateTeam, deactivateTeam, getTeamCoaches, addTeamCoach, removeTeamCoach, activateCoach, deactivateCoach, updateCoach, Team, Coach, CsvUploadResults } from '../../../services/adminApi'
 import Card from '../../ui/Card'
 import Button from '../../ui/Button'
 import Loading from '../../ui/Loading'
@@ -29,11 +29,16 @@ export default function TeamManagement() {
   const [submitting, setSubmitting] = useState(false)
   
   // Coach form state (per team)
-  const [coachForms, setCoachForms] = useState<Record<string, { email: string; password: string }>>({})
+  const [coachForms, setCoachForms] = useState<Record<string, { firstName: string; lastName: string; email: string; password: string }>>({})
   const [coachErrors, setCoachErrors] = useState<Record<string, string>>({})
   const [submittingCoach, setSubmittingCoach] = useState<Set<string>>(new Set())
   const [showCsvUpload, setShowCsvUpload] = useState(false)
   const [csvSummary, setCsvSummary] = useState<CsvUploadResults | null>(null)
+  
+  // Coach edit state
+  const [editingCoach, setEditingCoach] = useState<{ teamId: string; coach: Coach } | null>(null)
+  const [editCoachFirstName, setEditCoachFirstName] = useState('')
+  const [editCoachLastName, setEditCoachLastName] = useState('')
 
   useEffect(() => {
     loadTeams()
@@ -137,8 +142,20 @@ export default function TeamManagement() {
     
     setCoachErrors(prev => ({ ...prev, [teamId]: '' }))
     
+    const firstName = form.firstName.trim()
+    const lastName = form.lastName.trim()
     const email = form.email.trim()
     const password = form.password.trim()
+    
+    if (!firstName) {
+      setCoachErrors(prev => ({ ...prev, [teamId]: 'Please enter a first name' }))
+      return
+    }
+    
+    if (!lastName) {
+      setCoachErrors(prev => ({ ...prev, [teamId]: 'Please enter a last name' }))
+      return
+    }
     
     if (!email) {
       setCoachErrors(prev => ({ ...prev, [teamId]: 'Please enter an email address' }))
@@ -157,7 +174,7 @@ export default function TeamManagement() {
 
     try {
       setSubmittingCoach(prev => new Set(prev).add(teamId))
-      await addTeamCoach(teamId, { coachEmail: email, coachPassword: password })
+      await addTeamCoach(teamId, { firstName, lastName, coachEmail: email, coachPassword: password })
       
       // Clear form
       setCoachForms(prev => {
@@ -248,6 +265,41 @@ export default function TeamManagement() {
       setCoachesByTeam(prev => ({ ...prev, [teamId]: data.coaches || [] }))
     } catch (err: any) {
       alert(err?.message || 'Failed to deactivate coach')
+    }
+  }
+
+  const handleEditCoach = (teamId: string, coach: Coach) => {
+    setEditingCoach({ teamId, coach })
+    setEditCoachFirstName(coach.firstName || '')
+    setEditCoachLastName(coach.lastName || '')
+  }
+
+  const handleSaveCoachEdit = async () => {
+    if (!editingCoach) return
+    
+    const firstName = editCoachFirstName.trim()
+    const lastName = editCoachLastName.trim()
+    
+    if (!firstName || !lastName) {
+      alert('First name and last name are required')
+      return
+    }
+    
+    try {
+      await updateCoach(editingCoach.teamId, editingCoach.coach.coachId, {
+        firstName,
+        lastName
+      })
+      
+      setEditingCoach(null)
+      setEditCoachFirstName('')
+      setEditCoachLastName('')
+      
+      // Reload coaches
+      const data = await getTeamCoaches(editingCoach.teamId)
+      setCoachesByTeam(prev => ({ ...prev, [editingCoach.teamId]: data.coaches || [] }))
+    } catch (err: any) {
+      alert(err?.message || 'Failed to update coach')
     }
   }
 
@@ -462,7 +514,7 @@ export default function TeamManagement() {
                 const isExpanded = expandedTeams.has(team.teamId)
                 const coaches = coachesByTeam[team.teamId] || []
                 const isLoadingCoaches = loadingCoaches.has(team.teamId)
-                const coachForm = coachForms[team.teamId] || { email: '', password: '' }
+                const coachForm = coachForms[team.teamId] || { firstName: '', lastName: '', email: '', password: '' }
                 const coachError = coachErrors[team.teamId] || ''
                 const isSubmittingCoach = submittingCoach.has(team.teamId)
                 
@@ -541,10 +593,14 @@ export default function TeamManagement() {
                         ) : (
                           <div className="space-y-2 mb-4">
                             {coaches.map((coach) => (
-                              <div key={coach.email} className="flex items-center justify-between bg-white px-4 py-2 rounded border border-gray-200">
+                              <div key={coach.coachId || coach.email} className="flex items-center justify-between bg-white px-4 py-2 rounded border border-gray-200">
                                 <div className="flex-1">
                                   <div className="flex items-center space-x-2">
-                                  <div className="text-sm font-medium text-gray-900">{coach.email}</div>
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {coach.firstName && coach.lastName 
+                                        ? `${coach.firstName} ${coach.lastName}`
+                                        : coach.email}
+                                    </div>
                                     <span
                                       className={`px-2 py-1 rounded text-xs ${
                                         coach.isActive !== false
@@ -556,10 +612,18 @@ export default function TeamManagement() {
                                     </span>
                                   </div>
                                   <div className="text-xs text-gray-500 mt-1">
-                                    Status: {coach.status}
+                                    {coach.email}
+                                    {coach.createdAt && ` • Created ${new Date(coach.createdAt).toLocaleDateString()}`}
                                   </div>
                                 </div>
                                 <div className="flex items-center space-x-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleEditCoach(team.teamId, coach)}
+                                  >
+                                    Edit
+                                  </Button>
                                   {coach.isActive !== false ? (
                                     <Button
                                       variant="outline"
@@ -600,6 +664,38 @@ export default function TeamManagement() {
                             </div>
                           )}
                           <div className="space-y-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                First Name <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={coachForm.firstName}
+                                onChange={(e) => setCoachForms(prev => ({
+                                  ...prev,
+                                  [team.teamId]: { ...coachForm, firstName: e.target.value }
+                                }))}
+                                placeholder="First Name"
+                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                disabled={isSubmittingCoach}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Last Name <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={coachForm.lastName}
+                                onChange={(e) => setCoachForms(prev => ({
+                                  ...prev,
+                                  [team.teamId]: { ...coachForm, lastName: e.target.value }
+                                }))}
+                                placeholder="Last Name"
+                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                disabled={isSubmittingCoach}
+                              />
+                            </div>
                             <div>
                               <label className="block text-xs font-medium text-gray-700 mb-1">
                                 Coach Email <span className="text-red-500">*</span>
@@ -663,6 +759,74 @@ export default function TeamManagement() {
           }}
           onCancel={() => setShowCsvUpload(false)}
         />
+      )}
+
+      {/* Edit Coach Modal */}
+      {editingCoach && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Edit Coach</h3>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  First Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editCoachFirstName}
+                  onChange={(e) => setEditCoachFirstName(e.target.value)}
+                  placeholder="First Name"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Last Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editCoachLastName}
+                  onChange={(e) => setEditCoachLastName(e.target.value)}
+                  placeholder="Last Name"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={editingCoach.coach.email}
+                  disabled
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Email cannot be changed
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex space-x-2 mt-6">
+              <Button onClick={handleSaveCoachEdit}>
+                Save
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditingCoach(null)
+                  setEditCoachFirstName('')
+                  setEditCoachLastName('')
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

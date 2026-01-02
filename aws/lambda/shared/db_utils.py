@@ -15,6 +15,8 @@ REFLECTION_TABLE = os.environ.get("REFLECTION_TABLE", "ConsistencyTracker-Reflec
 CONTENT_PAGES_TABLE = os.environ.get("CONTENT_PAGES_TABLE", "ConsistencyTracker-ContentPages")
 TEAM_TABLE = os.environ.get("TEAM_TABLE", "ConsistencyTracker-Teams")
 CLUB_TABLE = os.environ.get("CLUB_TABLE", "ConsistencyTracker-Clubs")
+COACH_TABLE = os.environ.get("COACH_TABLE", "ConsistencyTracker-Coaches")
+CLUB_ADMIN_TABLE = os.environ.get("CLUB_ADMIN_TABLE", "ConsistencyTracker-ClubAdmins")
 
 # Initialize DynamoDB client
 dynamodb = boto3.resource("dynamodb")
@@ -398,4 +400,118 @@ def create_or_update_reflection(
     except ClientError as e:
         print(f"Error creating/updating reflection: {e}")
         raise
+
+
+def get_coach_by_id(coach_id: str) -> Optional[Dict[str, Any]]:
+    """Get a coach by coachId."""
+    try:
+        table = get_table(COACH_TABLE)
+        response = table.get_item(Key={"coachId": coach_id})
+        return response.get("Item")
+    except ClientError as e:
+        print(f"Error getting coach {coach_id}: {e}")
+        return None
+
+
+def get_coach_by_email(email: str) -> Optional[Dict[str, Any]]:
+    """Get a coach by email using email-index GSI."""
+    try:
+        table = get_table(COACH_TABLE)
+        response = table.query(
+            IndexName="email-index",
+            KeyConditionExpression="email = :email",
+            ExpressionAttributeValues={":email": email},
+        )
+        items = response.get("Items", [])
+        return items[0] if items else None
+    except ClientError as e:
+        print(f"Error getting coach by email {email}: {e}")
+        return None
+
+
+def get_coaches_by_team(team_id: str, active_only: bool = True) -> List[Dict[str, Any]]:
+    """Get all coaches for a team."""
+    try:
+        table = get_table(COACH_TABLE)
+        response = table.query(
+            IndexName="teamId-index",
+            KeyConditionExpression="teamId = :teamId",
+            ExpressionAttributeValues={":teamId": team_id},
+        )
+        coaches = response.get("Items", [])
+        
+        if active_only:
+            coaches = [c for c in coaches if c.get("isActive", True)]
+        
+        return coaches
+    except ClientError as e:
+        print(f"Error getting coaches for team {team_id}: {e}")
+        return []
+
+
+def get_coaches_by_club(club_id: str, active_only: bool = True) -> List[Dict[str, Any]]:
+    """Get all coaches for a club."""
+    try:
+        table = get_table(COACH_TABLE)
+        response = table.query(
+            IndexName="clubId-index",
+            KeyConditionExpression="clubId = :clubId",
+            ExpressionAttributeValues={":clubId": club_id},
+        )
+        coaches = response.get("Items", [])
+        
+        if active_only:
+            coaches = [c for c in coaches if c.get("isActive", True)]
+        
+        return coaches
+    except ClientError as e:
+        print(f"Error getting coaches for club {club_id}: {e}")
+        return []
+
+
+def get_club_admin_by_id(admin_id: str) -> Optional[Dict[str, Any]]:
+    """Get a club admin by adminId."""
+    try:
+        table = get_table(CLUB_ADMIN_TABLE)
+        response = table.get_item(Key={"adminId": admin_id})
+        return response.get("Item")
+    except ClientError as e:
+        print(f"Error getting club admin {admin_id}: {e}")
+        return None
+
+
+def get_club_admin_by_email(email: str) -> Optional[Dict[str, Any]]:
+    """Get a club admin by email using email-index GSI."""
+    try:
+        table = get_table(CLUB_ADMIN_TABLE)
+        response = table.query(
+            IndexName="email-index",
+            KeyConditionExpression="email = :email",
+            ExpressionAttributeValues={":email": email},
+        )
+        items = response.get("Items", [])
+        return items[0] if items else None
+    except ClientError as e:
+        print(f"Error getting club admin by email {email}: {e}")
+        return None
+
+
+def get_club_admins_by_club(club_id: str, active_only: bool = True) -> List[Dict[str, Any]]:
+    """Get all club admins for a club."""
+    try:
+        table = get_table(CLUB_ADMIN_TABLE)
+        response = table.query(
+            IndexName="clubId-index",
+            KeyConditionExpression="clubId = :clubId",
+            ExpressionAttributeValues={":clubId": club_id},
+        )
+        admins = response.get("Items", [])
+        
+        if active_only:
+            admins = [a for a in admins if a.get("isActive", True)]
+        
+        return admins
+    except ClientError as e:
+        print(f"Error getting club admins for club {club_id}: {e}")
+        return []
 

@@ -20,11 +20,26 @@ export interface Team {
 }
 
 export interface Coach {
+  coachId: string
+  firstName: string
+  lastName: string
   email: string
-  username: string
-  status: string
-  enabled?: boolean
-  isActive?: boolean
+  teamId: string
+  clubId: string
+  isActive: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface ClubAdmin {
+  adminId: string
+  firstName: string
+  lastName: string
+  email: string
+  clubId: string
+  isActive: boolean
+  createdAt?: string
+  updatedAt?: string
 }
 
 /**
@@ -41,6 +56,8 @@ export async function getClubs(): Promise<{ clubs: Club[]; total: number }> {
 export async function createClub(data: {
   clubName: string
   settings?: Record<string, any>
+  firstName: string
+  lastName: string
   adminEmail: string
   adminPassword: string
 }): Promise<{ club: Club }> {
@@ -49,13 +66,56 @@ export async function createClub(data: {
 }
 
 /**
+ * Get club admins for a club (app-admin only)
+ */
+export async function getClubAdmins(clubId: string): Promise<{ admins: ClubAdmin[]; total: number }> {
+  const response = await api.get(`/admin/clubs/${clubId}/admins`)
+  return response.data.data
+}
+
+/**
  * Add an additional club administrator to an existing club (app-admin only)
  */
 export async function addClubAdmin(
   clubId: string,
-  data: { adminEmail: string; adminPassword: string }
-): Promise<{ message: string; clubId: string; adminEmail: string }> {
+  data: { firstName: string; lastName: string; adminEmail: string; adminPassword: string }
+): Promise<{ admin: ClubAdmin; emailStatus: any; message: string }> {
   const response = await api.post(`/admin/clubs/${clubId}/admins`, data)
+  return response.data.data
+}
+
+/**
+ * Update a club admin's firstName and lastName
+ */
+export async function updateClubAdmin(
+  clubId: string,
+  adminId: string,
+  data: { firstName: string; lastName: string }
+): Promise<{ admin: ClubAdmin; message: string }> {
+  const response = await api.put(`/admin/clubs/${clubId}/admins/${adminId}`, data)
+  return response.data.data
+}
+
+/**
+ * Delete a club admin (app-admin only)
+ */
+export async function deleteClubAdmin(
+  clubId: string,
+  adminId: string
+): Promise<{ message: string }> {
+  const response = await api.delete(`/admin/clubs/${clubId}/admins/${adminId}`)
+  return response.data.data
+}
+
+/**
+ * Update a coach's firstName and lastName
+ */
+export async function updateCoach(
+  teamId: string,
+  coachId: string,
+  data: { firstName: string; lastName: string }
+): Promise<{ coach: Coach; message: string }> {
+  const response = await api.put(`/admin/teams/${teamId}/coaches/${coachId}`, data)
   return response.data.data
 }
 
@@ -118,7 +178,7 @@ export async function getTeamCoaches(teamId: string): Promise<{ coaches: Coach[]
  */
 export async function addTeamCoach(
   teamId: string,
-  data: { coachEmail: string; coachPassword: string }
+  data: { firstName: string; lastName: string; coachEmail: string; coachPassword: string }
 ): Promise<{ coach: Coach; emailStatus: any; message: string }> {
   const response = await api.post(`/admin/teams/${teamId}/coaches`, data)
   return response.data.data

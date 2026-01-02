@@ -40,6 +40,12 @@ from shared.db_utils import (
     get_activities_by_club,
     get_all_content_pages_by_club,
     get_tracking_by_week,
+    get_coach_by_email,
+    get_coaches_by_team,
+    get_club_admin_by_email,
+    get_club_admins_by_club,
+    get_club_admin_by_id,
+    get_coach_by_id,
 )
 from shared.auth_utils import extract_user_info_from_event, extract_user_info_from_jwt_token, verify_admin_role, verify_app_admin_role
 from shared.flask_auth import get_api_gateway_event
@@ -930,6 +936,8 @@ def create_club():
         # If admin email and password provided, create the user and add to group
         admin_email = body.get("adminEmail")
         admin_password = body.get("adminPassword")
+        admin_first_name = body.get("firstName", "").strip()
+        admin_last_name = body.get("lastName", "").strip()
         verification_status = None
         if admin_email and admin_password:
             # Automatically verify the email address in SES
@@ -951,12 +959,36 @@ def create_club():
                 admin_password,
                 club_id=new_club_id  # Set custom:clubId attribute
             )
-            if user_info and group_name:
+            if not user_info:
+                return flask_error_response("Failed to create Cognito user for club admin", status_code=500)
+            
+            if group_name:
                 add_user_to_cognito_group(
                     COGNITO_USER_POOL_ID,
                     user_info['username'],
                     group_name
                 )
+            
+            # Create DynamoDB club admin record
+            if admin_first_name and admin_last_name:
+                try:
+                    admin_id = str(uuid.uuid4())
+                    admin_record = {
+                        "adminId": admin_id,
+                        "firstName": admin_first_name,
+                        "lastName": admin_last_name,
+                        "email": admin_email,
+                        "clubId": new_club_id,
+                        "isActive": True,
+                        "createdAt": now,
+                    }
+                    
+                    admin_table = get_table("ConsistencyTracker-ClubAdmins")
+                    admin_table.put_item(Item=admin_record)
+                    print(f"Created DynamoDB record for club admin: {admin_email}")
+                except Exception as e:
+                    print(f"Error creating DynamoDB record for club admin {admin_email}: {e}")
+                    # Continue anyway - Cognito user and group membership already created
     
     # Send email notifications
     response_data = {"club": club}
@@ -1091,6 +1123,35 @@ def update_club(club_id):
     return flask_success_response({"club": updated})
 
 
+@app.route('/admin/clubs/<club_id>/admins', methods=['GET'])
+@require_admin
+@require_app_admin
+def list_club_admins(club_id):
+    """List all club admins for a club."""
+    # Ensure club exists
+    club = get_club_by_id(club_id)
+    if not club:
+        return flask_error_response("Club not found", status_code=404)
+    
+    # Get club admins from DynamoDB
+    admins = get_club_admins_by_club(club_id)
+    
+    # Format response
+    admin_list = []
+    for admin in admins:
+        admin_list.append({
+            "adminId": admin.get("adminId"),
+            "firstName": admin.get("firstName", ""),
+            "lastName": admin.get("lastName", ""),
+            "email": admin.get("email"),
+            "clubId": admin.get("clubId"),
+            "isActive": admin.get("isActive", True),
+            "createdAt": admin.get("createdAt"),
+        })
+    
+    return flask_success_response({"admins": admin_list, "total": len(admin_list)})
+
+
 @app.route('/admin/clubs/<club_id>/admins', methods=['POST'])
 @require_admin
 @require_app_admin
@@ -1101,6 +1162,7 @@ def add_club_admin(club_id):
     - Restricted to app-admins only
     - Ensures the user has custom:clubId set
     - Adds the user to the club-{sanitizedName}-admins Cognito group
+    - Creates DynamoDB record for club admin
     """
     if not COGNITO_USER_POOL_ID or not cognito_client:
         return flask_error_response("Cognito is not configured for admin management", status_code=500)
@@ -1113,12 +1175,22 @@ def add_club_admin(club_id):
     body = request.get_json() or {}
     admin_email = (body.get("adminEmail") or "").strip()
     admin_password = (body.get("adminPassword") or "").strip()
+    first_name = (body.get("firstName") or "").strip()
+    last_name = (body.get("lastName") or "").strip()
     
     if not admin_email or not admin_password:
         return flask_error_response("adminEmail and adminPassword are required", status_code=400)
     
+    if not first_name or not last_name:
+        return flask_error_response("firstName and lastName are required", status_code=400)
+    
     if not validate_email_address(admin_email):
         return flask_error_response("Invalid adminEmail address", status_code=400)
+    
+    # Check if club admin already exists in DynamoDB
+    existing_admin = get_club_admin_by_email(admin_email)
+    if existing_admin:
+        return flask_error_response("Club admin with this email already exists", status_code=400)
     
     # Build club-admin group name
     sanitized_name = sanitize_club_name_for_group(club.get("clubName", ""))
@@ -1148,6 +1220,29 @@ def add_club_admin(club_id):
         user_info["username"],
         group_name,
     )
+    
+    # Create DynamoDB club admin record
+    try:
+        admin_id = str(uuid.uuid4())
+        now = datetime.utcnow().isoformat() + "Z"
+        
+        admin_record = {
+            "adminId": admin_id,
+            "firstName": first_name,
+            "lastName": last_name,
+            "email": admin_email,
+            "clubId": club_id,
+            "isActive": True,
+            "createdAt": now,
+        }
+        
+        table = get_table("ConsistencyTracker-ClubAdmins")
+        table.put_item(Item=admin_record)
+        print(f"Created DynamoDB record for club admin: {admin_email}")
+    except Exception as e:
+        print(f"Error creating DynamoDB record for club admin {admin_email}: {e}")
+        # Note: Cognito user and group membership already created, but we'll continue
+        # In production, you might want to rollback or mark for cleanup
     
     # Optionally send an invitation email (reuse existing template)
     email_status = None
@@ -1184,15 +1279,142 @@ def add_club_admin(club_id):
         }
         print(f"Error sending additional club-admin invitation email to {admin_email}: {e}")
     
-    return flask_success_response(
-        {
-            "message": "Club administrator added successfully",
+    return flask_success_response({
+        "admin": {
+            "adminId": admin_id,
+            "firstName": first_name,
+            "lastName": last_name,
+            "email": admin_email,
             "clubId": club_id,
-            "adminEmail": admin_email,
-            "emailStatus": email_status,
+            "isActive": True,
+            "createdAt": now,
         },
-        status_code=201,
-    )
+        "emailStatus": email_status,
+        "message": "Club administrator added successfully",
+    }, status_code=201)
+
+
+@app.route('/admin/clubs/<club_id>/admins/<admin_id>', methods=['PUT'])
+@require_admin
+@require_app_admin
+def update_club_admin(club_id, admin_id):
+    """Update club admin firstName and lastName."""
+    # Ensure club exists
+    club = get_club_by_id(club_id)
+    if not club:
+        return flask_error_response("Club not found", status_code=404)
+    
+    # Get admin from DynamoDB
+    admin = get_club_admin_by_id(admin_id)
+    if not admin:
+        return flask_error_response("Club admin not found", status_code=404)
+    
+    if admin.get("clubId") != club_id:
+        return flask_error_response("Club admin does not belong to this club", status_code=403)
+    
+    body = request.get_json() or {}
+    first_name = (body.get("firstName") or "").strip()
+    last_name = (body.get("lastName") or "").strip()
+    
+    if not first_name or not last_name:
+        return flask_error_response("firstName and lastName are required", status_code=400)
+    
+    # Update DynamoDB record
+    try:
+        table = get_table("ConsistencyTracker-ClubAdmins")
+        table.update_item(
+            Key={"adminId": admin_id},
+            UpdateExpression="SET firstName = :firstName, lastName = :lastName, updatedAt = :updatedAt",
+            ExpressionAttributeValues={
+                ":firstName": first_name,
+                ":lastName": last_name,
+                ":updatedAt": datetime.utcnow().isoformat() + "Z"
+            },
+            ReturnValues="ALL_NEW"
+        )
+        updated_admin = table.get_item(Key={"adminId": admin_id}).get("Item")
+    except Exception as e:
+        print(f"Error updating club admin {admin_id}: {e}")
+        return flask_error_response("Failed to update club admin", status_code=500)
+    
+    return flask_success_response({
+        "admin": {
+            "adminId": updated_admin.get("adminId"),
+            "firstName": updated_admin.get("firstName", ""),
+            "lastName": updated_admin.get("lastName", ""),
+            "email": updated_admin.get("email"),
+            "clubId": updated_admin.get("clubId"),
+            "isActive": updated_admin.get("isActive", True),
+            "createdAt": updated_admin.get("createdAt"),
+            "updatedAt": updated_admin.get("updatedAt"),
+        },
+        "message": "Club admin updated successfully"
+    })
+
+
+@app.route('/admin/clubs/<club_id>/admins/<admin_id>', methods=['DELETE'])
+@require_admin
+@require_app_admin
+def delete_club_admin(club_id, admin_id):
+    """Delete club admin (remove from Cognito group and deactivate in DynamoDB)."""
+    if not COGNITO_USER_POOL_ID or not cognito_client:
+        return flask_error_response("Cognito is not configured for admin management", status_code=500)
+    
+    # Ensure club exists
+    club = get_club_by_id(club_id)
+    if not club:
+        return flask_error_response("Club not found", status_code=404)
+    
+    # Get admin from DynamoDB
+    admin = get_club_admin_by_id(admin_id)
+    if not admin:
+        return flask_error_response("Club admin not found", status_code=404)
+    
+    if admin.get("clubId") != club_id:
+        return flask_error_response("Club admin does not belong to this club", status_code=403)
+    
+    # Check if this is the last admin
+    all_admins = get_club_admins_by_club(club_id, active_only=False)
+    active_admins = [a for a in all_admins if a.get("isActive", True)]
+    
+    if len(active_admins) <= 1:
+        return flask_error_response("Cannot delete the last active club admin", status_code=400)
+    
+    # Build club-admin group name
+    sanitized_name = sanitize_club_name_for_group(club.get("clubName", ""))
+    group_name = f"club-{sanitized_name}-admins"
+    
+    admin_email = admin.get("email")
+    
+    # Remove user from Cognito group
+    try:
+        remove_user_from_cognito_group(
+            COGNITO_USER_POOL_ID,
+            admin_email,
+            group_name
+        )
+    except Exception as e:
+        print(f"Error removing admin from Cognito group: {e}")
+        # Continue - will still deactivate in DynamoDB
+    
+    # Set isActive=False in DynamoDB
+    try:
+        table = get_table("ConsistencyTracker-ClubAdmins")
+        table.update_item(
+            Key={"adminId": admin_id},
+            UpdateExpression="SET isActive = :isActive, updatedAt = :updatedAt",
+            ExpressionAttributeValues={
+                ":isActive": False,
+                ":updatedAt": datetime.utcnow().isoformat() + "Z"
+            }
+        )
+    except Exception as e:
+        print(f"Error updating DynamoDB record for admin {admin_id}: {e}")
+        return flask_error_response("Failed to deactivate club admin", status_code=500)
+    
+    return flask_success_response({
+        "message": "Club admin removed successfully"
+    })
 
 
 @app.route('/admin/clubs/<club_id>/disable', methods=['POST'])
@@ -1662,17 +1884,31 @@ def list_team_coaches(team_id):
     if team.get("clubId") != club_id:
         return flask_error_response("Team not found or access denied", status_code=403)
     
-    # Get coaches from Cognito group
-    coaches = get_coaches_for_team(team_id)
+    # Get coaches from DynamoDB
+    coaches = get_coaches_by_team(team_id)
     
-    return flask_success_response({"coaches": coaches, "total": len(coaches)})
+    # Format response
+    coach_list = []
+    for coach in coaches:
+        coach_list.append({
+            "coachId": coach.get("coachId"),
+            "firstName": coach.get("firstName", ""),
+            "lastName": coach.get("lastName", ""),
+            "email": coach.get("email"),
+            "teamId": coach.get("teamId"),
+            "clubId": coach.get("clubId"),
+            "isActive": coach.get("isActive", True),
+            "createdAt": coach.get("createdAt"),
+        })
+    
+    return flask_success_response({"coaches": coach_list, "total": len(coach_list)})
 
 
 @app.route('/admin/teams/<team_id>/coaches', methods=['POST'])
 @require_admin
 @require_club
 def add_team_coach(team_id):
-    """Add a coach to a team (create Cognito user + add to group + send invitation email)."""
+    """Add a coach to a team (create Cognito user + DynamoDB record + add to group + send invitation email)."""
     if not COGNITO_USER_POOL_ID or not cognito_client:
         return flask_error_response("Cognito is not configured for coach management", status_code=500)
     
@@ -1681,12 +1917,22 @@ def add_team_coach(team_id):
     
     coach_email = (body.get("coachEmail") or "").strip()
     coach_password = (body.get("coachPassword") or "").strip()
+    first_name = (body.get("firstName") or "").strip()
+    last_name = (body.get("lastName") or "").strip()
     
     if not coach_email or not coach_password:
         return flask_error_response("coachEmail and coachPassword are required", status_code=400)
     
+    if not first_name or not last_name:
+        return flask_error_response("firstName and lastName are required", status_code=400)
+    
     if not validate_email_address(coach_email):
         return flask_error_response("Invalid coachEmail address", status_code=400)
+    
+    # Check if coach already exists in DynamoDB
+    existing_coach = get_coach_by_email(coach_email)
+    if existing_coach:
+        return flask_error_response("Coach with this email already exists", status_code=400)
     
     # Get team and verify it belongs to the club
     team = get_team_by_id(team_id)
@@ -1724,6 +1970,30 @@ def add_team_coach(team_id):
         user_info["username"],
         group_name,
     )
+    
+    # Create DynamoDB coach record
+    try:
+        coach_id = str(uuid.uuid4())
+        now = datetime.utcnow().isoformat() + "Z"
+        
+        coach_record = {
+            "coachId": coach_id,
+            "firstName": first_name,
+            "lastName": last_name,
+            "email": coach_email,
+            "teamId": team_id,
+            "clubId": club_id,
+            "isActive": True,
+            "createdAt": now,
+        }
+        
+        table = get_table("ConsistencyTracker-Coaches")
+        table.put_item(Item=coach_record)
+        print(f"Created DynamoDB record for coach: {coach_email}")
+    except Exception as e:
+        print(f"Error creating DynamoDB record for coach {coach_email}: {e}")
+        # Note: Cognito user and group membership already created, but we'll continue
+        # In production, you might want to rollback or mark for cleanup
     
     # Send invitation email
     email_status = None
@@ -1764,9 +2034,14 @@ def add_team_coach(team_id):
     
     return flask_success_response({
         "coach": {
+            "coachId": coach_id,
+            "firstName": first_name,
+            "lastName": last_name,
             "email": coach_email,
-            "username": user_info["username"],
-            "status": user_info["status"]
+            "teamId": team_id,
+            "clubId": club_id,
+            "isActive": True,
+            "createdAt": now,
         },
         "emailStatus": email_status,
         "message": "Coach added successfully"
@@ -1777,7 +2052,7 @@ def add_team_coach(team_id):
 @require_admin
 @require_club
 def remove_team_coach(team_id, coach_email):
-    """Remove a coach from a team (remove from Cognito group)."""
+    """Remove a coach from a team (remove from Cognito group and deactivate in DynamoDB)."""
     if not COGNITO_USER_POOL_ID or not cognito_client:
         return flask_error_response("Cognito is not configured for coach management", status_code=500)
     
@@ -1790,6 +2065,11 @@ def remove_team_coach(team_id, coach_email):
     
     if team.get("clubId") != club_id:
         return flask_error_response("Team not found or access denied", status_code=403)
+    
+    # Get coach from DynamoDB
+    coach = get_coach_by_email(coach_email)
+    if not coach or coach.get("teamId") != team_id:
+        return flask_error_response("Coach not found in this team", status_code=404)
     
     # Build coach group name
     group_name = f"coach-{club_id}-{team_id}"
@@ -1804,6 +2084,21 @@ def remove_team_coach(team_id, coach_email):
     if not success:
         return flask_error_response("Failed to remove coach from team", status_code=500)
     
+    # Update DynamoDB record to set isActive=False
+    try:
+        table = get_table("ConsistencyTracker-Coaches")
+        table.update_item(
+            Key={"coachId": coach.get("coachId")},
+            UpdateExpression="SET isActive = :isActive, updatedAt = :updatedAt",
+            ExpressionAttributeValues={
+                ":isActive": False,
+                ":updatedAt": datetime.utcnow().isoformat() + "Z"
+            }
+        )
+    except Exception as e:
+        print(f"Error updating DynamoDB record for coach {coach_email}: {e}")
+        # Continue anyway - Cognito group removal succeeded
+    
     return flask_success_response({
         "message": "Coach removed from team successfully"
     })
@@ -1813,7 +2108,7 @@ def remove_team_coach(team_id, coach_email):
 @require_admin
 @require_club
 def activate_team_coach(team_id, coach_email):
-    """Activate a coach (enable Cognito user account)."""
+    """Activate a coach (enable Cognito user account and update DynamoDB)."""
     if not COGNITO_USER_POOL_ID or not cognito_client:
         return flask_error_response("Cognito is not configured for coach management", status_code=500)
     
@@ -1827,29 +2122,58 @@ def activate_team_coach(team_id, coach_email):
     if team.get("clubId") != club_id:
         return flask_error_response("Team not found or access denied", status_code=403)
     
-    # Verify coach is in the team's coach group
-    coaches = get_coaches_for_team(team_id)
-    coach = next((c for c in coaches if c.get('email') == coach_email), None)
-    if not coach:
+    # Get coach from DynamoDB
+    coach = get_coach_by_email(coach_email)
+    if not coach or coach.get("teamId") != team_id:
         return flask_error_response("Coach not found in this team", status_code=404)
     
-    # Check if already enabled
-    if coach.get('enabled', True):
+    # Check if already active
+    if coach.get('isActive', True):
         return flask_error_response("Coach is already active", status_code=400)
     
     # Enable the Cognito user
-    username = coach.get('username', coach_email)
+    # Get username from Cognito
+    try:
+        response = cognito_client.admin_get_user(
+            UserPoolId=COGNITO_USER_POOL_ID,
+            Username=coach_email
+        )
+        username = response.get('Username', coach_email)
+    except ClientError:
+        username = coach_email
+    
     success = enable_cognito_user(COGNITO_USER_POOL_ID, username)
     
     if not success:
         return flask_error_response("Failed to activate coach", status_code=500)
     
-    # Get updated coach info
-    coaches = get_coaches_for_team(team_id)
-    updated_coach = next((c for c in coaches if c.get('email') == coach_email), None)
+    # Update DynamoDB record
+    try:
+        table = get_table("ConsistencyTracker-Coaches")
+        table.update_item(
+            Key={"coachId": coach.get("coachId")},
+            UpdateExpression="SET isActive = :isActive, updatedAt = :updatedAt",
+            ExpressionAttributeValues={
+                ":isActive": True,
+                ":updatedAt": datetime.utcnow().isoformat() + "Z"
+            },
+            ReturnValues="ALL_NEW"
+        )
+        updated_coach = table.get_item(Key={"coachId": coach.get("coachId")}).get("Item")
+    except Exception as e:
+        print(f"Error updating DynamoDB record for coach {coach_email}: {e}")
+        updated_coach = coach
     
     return flask_success_response({
-        "coach": updated_coach,
+        "coach": {
+            "coachId": updated_coach.get("coachId"),
+            "firstName": updated_coach.get("firstName", ""),
+            "lastName": updated_coach.get("lastName", ""),
+            "email": updated_coach.get("email"),
+            "teamId": updated_coach.get("teamId"),
+            "clubId": updated_coach.get("clubId"),
+            "isActive": updated_coach.get("isActive", True),
+        },
         "message": "Coach activated successfully"
     })
 
@@ -1858,7 +2182,7 @@ def activate_team_coach(team_id, coach_email):
 @require_admin
 @require_club
 def deactivate_team_coach(team_id, coach_email):
-    """Deactivate a coach (disable Cognito user account)."""
+    """Deactivate a coach (disable Cognito user account and update DynamoDB)."""
     if not COGNITO_USER_POOL_ID or not cognito_client:
         return flask_error_response("Cognito is not configured for coach management", status_code=500)
     
@@ -1872,30 +2196,123 @@ def deactivate_team_coach(team_id, coach_email):
     if team.get("clubId") != club_id:
         return flask_error_response("Team not found or access denied", status_code=403)
     
-    # Verify coach is in the team's coach group
-    coaches = get_coaches_for_team(team_id)
-    coach = next((c for c in coaches if c.get('email') == coach_email), None)
-    if not coach:
+    # Get coach from DynamoDB
+    coach = get_coach_by_email(coach_email)
+    if not coach or coach.get("teamId") != team_id:
         return flask_error_response("Coach not found in this team", status_code=404)
     
-    # Check if already disabled
-    if not coach.get('enabled', True):
+    # Check if already inactive
+    if not coach.get('isActive', True):
         return flask_error_response("Coach is already inactive", status_code=400)
     
     # Disable the Cognito user
-    username = coach.get('username', coach_email)
+    # Get username from Cognito
+    try:
+        response = cognito_client.admin_get_user(
+            UserPoolId=COGNITO_USER_POOL_ID,
+            Username=coach_email
+        )
+        username = response.get('Username', coach_email)
+    except ClientError:
+        username = coach_email
+    
     success = disable_cognito_user(COGNITO_USER_POOL_ID, username)
     
     if not success:
         return flask_error_response("Failed to deactivate coach", status_code=500)
     
-    # Get updated coach info
-    coaches = get_coaches_for_team(team_id)
-    updated_coach = next((c for c in coaches if c.get('email') == coach_email), None)
+    # Update DynamoDB record
+    try:
+        table = get_table("ConsistencyTracker-Coaches")
+        table.update_item(
+            Key={"coachId": coach.get("coachId")},
+            UpdateExpression="SET isActive = :isActive, updatedAt = :updatedAt",
+            ExpressionAttributeValues={
+                ":isActive": False,
+                ":updatedAt": datetime.utcnow().isoformat() + "Z"
+            },
+            ReturnValues="ALL_NEW"
+        )
+        updated_coach = table.get_item(Key={"coachId": coach.get("coachId")}).get("Item")
+    except Exception as e:
+        print(f"Error updating DynamoDB record for coach {coach_email}: {e}")
+        updated_coach = coach
     
     return flask_success_response({
-        "coach": updated_coach,
+        "coach": {
+            "coachId": updated_coach.get("coachId"),
+            "firstName": updated_coach.get("firstName", ""),
+            "lastName": updated_coach.get("lastName", ""),
+            "email": updated_coach.get("email"),
+            "teamId": updated_coach.get("teamId"),
+            "clubId": updated_coach.get("clubId"),
+            "isActive": updated_coach.get("isActive", True),
+        },
         "message": "Coach deactivated successfully"
+    })
+
+
+@app.route('/admin/teams/<team_id>/coaches/<coach_id>', methods=['PUT'])
+@require_admin
+@require_club
+def update_team_coach(team_id, coach_id):
+    """Update coach firstName and lastName."""
+    club_id = g.club_id
+    
+    # Get team and verify it belongs to the club
+    team = get_team_by_id(team_id)
+    if not team:
+        return flask_error_response("Team not found", status_code=404)
+    
+    if team.get("clubId") != club_id:
+        return flask_error_response("Team not found or access denied", status_code=403)
+    
+    # Get coach from DynamoDB
+    coach = get_coach_by_id(coach_id)
+    if not coach:
+        return flask_error_response("Coach not found", status_code=404)
+    
+    if coach.get("teamId") != team_id:
+        return flask_error_response("Coach does not belong to this team", status_code=403)
+    
+    body = request.get_json() or {}
+    first_name = (body.get("firstName") or "").strip()
+    last_name = (body.get("lastName") or "").strip()
+    
+    if not first_name or not last_name:
+        return flask_error_response("firstName and lastName are required", status_code=400)
+    
+    # Update DynamoDB record
+    try:
+        table = get_table("ConsistencyTracker-Coaches")
+        table.update_item(
+            Key={"coachId": coach_id},
+            UpdateExpression="SET firstName = :firstName, lastName = :lastName, updatedAt = :updatedAt",
+            ExpressionAttributeValues={
+                ":firstName": first_name,
+                ":lastName": last_name,
+                ":updatedAt": datetime.utcnow().isoformat() + "Z"
+            },
+            ReturnValues="ALL_NEW"
+        )
+        updated_coach = table.get_item(Key={"coachId": coach_id}).get("Item")
+    except Exception as e:
+        print(f"Error updating coach {coach_id}: {e}")
+        return flask_error_response("Failed to update coach", status_code=500)
+    
+    return flask_success_response({
+        "coach": {
+            "coachId": updated_coach.get("coachId"),
+            "firstName": updated_coach.get("firstName", ""),
+            "lastName": updated_coach.get("lastName", ""),
+            "email": updated_coach.get("email"),
+            "teamId": updated_coach.get("teamId"),
+            "clubId": updated_coach.get("clubId"),
+            "isActive": updated_coach.get("isActive", True),
+            "createdAt": updated_coach.get("createdAt"),
+            "updatedAt": updated_coach.get("updatedAt"),
+        },
+        "message": "Coach updated successfully"
     })
 
 
@@ -1974,7 +2391,7 @@ def create_player():
     # Generate temporary password
     temporary_password = generate_temporary_password()
     
-    # Create Cognito user account
+    # Create Cognito user account (REQUIRED - fail if this doesn't work)
     cognito_user = None
     if COGNITO_USER_POOL_ID:
         try:
@@ -1984,16 +2401,21 @@ def create_player():
                 temporary_password,
                 club_id=club_id
             )
+            if not cognito_user:
+                return flask_error_response("Failed to create Cognito user for player", status_code=500)
             print(f"Created Cognito user for player: {email}")
         except Exception as e:
             # If user already exists, that's okay - we'll just send invitation
-            if 'UsernameExistsException' not in str(e) and 'already exists' not in str(e).lower():
-                print(f"Warning: Failed to create Cognito user for player {email}: {e}")
-                # Continue anyway - player can be created without Cognito account initially
+            if 'UsernameExistsException' in str(e) or 'already exists' in str(e).lower():
+                print(f"User {email} already exists in Cognito - continuing")
+                cognito_user = {'username': email, 'status': 'EXISTS'}
+            else:
+                print(f"Error: Failed to create Cognito user for player {email}: {e}")
+                return flask_error_response(f"Failed to create Cognito user: {str(e)}", status_code=500)
     else:
-        print("Warning: COGNITO_USER_POOL_ID not configured. Cannot create Cognito user.")
+        return flask_error_response("COGNITO_USER_POOL_ID not configured. Cannot create player.", status_code=500)
     
-    # Create player record
+    # Create player record (only if Cognito user creation succeeded)
     player_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat() + "Z"
     

@@ -105,6 +105,32 @@ The application automatically sends email notifications for various events:
 5. **Password Reset** - Sent via Cognito when user requests password reset
    - Handled automatically by Cognito via SES
 
+## User Data Storage
+
+The application uses a hybrid storage approach for user data:
+
+- **Cognito (Authentication Layer)**: Stores username (email), password, groups, and status
+- **DynamoDB (Application Data Layer)**: Stores user metadata, relationships, and application-specific data
+
+### User Types and Storage
+
+1. **Players**: Stored in DynamoDB (`ConsistencyTracker-Players` table)
+   - firstName, lastName, email, clubId, teamId, isActive, etc.
+   - Cognito user is required for authentication
+
+2. **Coaches**: Stored in DynamoDB (`ConsistencyTracker-Coaches` table)
+   - firstName, lastName, email, teamId, clubId, isActive, etc.
+   - Cognito user and group membership required for authentication
+
+3. **Club Admins**: Stored in DynamoDB (`ConsistencyTracker-ClubAdmins` table)
+   - firstName, lastName, email, clubId, isActive, etc.
+   - Cognito user and group membership required for authentication
+
+4. **App Admins**: Stored only in Cognito (not in DynamoDB)
+   - Very few in number (typically 1-5 platform administrators)
+   - Managed manually via AWS Console/CLI
+   - Only need to be in the `app-admin` Cognito group
+
 ## Managing Players
 
 ### Creating Players
@@ -121,10 +147,12 @@ Players can be created through the Admin Dashboard:
 4. Click "Create"
 
 When a player is created:
-- A Cognito user account is automatically created using the email address as the username
+- A Cognito user account is **automatically created** (required - creation fails if Cognito user cannot be created)
 - A temporary password is generated
 - An invitation email is sent to the player with login credentials
 - The player record is stored in DynamoDB
+
+**Important**: Player creation will fail if the Cognito user cannot be created. This ensures data consistency between Cognito and DynamoDB.
 
 ### Editing Players
 
@@ -159,6 +187,151 @@ Players can be activated or deactivated:
 - **Inactive**: Player cannot log in (account is disabled)
 
 Use the "Disable" or "Enable" button in the Players table to change a player's status.
+
+## Managing Coaches
+
+### Creating Coaches
+
+Coaches can be created through the Admin Dashboard:
+
+1. Navigate to the "Teams" section in the admin dashboard
+2. Find the team you want to add a coach to
+3. Click "Manage Coaches" to expand the team
+4. Fill in the "Add Coach" form:
+   - **First Name** (required)
+   - **Last Name** (required)
+   - **Coach Email** (required) - Used as the Cognito username
+   - **Temporary Password** (required) - Must meet password requirements
+5. Click "Add Coach"
+
+When a coach is created:
+- A Cognito user account is automatically created
+- The user is added to the `coach-{clubId}-{teamId}` Cognito group
+- A DynamoDB record is created in `ConsistencyTracker-Coaches` table
+- An invitation email is sent with login credentials
+
+**Important**: Coach creation will fail if the Cognito user cannot be created. This ensures data consistency.
+
+### Viewing Coaches
+
+Coaches are displayed in the team management interface:
+- Full name (firstName + lastName) is shown
+- Email address is displayed below the name
+- Status badge (Active/Inactive) is shown
+- Created date is displayed
+
+### Editing Coaches
+
+To edit a coach's name:
+
+1. Navigate to the "Teams" section in the admin dashboard
+2. Find the team the coach belongs to
+3. Click "Manage Coaches" to expand the team
+4. Click "Edit" on the coach you want to modify
+5. Update the First Name and/or Last Name fields
+6. Click "Save"
+
+**Note**: Email addresses cannot be changed through the UI. To change an email, contact `admin@repwarrior.net`.
+
+### Coach Status
+
+Coaches can be activated or deactivated:
+- **Active**: Coach can log in and access the team
+- **Inactive**: Coach cannot log in (account is disabled)
+
+Use the "Activate" or "Deactivate" button in the coach list to change status.
+
+### Removing Coaches
+
+To remove a coach from a team:
+1. Navigate to the team's coach list
+2. Click "Remove" on the coach you want to remove
+3. Confirm the removal
+
+**Note**: Removing a coach:
+- Removes them from the Cognito group
+- Sets `isActive=false` in DynamoDB
+- Does not delete the Cognito user account
+
+## Managing Club Admins
+
+### Creating Club Admins
+
+Club admins can be created in two ways:
+
+#### Option 1: When Creating a New Club
+
+When creating a new club through the App Admin Dashboard:
+1. Fill in the club name
+2. Fill in the required admin fields:
+   - **First Name** (required)
+   - **Last Name** (required)
+   - **Admin Email** (required)
+   - **Temporary Password** (required)
+3. Click "Create Club"
+
+The club admin is automatically created with:
+- Cognito user account
+- `custom:clubId` attribute set
+- Membership in `club-{sanitizedName}-admins` group
+- DynamoDB record in `ConsistencyTracker-ClubAdmins` table
+- Invitation email sent
+
+#### Option 2: Adding Additional Club Admins
+
+App-admins can add additional club admins to existing clubs:
+
+1. Navigate to the "Clubs" section in the App Admin Dashboard
+2. Click "Edit" on the club
+3. Scroll to "Additional Club Administrator (optional)" section
+4. Fill in:
+   - **First Name** (required if adding)
+   - **Last Name** (required if adding)
+   - **Admin Email** (required if adding)
+   - **Temporary Password** (required if adding)
+5. Click "Update Club"
+
+### Viewing Club Admins
+
+Club admins can be viewed and managed through the Admin Dashboard:
+
+1. Navigate to the "Clubs" section in the App Admin Dashboard
+2. Click "Edit" on the club
+3. Click "Manage Admins" to expand the club administrators section
+4. View the list of all club admins with:
+   - Full name (firstName + lastName)
+   - Email address
+   - Status badge (Active/Inactive)
+   - Created date
+
+### Editing Club Admins
+
+To edit a club admin's name:
+
+1. Navigate to the club's admin list (see "Viewing Club Admins" above)
+2. Click "Edit" on the admin you want to modify
+3. Update the First Name and/or Last Name fields
+4. Click "Save"
+
+**Note**: Email addresses cannot be changed through the UI. To change an email, contact `admin@repwarrior.net`.
+
+### Removing Club Admins
+
+To remove a club admin:
+
+1. Navigate to the club's admin list
+2. Click "Remove" on the admin you want to remove
+3. Confirm the removal
+
+**Important**: You cannot remove the last active club admin for a club. The system will prevent this to ensure every club has at least one administrator.
+
+### Club Admin Status
+
+Club admins can be activated or deactivated:
+- **Active**: Can log in and access the club
+- **Inactive**: Cannot log in (account is disabled)
+
+Status is managed automatically when admins are added or removed.
 
 ### Email Configuration
 
@@ -514,7 +687,7 @@ When viewing users in the AWS Cognito console, you may see different statuses:
    - Save changes
    - User must log out and log back in to get a new JWT token with the updated attribute
 
-3. **Alternative**: Use the `aws/update_user_club_id.py` script (if available) to automatically set the attribute based on the user's group membership.
+3. **Alternative**: Use the `scripts/utilities/update_user_club_id.py` script (if available) to automatically set the attribute based on the user's group membership.
 
 ## Best Practices
 
