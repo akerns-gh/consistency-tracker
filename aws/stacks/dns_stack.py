@@ -53,6 +53,9 @@ class DnsStack(Stack):
             validation=acm.CertificateValidation.from_dns(self.hosted_zone),
         )
 
+        # Note: ProtonMail verification TXT record is managed via email setup tools
+        # and combined with SPF record in Route53 (one TXT record with multiple values)
+
         # Outputs
         CfnOutput(
             self,
