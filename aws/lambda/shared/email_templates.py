@@ -365,3 +365,58 @@ def get_coach_invitation_template(
         "subject": f"Welcome to {team_name} - Coach Account Created"
     }
 
+
+def get_email_verification_template(email: str, verification_url: str, user_name: str = "User") -> dict:
+    """Generate email verification email template."""
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Verify Your Email - Consistency Tracker</title>
+    </head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin-bottom: 20px;">
+            <h1 style="color: #2c3e50; margin-top: 0;">Verify Your Email Address</h1>
+        </div>
+        <p>Hello {user_name},</p>
+        <p>Thank you for joining Consistency Tracker! Please verify your email address to complete your account setup and start using the platform.</p>
+        <p>Click the button below to verify your email address:</p>
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{verification_url}" style="background-color: #27ae60; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">Verify Email Address</a>
+        </div>
+        <p>Or copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; color: #7f8c8d; font-size: 12px;">{verification_url}</p>
+        <p>This verification link will expire in 1 hour.</p>
+        <p>If you didn't create an account with Consistency Tracker, please ignore this email.</p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+        <p style="color: #7f8c8d; font-size: 12px;">This is an automated message from Consistency Tracker. Please do not reply to this email.</p>
+    </body>
+    </html>
+    """
+    
+    text_body = f"""
+    Verify Your Email Address - Consistency Tracker
+    
+    Hello {user_name},
+    
+    Thank you for joining Consistency Tracker! Please verify your email address to complete your account setup and start using the platform.
+    
+    Click the link below to verify your email address:
+    {verification_url}
+    
+    This verification link will expire in 1 hour.
+    
+    If you didn't create an account with Consistency Tracker, please ignore this email.
+    
+    ---
+    This is an automated message from Consistency Tracker. Please do not reply to this email.
+    """
+    
+    return {
+        "html": html_body,
+        "text": text_body,
+        "subject": "Verify Your Email - Consistency Tracker"
+    }
+

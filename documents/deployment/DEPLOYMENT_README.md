@@ -152,7 +152,26 @@ If you want to restrict access to specific IP addresses:
 
 **Note**: This sets WAF default action to "Block", so only your IPs can access the site.
 
-### Step 6: Post-Deployment Setup
+### Step 6: Security Configuration
+
+Before deploying to production, ensure security measures are properly configured:
+
+1. **Set EMAIL_VERIFICATION_SECRET**: 
+   ```bash
+   # Generate a secure random secret
+   openssl rand -hex 32
+   
+   # Set as CDK context or environment variable
+   cdk deploy --context email_verification_secret=<generated_secret>
+   ```
+
+2. **Review Security Settings**: See [SECURITY.md](../SECURITY.md) for comprehensive security documentation
+
+3. **Configure CloudWatch Alarms**: Set up alarms for security events (see SECURITY.md)
+
+4. **Enable MFA**: Ensure AWS account has MFA enabled
+
+### Step 7: Post-Deployment Setup
 
 1. **Verify CloudFront origin configuration (optional):**
    ```bash

@@ -161,6 +161,14 @@ def get_player_from_jwt():
         if not player.get("isActive", True):
             return None, flask_error_response("Player is inactive", status_code=403)
         
+        # Check verification status - block if pending
+        verification_status = player.get("verificationStatus")
+        if verification_status == "pending":
+            return None, flask_error_response(
+                "Account verification pending. Please complete email verification and password setup.",
+                status_code=403
+            )
+        
         club_id = player.get("clubId")
         team_id = player.get("teamId")
         

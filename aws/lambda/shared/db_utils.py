@@ -17,6 +17,9 @@ TEAM_TABLE = os.environ.get("TEAM_TABLE", "ConsistencyTracker-Teams")
 CLUB_TABLE = os.environ.get("CLUB_TABLE", "ConsistencyTracker-Clubs")
 COACH_TABLE = os.environ.get("COACH_TABLE", "ConsistencyTracker-Coaches")
 CLUB_ADMIN_TABLE = os.environ.get("CLUB_ADMIN_TABLE", "ConsistencyTracker-ClubAdmins")
+EMAIL_VERIFICATION_TABLE = os.environ.get("EMAIL_VERIFICATION_TABLE", "ConsistencyTracker-EmailVerifications")
+VERIFICATION_ATTEMPTS_TABLE = os.environ.get("VERIFICATION_ATTEMPTS_TABLE", "ConsistencyTracker-VerificationAttempts")
+RESEND_TRACKING_TABLE = os.environ.get("RESEND_TRACKING_TABLE", "ConsistencyTracker-ResendTracking")
 
 # Initialize DynamoDB client
 dynamodb = boto3.resource("dynamodb")
@@ -514,4 +517,124 @@ def get_club_admins_by_club(club_id: str, active_only: bool = True) -> List[Dict
     except ClientError as e:
         print(f"Error getting club admins for club {club_id}: {e}")
         return []
+
+
+def update_user_verification_status(email: str, status: str, user_type: str = None) -> dict:
+    """
+    Update verificationStatus for a user.
+    
+    Args:
+        email: User's email address
+        status: "pending" | "verified"
+        user_type: "player" | "coach" | "club_admin" | None (auto-detect)
+    
+    Returns:
+        dict with 'success' (bool), 'user_type' (str), and optional 'error'
+    """
+    if status not in ["pending", "verified"]:
+        return {
+            "success": False,
+            "error": f"Invalid status: {status}. Must be 'pending' or 'verified'"
+        }
+    
+    # Auto-detect user type if not provided
+    if not user_type:
+        # Try to find user in each table
+        player = get_player_by_email(email)
+        if player:
+            user_type = "player"
+            user_id = player.get("playerId")
+            table_name = PLAYER_TABLE
+            key_name = "playerId"
+        else:
+            coach = get_coach_by_email(email)
+            if coach:
+                user_type = "coach"
+                user_id = coach.get("coachId")
+                table_name = COACH_TABLE
+                key_name = "coachId"
+            else:
+                admin = get_club_admin_by_email(email)
+                if admin:
+                    user_type = "club_admin"
+                    user_id = admin.get("adminId")
+                    table_name = CLUB_ADMIN_TABLE
+                    key_name = "adminId"
+                else:
+                    return {
+                        "success": False,
+                        "error": f"User with email {email} not found in any table"
+                    }
+    else:
+        # Use provided user_type
+        if user_type == "player":
+            player = get_player_by_email(email)
+            if not player:
+                return {"success": False, "error": f"Player with email {email} not found"}
+            user_id = player.get("playerId")
+            table_name = PLAYER_TABLE
+            key_name = "playerId"
+        elif user_type == "coach":
+            coach = get_coach_by_email(email)
+            if not coach:
+                return {"success": False, "error": f"Coach with email {email} not found"}
+            user_id = coach.get("coachId")
+            table_name = COACH_TABLE
+            key_name = "coachId"
+        elif user_type == "club_admin":
+            admin = get_club_admin_by_email(email)
+            if not admin:
+                return {"success": False, "error": f"Club admin with email {email} not found"}
+            user_id = admin.get("adminId")
+            table_name = CLUB_ADMIN_TABLE
+            key_name = "adminId"
+        else:
+            return {
+                "success": False,
+                "error": f"Invalid user_type: {user_type}. Must be 'player', 'coach', or 'club_admin'"
+            }
+    
+    # Update the verification status
+    try:
+        table = get_table(table_name)
+        from datetime import datetime
+        
+        update_expression = "SET verificationStatus = :status, updatedAt = :updatedAt"
+        expression_attribute_values = {
+            ":status": status,
+            ":updatedAt": datetime.utcnow().isoformat() + "Z"
+        }
+        
+        # If status is "verified", we can optionally remove the field instead
+        # For now, we'll set it to "verified" explicitly
+        
+        table.update_item(
+            Key={key_name: user_id},
+            UpdateExpression=update_expression,
+            ExpressionAttributeValues=expression_attribute_values
+        )
+        
+        print(f"Updated verificationStatus to '{status}' for {user_type} {email} ({user_id})")
+        return {
+            "success": True,
+            "user_type": user_type,
+            "user_id": user_id,
+            "email": email
+        }
+    except ClientError as e:
+        error_msg = f"Error updating verification status for {user_type} {email}: {e}"
+        print(error_msg)
+        return {
+            "success": False,
+            "error": error_msg,
+            "user_type": user_type
+        }
+    except Exception as e:
+        error_msg = f"Unexpected error updating verification status for {user_type} {email}: {e}"
+        print(error_msg)
+        return {
+            "success": False,
+            "error": error_msg,
+            "user_type": user_type
+        }
 

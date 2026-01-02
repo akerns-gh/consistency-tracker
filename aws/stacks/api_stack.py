@@ -15,6 +15,7 @@ from aws_cdk import (
     aws_iam as iam,
     aws_logs as logs,
     aws_certificatemanager as acm,
+    aws_wafv2 as wafv2,
 )
 from aws_cdk.aws_apigateway import CfnGatewayResponse
 from constructs import Construct
@@ -79,6 +80,12 @@ class ApiStack(Stack):
 
         # Configure admin endpoints (with Cognito auth) - proxy all to admin Flask app
         self._configure_admin_endpoints(api, admin_function, authorizer)
+        
+        # Configure public endpoints (no authentication required)
+        self._configure_public_endpoints(api, admin_function)
+        
+        # Create WAF WebACL for API Gateway protection
+        self._create_api_waf(api)
 
         # Create custom domain for api.repwarrior.net if certificate is provided
         self.custom_domain = None
@@ -132,6 +139,9 @@ class ApiStack(Stack):
             "CONTENT_PAGES_TABLE": self.database_stack.content_pages_table.table_name,
             "TEAM_TABLE": self.database_stack.team_table.table_name,
             "CLUB_TABLE": self.database_stack.club_table.table_name,
+            "EMAIL_VERIFICATION_TABLE": self.database_stack.email_verification_table.table_name,
+            "VERIFICATION_ATTEMPTS_TABLE": self.database_stack.verification_attempts_table.table_name,
+            "RESEND_TRACKING_TABLE": self.database_stack.resend_tracking_table.table_name,
             "COGNITO_USER_POOL_ID": self.auth_stack.user_pool.user_pool_id,
             "COGNITO_REGION": self.region,
             "STRIP_STAGE_PATH": "yes",  # Strip /prod from paths when using direct API Gateway URL
@@ -146,6 +156,16 @@ class ApiStack(Stack):
         
         # Add frontend URL for email links
         env_vars["FRONTEND_URL"] = f"https://{self.domain_name}" if self.domain_name else "https://repwarrior.net"
+
+        # Email verification secret (for HMAC token signing)
+        # TODO: Move to AWS Secrets Manager or Parameter Store for production
+        email_verification_secret = self.node.try_get_context("email_verification_secret") or os.environ.get("EMAIL_VERIFICATION_SECRET")
+        if not email_verification_secret:
+            # Generate a default secret if not provided (WARNING: Not secure for production!)
+            import secrets
+            email_verification_secret = secrets.token_urlsafe(32)
+            print(f"WARNING: EMAIL_VERIFICATION_SECRET not set. Generated temporary secret. Set this via CDK context or environment variable for production!")
+        env_vars["EMAIL_VERIFICATION_SECRET"] = email_verification_secret
 
         # IAM role for player function
         player_role = iam.Role(
@@ -167,6 +187,7 @@ class ApiStack(Stack):
         self.database_stack.content_pages_table.grant_read_data(player_role)
         self.database_stack.team_table.grant_read_data(player_role)
         self.database_stack.club_table.grant_read_data(player_role)
+        self.database_stack.email_verification_table.grant_read_write_data(player_role)
         
         # Grant SES permissions if SES stack is provided
         if ses_stack:
@@ -218,6 +239,9 @@ class ApiStack(Stack):
             "CONTENT_PAGES_TABLE": self.database_stack.content_pages_table.table_name,
             "TEAM_TABLE": self.database_stack.team_table.table_name,
             "CLUB_TABLE": self.database_stack.club_table.table_name,
+            "EMAIL_VERIFICATION_TABLE": self.database_stack.email_verification_table.table_name,
+            "VERIFICATION_ATTEMPTS_TABLE": self.database_stack.verification_attempts_table.table_name,
+            "RESEND_TRACKING_TABLE": self.database_stack.resend_tracking_table.table_name,
             "COGNITO_USER_POOL_ID": self.auth_stack.user_pool.user_pool_id,
             "COGNITO_REGION": self.region,
             "CONTENT_IMAGES_BUCKET": "consistency-tracker-content-images",  # Will be set from storage stack
@@ -233,6 +257,16 @@ class ApiStack(Stack):
         
         # Add frontend URL for email links
         env_vars["FRONTEND_URL"] = f"https://{self.domain_name}" if self.domain_name else "https://repwarrior.net"
+
+        # Email verification secret (for HMAC token signing)
+        # TODO: Move to AWS Secrets Manager or Parameter Store for production
+        email_verification_secret = self.node.try_get_context("email_verification_secret") or os.environ.get("EMAIL_VERIFICATION_SECRET")
+        if not email_verification_secret:
+            # Generate a default secret if not provided (WARNING: Not secure for production!)
+            import secrets
+            email_verification_secret = secrets.token_urlsafe(32)
+            print(f"WARNING: EMAIL_VERIFICATION_SECRET not set. Generated temporary secret. Set this via CDK context or environment variable for production!")
+        env_vars["EMAIL_VERIFICATION_SECRET"] = email_verification_secret
 
         # IAM role for admin function
         admin_role = iam.Role(
@@ -256,6 +290,9 @@ class ApiStack(Stack):
         self.database_stack.club_table.grant_read_write_data(admin_role)
         self.database_stack.coach_table.grant_read_write_data(admin_role)
         self.database_stack.club_admin_table.grant_read_write_data(admin_role)
+        self.database_stack.email_verification_table.grant_read_write_data(admin_role)
+        self.database_stack.verification_attempts_table.grant_read_write_data(admin_role)
+        self.database_stack.resend_tracking_table.grant_read_write_data(admin_role)
 
         # Grant S3 permissions for image upload
         admin_role.add_to_policy(
@@ -276,6 +313,9 @@ class ApiStack(Stack):
                     "cognito-idp:GetGroup",
                     "cognito-idp:AdminAddUserToGroup",
                     "cognito-idp:AdminCreateUser",
+                    "cognito-idp:AdminUpdateUserAttributes",
+                    "cognito-idp:AdminGetUser",  # For checking user status during email verification
+                    "cognito-idp:AdminSetUserPassword",  # For setting passwords after email verification
                 ],
                 resources=[self.auth_stack.user_pool.user_pool_arn],
             )
@@ -459,6 +499,94 @@ class ApiStack(Stack):
             "ANY",
             admin_integration,
             authorizer=authorizer,
+        )
+    
+    def _configure_public_endpoints(
+        self,
+        api: apigateway.RestApi,
+        admin_function: lambda_.Function,
+    ) -> None:
+        """Configure public endpoints (no authentication required) - proxy to admin Flask app."""
+        # Create proxy integration for admin Flask app
+        admin_integration = apigateway.LambdaIntegration(
+            admin_function,
+            proxy=True,  # Proxy all requests to Flask app
+        )
+        
+        # Public endpoint: /verify-email (no authorizer - public access)
+        # OPTIONS is handled automatically by default_cors_preflight_options
+        # Note: Per-method throttling is handled by WAF rate limiting rules
+        verify_email_resource = api.root.add_resource("verify-email")
+        verify_email_resource.add_method("POST", admin_integration)  # No authorizer for public endpoint
+        
+        # Public endpoint: /set-password-after-verification (no authorizer - public access)
+        set_password_resource = api.root.add_resource("set-password-after-verification")
+        set_password_resource.add_method("POST", admin_integration)
+        
+        # Note: /resend-verification-email endpoint removed
+        # Resend functionality is now admin-only - users must contact administrators  # No authorizer for public endpoint
+    
+    def _create_api_waf(self, api: apigateway.RestApi) -> None:
+        """Create WAF WebACL for API Gateway protection."""
+        # WAF for API Gateway must be REGIONAL scope
+        web_acl = wafv2.CfnWebACL(
+            self,
+            "ApiGatewayWebACL",
+            scope="REGIONAL",
+            default_action=wafv2.CfnWebACL.DefaultActionProperty(
+                allow={}
+            ),
+            rules=[
+                # Rate limiting for verify-email endpoint
+                wafv2.CfnWebACL.RuleProperty(
+                    name="VerifyEmailRateLimit",
+                    priority=1,
+                    statement=wafv2.CfnWebACL.StatementProperty(
+                        rate_based_statement=wafv2.CfnWebACL.RateBasedStatementProperty(
+                            limit=100,  # 100 requests per 5 minutes per IP
+                            aggregate_key_type="IP",
+                            scope_down_statement=wafv2.CfnWebACL.StatementProperty(
+                                byte_match_statement=wafv2.CfnWebACL.ByteMatchStatementProperty(
+                                    search_string="/verify-email",
+                                    field_to_match=wafv2.CfnWebACL.FieldToMatchProperty(
+                                        uri_path={}
+                                    ),
+                                    text_transformations=[
+                                        wafv2.CfnWebACL.TextTransformationProperty(
+                                            priority=0,
+                                            type="LOWERCASE"
+                                        )
+                                    ],
+                                    positional_constraint="CONTAINS"
+                                )
+                            )
+                        )
+                    ),
+                    action=wafv2.CfnWebACL.RuleActionProperty(
+                        block=wafv2.CfnWebACL.BlockActionProperty()
+                    ),
+                    visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                        sampled_requests_enabled=True,
+                        cloud_watch_metrics_enabled=True,
+                        metric_name="VerifyEmailRateLimit"
+                    )
+                )
+            ],
+            visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                sampled_requests_enabled=True,
+                cloud_watch_metrics_enabled=True,
+                metric_name="ApiGatewayWebACL"
+            )
+        )
+        
+        # Associate WAF with API Gateway stage
+        # Note: For REST API Gateway, we need to use the stage ARN
+        stage_arn = f"arn:aws:apigateway:{self.region}::/restapis/{api.rest_api_id}/stages/prod"
+        wafv2.CfnWebACLAssociation(
+            self,
+            "ApiGatewayWebACLAssociation",
+            resource_arn=stage_arn,
+            web_acl_arn=web_acl.attr_arn
         )
     
     def _create_custom_domain(

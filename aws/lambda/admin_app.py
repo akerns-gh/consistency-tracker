@@ -46,18 +46,20 @@ from shared.db_utils import (
     get_club_admins_by_club,
     get_club_admin_by_id,
     get_coach_by_id,
+    update_user_verification_status,
 )
 from shared.auth_utils import extract_user_info_from_event, extract_user_info_from_jwt_token, verify_admin_role, verify_app_admin_role
 from shared.flask_auth import get_api_gateway_event
 from shared.html_sanitizer import sanitize_html
 from shared.week_utils import get_current_week_id, get_week_id, get_week_dates
-from shared.email_service import send_templated_email, validate_email_address, verify_email_identity
+from shared.email_service import send_templated_email, validate_email_address, verify_email_identity, generate_email_verification_token, validate_and_verify_email, resend_verification_token
 from shared.email_templates import (
     get_user_invitation_template,
     get_club_creation_template,
     get_team_creation_template,
     get_player_invitation_template,
     get_coach_invitation_template,
+    get_email_verification_template,
 )
 
 app = Flask(__name__)
@@ -355,7 +357,7 @@ def create_cognito_user(user_pool_id: str, email: str, temporary_password: str, 
     try:
         user_attributes = [
             {'Name': 'email', 'Value': email},
-            {'Name': 'email_verified', 'Value': 'true'}
+            {'Name': 'email_verified', 'Value': 'false'}  # Users must verify email before logging in
         ]
         
         # Add custom:clubId if provided
@@ -764,6 +766,391 @@ def handle_unhandled_exception(error):
 
 
 # ============================================================================
+# Public Email Verification Endpoint
+# ============================================================================
+
+@app.route('/verify-email', methods=['OPTIONS'])
+def verify_email_options():
+    """Handle CORS preflight for verify-email endpoint."""
+    # CORS headers are added by after_request handler
+    return '', 200
+
+
+def _get_client_ip() -> str:
+    """Get client IP address from request headers (API Gateway provides X-Forwarded-For)."""
+    # API Gateway provides X-Forwarded-For header
+    forwarded_for = request.headers.get('X-Forwarded-For', '')
+    if forwarded_for:
+        # X-Forwarded-For can contain multiple IPs, take the first one
+        ip = forwarded_for.split(',')[0].strip()
+        return ip
+    # Fallback to remote_addr
+    return request.remote_addr or 'unknown'
+
+
+def _check_brute_force_lockout(ip_address: str) -> tuple[bool, Optional[str]]:
+    """
+    Check if IP address is locked out due to too many failed attempts.
+    
+    Returns:
+        Tuple of (is_locked_out, lockout_message)
+    """
+    from shared.db_utils import VERIFICATION_ATTEMPTS_TABLE, get_table
+    from datetime import datetime, timedelta
+    
+    try:
+        table = get_table(VERIFICATION_ATTEMPTS_TABLE)
+        response = table.get_item(Key={"ipAddress": ip_address})
+        
+        if "Item" not in response:
+            return False, None
+        
+        item = response["Item"]
+        failed_attempts = item.get("failedAttempts", 0)
+        locked_until = item.get("lockedUntil")
+        max_attempts = 5
+        lockout_duration = 300  # 5 minutes in seconds
+        
+        # Check if currently locked out
+        if locked_until:
+            current_time = int(datetime.utcnow().timestamp())
+            if current_time < locked_until:
+                remaining = locked_until - current_time
+                return True, f"Too many failed verification attempts. Please try again in {remaining // 60 + 1} minutes."
+        
+        # Check if we should lock out (5 failed attempts)
+        if failed_attempts >= max_attempts:
+            # Set lockout
+            current_time = int(datetime.utcnow().timestamp())
+            locked_until = current_time + lockout_duration
+            expires_at = current_time + 3600  # TTL: 1 hour
+            
+            table.update_item(
+                Key={"ipAddress": ip_address},
+                UpdateExpression="SET lockedUntil = :locked, expiresAt = :expires, lastAttempt = :last",
+                ExpressionAttributeValues={
+                    ":locked": locked_until,
+                    ":expires": expires_at,
+                    ":last": current_time
+                }
+            )
+            return True, "Too many failed verification attempts. Please try again in 5 minutes."
+        
+        return False, None
+        
+    except Exception as e:
+        print(f"Error checking brute-force lockout for {ip_address}: {e}")
+        # On error, don't block - allow the request through
+        return False, None
+
+
+def _record_failed_attempt(ip_address: str):
+    """Record a failed verification attempt for an IP address."""
+    from shared.db_utils import VERIFICATION_ATTEMPTS_TABLE, get_table
+    from datetime import datetime
+    
+    try:
+        table = get_table(VERIFICATION_ATTEMPTS_TABLE)
+        current_time = int(datetime.utcnow().timestamp())
+        expires_at = current_time + 3600  # TTL: 1 hour
+        
+        # Try to update existing record
+        try:
+            table.update_item(
+                Key={"ipAddress": ip_address},
+                UpdateExpression="ADD failedAttempts :one SET lastAttempt = :last, expiresAt = :expires",
+                ExpressionAttributeValues={
+                    ":one": 1,
+                    ":last": current_time,
+                    ":expires": expires_at
+                }
+            )
+        except ClientError as e:
+            # If item doesn't exist, create it
+            if e.response['Error']['Code'] == 'ValidationException':
+                table.put_item(
+                    Item={
+                        "ipAddress": ip_address,
+                        "failedAttempts": 1,
+                        "lastAttempt": current_time,
+                        "expiresAt": expires_at
+                    }
+                )
+            else:
+                raise
+    except Exception as e:
+        print(f"Error recording failed attempt for {ip_address}: {e}")
+
+
+def _clear_failed_attempts(ip_address: str):
+    """Clear failed attempts for an IP address on successful verification."""
+    from shared.db_utils import VERIFICATION_ATTEMPTS_TABLE, get_table
+    
+    try:
+        table = get_table(VERIFICATION_ATTEMPTS_TABLE)
+        table.delete_item(Key={"ipAddress": ip_address})
+    except Exception as e:
+        print(f"Error clearing failed attempts for {ip_address}: {e}")
+
+
+@app.route('/verify-email', methods=['POST'])
+def verify_email():
+    """
+    Public endpoint to verify email address using token.
+    No authentication required - user is not logged in yet.
+    Includes brute-force protection.
+    """
+    from botocore.exceptions import ClientError
+    
+    # Get client IP for brute-force protection
+    client_ip = _get_client_ip()
+    
+    # Check if IP is locked out
+    is_locked, lockout_message = _check_brute_force_lockout(client_ip)
+    if is_locked:
+        return flask_error_response(lockout_message, status_code=429)
+    
+    try:
+        body = request.get_json()
+        if not body:
+            _record_failed_attempt(client_ip)
+            return flask_error_response("Request body is required", status_code=400)
+        
+        token = body.get("token")
+        if not token:
+            _record_failed_attempt(client_ip)
+            return flask_error_response("Token is required", status_code=400)
+        
+        # Validate and verify email (both SES and Cognito)
+        result = validate_and_verify_email(token, COGNITO_USER_POOL_ID)
+        
+        if result.get("success"):
+            # Clear failed attempts on success
+            _clear_failed_attempts(client_ip)
+            email = result.get("email")
+            
+            # Check if user needs to set password (status is FORCE_CHANGE_PASSWORD OR verificationStatus is pending)
+            needs_password_setup = False
+            if email:
+                # First check Cognito UserStatus
+                if COGNITO_USER_POOL_ID and cognito_client:
+                    try:
+                        user_response = cognito_client.admin_get_user(
+                            UserPoolId=COGNITO_USER_POOL_ID,
+                            Username=email
+                        )
+                        user_status = user_response.get('UserStatus', '')
+                        needs_password_setup = (user_status == 'FORCE_CHANGE_PASSWORD')
+                    except Exception as e:
+                        print(f"Error checking Cognito user status: {e}")
+                        # Continue to check DynamoDB if Cognito check fails
+                
+                # Also check DynamoDB verificationStatus - if pending, user needs to set password
+                if not needs_password_setup:
+                    from shared.db_utils import get_player_by_email
+                    try:
+                        player = get_player_by_email(email)
+                        if player and player.get("verificationStatus") == "pending":
+                            needs_password_setup = True
+                        else:
+                            coach = get_coach_by_email(email)
+                            if coach and coach.get("verificationStatus") == "pending":
+                                needs_password_setup = True
+                            else:
+                                admin = get_club_admin_by_email(email)
+                                if admin and admin.get("verificationStatus") == "pending":
+                                    needs_password_setup = True
+                    except Exception as e:
+                        print(f"Error checking DynamoDB verification status: {e}")
+                        # Continue without password setup flag if check fails
+            
+            return flask_success_response({
+                "message": "Email verified successfully",
+                "email": email,
+                "needsPasswordSetup": needs_password_setup
+            })
+        else:
+            # Record failed attempt
+            _record_failed_attempt(client_ip)
+            return flask_error_response(
+                result.get("error", "Verification failed"),
+                status_code=400
+            )
+    except Exception as e:
+        print(f"Error in verify_email endpoint: {e}")
+        _record_failed_attempt(client_ip)
+        return flask_error_response(
+            "An error occurred during email verification",
+            status_code=500
+        )
+
+
+@app.route('/set-password-after-verification', methods=['OPTIONS'])
+def set_password_after_verification_options():
+    """Handle CORS preflight for set-password-after-verification endpoint."""
+    # CORS headers are added by after_request handler
+    return '', 200
+
+
+@app.route('/set-password-after-verification', methods=['POST'])
+def set_password_after_verification():
+    """
+    Public endpoint to set password after email verification.
+    No authentication required - user is not logged in yet.
+    Requires valid verification token and new password.
+    """
+    from shared.email_service import _validate_token_signature
+    from shared.db_utils import EMAIL_VERIFICATION_TABLE, get_table
+    
+    # Get client IP for brute-force protection
+    client_ip = _get_client_ip()
+    
+    # Check if IP is locked out
+    is_locked, lockout_message = _check_brute_force_lockout(client_ip)
+    if is_locked:
+        return flask_error_response(lockout_message, status_code=429)
+    
+    try:
+        body = request.get_json()
+        if not body:
+            _record_failed_attempt(client_ip)
+            return flask_error_response("Request body is required", status_code=400)
+        
+        token = body.get("token")
+        password = body.get("password")
+        
+        if not token:
+            _record_failed_attempt(client_ip)
+            return flask_error_response("Token is required", status_code=400)
+        
+        if not password:
+            _record_failed_attempt(client_ip)
+            return flask_error_response("Password is required", status_code=400)
+        
+        # Validate token signature
+        validation_result = _validate_token_signature(token)
+        if not validation_result.get("valid"):
+            _record_failed_attempt(client_ip)
+            return flask_error_response(
+                validation_result.get("error", "Invalid token"),
+                status_code=400
+            )
+        
+        payload = validation_result.get("payload")
+        email = payload.get("email")
+        
+        # Verify token was used for email verification
+        table = get_table(EMAIL_VERIFICATION_TABLE)
+        response = table.get_item(Key={"token": token})
+        
+        if "Item" not in response:
+            _record_failed_attempt(client_ip)
+            return flask_error_response("Invalid verification token", status_code=400)
+        
+        item = response["Item"]
+        if item.get("status") != "used":
+            _record_failed_attempt(client_ip)
+            return flask_error_response("Email must be verified before setting password", status_code=400)
+        
+        if item.get("email") != email:
+            _record_failed_attempt(client_ip)
+            return flask_error_response("Token email mismatch", status_code=400)
+        
+        # Validate password meets Cognito requirements
+        # Minimum 12 characters, uppercase, lowercase, number
+        if len(password) < 12:
+            _record_failed_attempt(client_ip)
+            return flask_error_response("Password must be at least 12 characters long", status_code=400)
+        
+        if not any(c.isupper() for c in password):
+            _record_failed_attempt(client_ip)
+            return flask_error_response("Password must contain at least one uppercase letter", status_code=400)
+        
+        if not any(c.islower() for c in password):
+            _record_failed_attempt(client_ip)
+            return flask_error_response("Password must contain at least one lowercase letter", status_code=400)
+        
+        if not any(c.isdigit() for c in password):
+            _record_failed_attempt(client_ip)
+            return flask_error_response("Password must contain at least one number", status_code=400)
+        
+        # Set password in Cognito
+        if not COGNITO_USER_POOL_ID or not cognito_client:
+            _record_failed_attempt(client_ip)
+            return flask_error_response("Authentication service unavailable", status_code=500)
+        
+        try:
+            # Use admin_set_user_password to set permanent password
+            # This bypasses FORCE_CHANGE_PASSWORD status
+            print(f"Attempting to set password for {email}")
+            cognito_client.admin_set_user_password(
+                UserPoolId=COGNITO_USER_POOL_ID,
+                Username=email,
+                Password=password,
+                Permanent=True
+            )
+            print(f"Password set in Cognito for {email}")
+            
+            # Clear failed attempts on success
+            _clear_failed_attempts(client_ip)
+            
+            # Update verification status to "verified" after password setup
+            try:
+                verification_update = update_user_verification_status(email, "verified")
+                if verification_update.get("success"):
+                    print(f"Updated verification status to 'verified' for {email}")
+                else:
+                    print(f"Warning: Failed to update verification status for {email}: {verification_update.get('error')}")
+            except Exception as update_error:
+                print(f"Error updating verification status for {email}: {update_error}")
+                # Don't fail the request if verification status update fails
+            
+            print(f"Password set successfully for {email}")
+            return flask_success_response({
+                "message": "Password set successfully",
+                "email": email
+            })
+            
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', '')
+            error_message = e.response.get('Error', {}).get('Message', 'Unknown error')
+            
+            _record_failed_attempt(client_ip)
+            
+            if error_code == 'InvalidPasswordException':
+                return flask_error_response(
+                    "Password does not meet requirements",
+                    status_code=400
+                )
+            elif error_code == 'UserNotFoundException':
+                return flask_error_response(
+                    "User not found",
+                    status_code=404
+                )
+            else:
+                print(f"Error setting password: {error_code} - {error_message}")
+                return flask_error_response(
+                    "Failed to set password. Please try again.",
+                    status_code=500
+                )
+        
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error in set_password_after_verification endpoint: {e}")
+        print(f"Traceback: {error_traceback}")
+        _record_failed_attempt(client_ip)
+        return flask_error_response(
+            f"An error occurred while setting password: {str(e)}",
+            status_code=500
+        )
+
+
+# Public resend verification endpoint removed - resend functionality is now admin-only
+# Users must contact their administrator to request a new verification email
+
+
+# ============================================================================
 # Check Role Endpoint
 # ============================================================================
 
@@ -933,26 +1320,15 @@ def create_club():
         description = f"Administrators for club {club_name}"
         create_cognito_group(COGNITO_USER_POOL_ID, group_name, description)
         
-        # If admin email and password provided, create the user and add to group
+        # If admin email provided, create the user and add to group
         admin_email = body.get("adminEmail")
-        admin_password = body.get("adminPassword")
         admin_first_name = body.get("firstName", "").strip()
         admin_last_name = body.get("lastName", "").strip()
         verification_status = None
-        if admin_email and admin_password:
-            # Automatically verify the email address in SES
-            # This allows sending emails to this address even in sandbox mode
-            if validate_email_address(admin_email):
-                verification_result = verify_email_identity(admin_email)
-                verification_status = verification_result
-                if verification_result.get("success"):
-                    if verification_result.get("already_verified"):
-                        print(f"Club admin email {admin_email} is already verified in SES")
-                    else:
-                        print(f"Verification email sent to club admin {admin_email}")
-                else:
-                    print(f"Warning: Failed to verify club admin email {admin_email}: {verification_result.get('error')}")
-            
+        if admin_email:
+            # Auto-generate temporary password (user will set their own during verification)
+            admin_password = generate_temporary_password()
+            # Create Cognito user first (with email_verified: false)
             user_info = create_cognito_user(
                 COGNITO_USER_POOL_ID,
                 admin_email,
@@ -962,6 +1338,47 @@ def create_club():
             if not user_info:
                 return flask_error_response("Failed to create Cognito user for club admin", status_code=500)
             
+            # Generate verification token and send custom verification email
+            verification_status = None
+            if validate_email_address(admin_email):
+                frontend_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net")
+                token_result = generate_email_verification_token(admin_email, frontend_url)
+                if token_result.get("success"):
+                    verification_url = token_result.get("verification_url")
+                    user_name = f"{admin_first_name} {admin_last_name}".strip() or "User"
+                    email_template = get_email_verification_template(admin_email, verification_url, user_name)
+                    try:
+                        send_templated_email(
+                            to_addresses=[admin_email],
+                            template_data=email_template
+                        )
+                        verification_status = {
+                            "success": True,
+                            "message": f"Verification email sent to {admin_email}"
+                        }
+                        print(f"Verification email sent to club admin {admin_email}")
+                    except Exception as email_error:
+                        import traceback
+                        error_trace = traceback.format_exc()
+                        print(f"ERROR: Failed to send verification email to {admin_email}: {email_error}")
+                        print(f"Traceback: {error_trace}")
+                        verification_status = {
+                            "success": False,
+                            "error": f"Failed to send verification email: {str(email_error)}"
+                        }
+                else:
+                    print(f"ERROR: Failed to generate verification token for {admin_email}: {token_result.get('error')}")
+                    verification_status = {
+                        "success": False,
+                        "error": token_result.get("error", "Failed to generate verification token")
+                    }
+            else:
+                print(f"ERROR: Invalid email address format: {admin_email}")
+                verification_status = {
+                    "success": False,
+                    "error": f"Invalid email address format: {admin_email}"
+                }
+            
             if group_name:
                 add_user_to_cognito_group(
                     COGNITO_USER_POOL_ID,
@@ -969,7 +1386,7 @@ def create_club():
                     group_name
                 )
             
-            # Create DynamoDB club admin record
+            # Create DynamoDB club admin record (always create if we have the required data)
             if admin_first_name and admin_last_name:
                 try:
                     admin_id = str(uuid.uuid4())
@@ -980,15 +1397,21 @@ def create_club():
                         "email": admin_email,
                         "clubId": new_club_id,
                         "isActive": True,
+                        "verificationStatus": "pending",
                         "createdAt": now,
                     }
                     
                     admin_table = get_table("ConsistencyTracker-ClubAdmins")
                     admin_table.put_item(Item=admin_record)
-                    print(f"Created DynamoDB record for club admin: {admin_email}")
+                    print(f"✅ Created DynamoDB record for club admin: {admin_email} (adminId: {admin_id}, clubId: {new_club_id})")
                 except Exception as e:
-                    print(f"Error creating DynamoDB record for club admin {admin_email}: {e}")
+                    import traceback
+                    error_trace = traceback.format_exc()
+                    print(f"ERROR: Failed to create DynamoDB record for club admin {admin_email}: {e}")
+                    print(f"Traceback: {error_trace}")
                     # Continue anyway - Cognito user and group membership already created
+            else:
+                print(f"WARNING: Skipping DynamoDB record creation - missing firstName ({admin_first_name}) or lastName ({admin_last_name}) for {admin_email}")
     
     # Send email notifications
     response_data = {"club": club}
@@ -1019,47 +1442,17 @@ def create_club():
                 }
                 print(f"Error sending app-admin confirmation email to {app_admin_email}: {e}")
         
-        # Send invitation to new club-admin if created
-        if admin_email and admin_password and validate_email_address(admin_email):
-            try:
-                login_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net/admin/login")
-                template = get_user_invitation_template(
-                    user_name=admin_email.split("@")[0],
-                    email=admin_email,
-                    temporary_password=admin_password,
-                    login_url=login_url,
-                    role="club administrator"
-                )
-                # Use configured club admin from email, fallback to default
-                club_admin_from_email = os.environ.get("SES_CLUB_ADMIN_FROM_EMAIL") or os.environ.get("SES_FROM_EMAIL", "noreply@repwarrior.net")
-                ses_from_name = os.environ.get("SES_FROM_NAME", "Consistency Tracker")
-                result = send_templated_email(
-                    [admin_email], 
-                    template,
-                    from_email=club_admin_from_email,
-                    from_name=ses_from_name
-                )
-                email_status["clubAdminEmail"] = {
-                    "sent": True,
-                    "email": admin_email,
-                    "messageId": result.get("message_id") if result else None
-                }
-                print(f"Club-admin invitation email sent to {admin_email}")
-            except Exception as e:
-                email_status["clubAdminEmail"] = {
-                    "sent": False,
-                    "email": admin_email,
-                    "error": str(e)
-                }
-                print(f"Error sending club-admin invitation email to {admin_email}: {e}")
-                import traceback
-                print(f"Traceback: {traceback.format_exc()}")
+        # Note: Club admin already received verification email above (line 1352-1378)
+        # No need to send invitation email with temporary password - user will set password during verification
         
-        response_data["adminUser"] = {
-            "email": admin_email,
-            "status": "created",
-            "message": "Club-admin user created and added to group"
-        }
+        if admin_email:
+            response_data["adminUser"] = {
+                "email": admin_email,
+                "status": "created",
+                "message": "Club-admin user created and added to group"
+            }
+            if verification_status:
+                response_data["adminUser"]["emailStatus"] = verification_status
     except Exception as e:
         # Don't fail the request if email sending fails, but log the error
         print(f"Warning: Failed to send club creation emails: {e}")
@@ -1146,6 +1539,7 @@ def list_club_admins(club_id):
             "email": admin.get("email"),
             "clubId": admin.get("clubId"),
             "isActive": admin.get("isActive", True),
+            "verificationStatus": admin.get("verificationStatus"),
             "createdAt": admin.get("createdAt"),
         })
     
@@ -1174,12 +1568,11 @@ def add_club_admin(club_id):
     
     body = request.get_json() or {}
     admin_email = (body.get("adminEmail") or "").strip()
-    admin_password = (body.get("adminPassword") or "").strip()
     first_name = (body.get("firstName") or "").strip()
     last_name = (body.get("lastName") or "").strip()
     
-    if not admin_email or not admin_password:
-        return flask_error_response("adminEmail and adminPassword are required", status_code=400)
+    if not admin_email:
+        return flask_error_response("adminEmail is required", status_code=400)
     
     if not first_name or not last_name:
         return flask_error_response("firstName and lastName are required", status_code=400)
@@ -1191,6 +1584,9 @@ def add_club_admin(club_id):
     existing_admin = get_club_admin_by_email(admin_email)
     if existing_admin:
         return flask_error_response("Club admin with this email already exists", status_code=400)
+    
+    # Auto-generate temporary password (user will set their own during verification)
+    admin_password = generate_temporary_password()
     
     # Build club-admin group name
     sanitized_name = sanitize_club_name_for_group(club.get("clubName", ""))
@@ -1233,6 +1629,7 @@ def add_club_admin(club_id):
             "email": admin_email,
             "clubId": club_id,
             "isActive": True,
+            "verificationStatus": "pending",
             "createdAt": now,
         }
         
@@ -1244,33 +1641,38 @@ def add_club_admin(club_id):
         # Note: Cognito user and group membership already created, but we'll continue
         # In production, you might want to rollback or mark for cleanup
     
-    # Optionally send an invitation email (reuse existing template)
+    # Send verification email instead of invitation email with temporary password
     email_status = None
     try:
-        login_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net/admin/login")
-        template = get_user_invitation_template(
-            user_name=admin_email.split("@")[0],
-            email=admin_email,
-            temporary_password=admin_password,
-            login_url=login_url,
-            role="club administrator",
-        )
-        club_admin_from_email = os.environ.get("SES_CLUB_ADMIN_FROM_EMAIL") or os.environ.get(
-            "SES_FROM_EMAIL", "noreply@repwarrior.net"
-        )
-        ses_from_name = os.environ.get("SES_FROM_NAME", "Consistency Tracker")
-        result = send_templated_email(
-            [admin_email],
-            template,
-            from_email=club_admin_from_email,
-            from_name=ses_from_name,
-        )
-        email_status = {
-            "sent": True,
-            "email": admin_email,
-            "messageId": result.get("message_id") if result else None,
-        }
-        print(f"Additional club-admin invitation email sent to {admin_email} for club {club_id}")
+        frontend_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net")
+        token_result = generate_email_verification_token(admin_email, frontend_url)
+        if token_result.get("success"):
+            verification_url = token_result.get("verification_url")
+            user_name = f"{first_name} {last_name}".strip() or admin_email.split("@")[0]
+            email_template = get_email_verification_template(admin_email, verification_url, user_name)
+            club_admin_from_email = os.environ.get("SES_CLUB_ADMIN_FROM_EMAIL") or os.environ.get(
+                "SES_FROM_EMAIL", "noreply@repwarrior.net"
+            )
+            ses_from_name = os.environ.get("SES_FROM_NAME", "Consistency Tracker")
+            result = send_templated_email(
+                [admin_email],
+                email_template,
+                from_email=club_admin_from_email,
+                from_name=ses_from_name,
+            )
+            email_status = {
+                "sent": True,
+                "email": admin_email,
+                "messageId": result.get("message_id") if result else None,
+            }
+            print(f"Additional club-admin invitation email sent to {admin_email} for club {club_id}")
+        else:
+            email_status = {
+                "sent": False,
+                "email": admin_email,
+                "error": token_result.get("error", "Failed to generate verification token"),
+            }
+            print(f"Error: Failed to generate verification token for {admin_email}: {token_result.get('error')}")
     except Exception as e:
         email_status = {
             "sent": False,
@@ -1287,6 +1689,7 @@ def add_club_admin(club_id):
             "email": admin_email,
             "clubId": club_id,
             "isActive": True,
+            "verificationStatus": "pending",
             "createdAt": now,
         },
         "emailStatus": email_status,
@@ -1345,6 +1748,7 @@ def update_club_admin(club_id, admin_id):
             "email": updated_admin.get("email"),
             "clubId": updated_admin.get("clubId"),
             "isActive": updated_admin.get("isActive", True),
+            "verificationStatus": updated_admin.get("verificationStatus"),
             "createdAt": updated_admin.get("createdAt"),
             "updatedAt": updated_admin.get("updatedAt"),
         },
@@ -1898,6 +2302,7 @@ def list_team_coaches(team_id):
             "teamId": coach.get("teamId"),
             "clubId": coach.get("clubId"),
             "isActive": coach.get("isActive", True),
+            "verificationStatus": coach.get("verificationStatus"),
             "createdAt": coach.get("createdAt"),
         })
     
@@ -1984,6 +2389,7 @@ def add_team_coach(team_id):
             "teamId": team_id,
             "clubId": club_id,
             "isActive": True,
+            "verificationStatus": "pending",
             "createdAt": now,
         }
         
@@ -1995,36 +2401,32 @@ def add_team_coach(team_id):
         # Note: Cognito user and group membership already created, but we'll continue
         # In production, you might want to rollback or mark for cleanup
     
-    # Send invitation email
+    # Send verification email and invitation email
     email_status = None
+    coach_name = f"{first_name} {last_name}".strip() or "Coach"
     try:
-        # Get login URL from environment or use default
-        login_url = os.environ.get("ADMIN_LOGIN_URL", "https://app.repwarrior.net/admin/login")
+        # Generate verification token and send custom verification email
+        if validate_email_address(coach_email):
+            frontend_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net")
+            token_result = generate_email_verification_token(coach_email, frontend_url)
+            if token_result.get("success"):
+                verification_url = token_result.get("verification_url")
+                verification_template = get_email_verification_template(coach_email, verification_url, coach_name)
+                try:
+                    send_templated_email(
+                        to_addresses=[coach_email],
+                        template_data=verification_template
+                    )
+                    print(f"Verification email sent to coach {coach_email}")
+                except Exception as email_error:
+                    print(f"Warning: Failed to send verification email to {coach_email}: {email_error}")
         
-        template = get_coach_invitation_template(
-            coach_email,
-            coach_email,
-            coach_password,
-            login_url,
-            team_name,
-            club_name
-        )
-        
-        # Verify email if needed (for SES sandbox)
-        verification_result = verify_email_identity(coach_email)
-        if verification_result.get("verified"):
-            send_templated_email([coach_email], template)
-            email_status = {
-                "sent": True,
-                "message": "Coach invitation email sent successfully"
-            }
-            print(f"Coach invitation email sent to {coach_email}")
-        else:
-            email_status = {
-                "sent": False,
-                "message": f"Email verification required: {verification_result.get('error', 'Unknown error')}"
-            }
-            print(f"Warning: Could not send coach invitation email to {coach_email}: {verification_result.get('error')}")
+        # Note: Coach already received verification email above
+        # No need to send invitation email with temporary password - user will set password during verification
+        email_status = {
+            "sent": True,
+            "message": "Coach verification email sent successfully"
+        }
     except Exception as e:
         email_status = {
             "sent": False,
@@ -2041,6 +2443,7 @@ def add_team_coach(team_id):
             "teamId": team_id,
             "clubId": club_id,
             "isActive": True,
+            "verificationStatus": "pending",
             "createdAt": now,
         },
         "emailStatus": email_status,
@@ -2173,6 +2576,7 @@ def activate_team_coach(team_id, coach_email):
             "teamId": updated_coach.get("teamId"),
             "clubId": updated_coach.get("clubId"),
             "isActive": updated_coach.get("isActive", True),
+            "verificationStatus": updated_coach.get("verificationStatus"),
         },
         "message": "Coach activated successfully"
     })
@@ -2348,6 +2752,7 @@ def list_players():
             "clubId": player.get("clubId"),
             "teamId": player.get("teamId"),
             "isActive": player.get("isActive", True),
+            "verificationStatus": player.get("verificationStatus"),
             "createdAt": player.get("createdAt"),
         })
     
@@ -2431,36 +2836,35 @@ def create_player():
         "clubId": club_id,  # Set from coach's club
         "teamId": team_id,  # From request body (validated above)
         "isActive": True,
+        "verificationStatus": "pending",
         "createdAt": now,
     }
     
     table = get_table("ConsistencyTracker-Players")
     table.put_item(Item=player)
     
-    # Send invitation email with temporary password
+    # Send verification email
     try:
-        team = get_team_by_id(team_id)
-        club = get_club_by_id(club_id)
-        team_name = team.get("teamName", "Unknown Team") if team else "Unknown Team"
-        club_name = club.get("clubName", "Unknown Club") if club else "Unknown Club"
-        
-        # Construct login URL
-        frontend_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net")
-        login_url = f"{frontend_url}/login"
-        
-        template = get_player_invitation_template(
-            player_name=full_name,
-            email=email,
-            temporary_password=temporary_password,
-            login_url=login_url,
-            team_name=team_name,
-            club_name=club_name
-        )
-        send_templated_email([email], template)
-        print(f"Player invitation email sent to {email}")
+        if validate_email_address(email):
+            frontend_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net")
+            token_result = generate_email_verification_token(email, frontend_url)
+            if token_result.get("success"):
+                verification_url = token_result.get("verification_url")
+                player_name = f"{first_name} {last_name}".strip() or "Player"
+                verification_template = get_email_verification_template(email, verification_url, player_name)
+                try:
+                    send_templated_email(
+                        to_addresses=[email],
+                        template_data=verification_template
+                    )
+                    print(f"Verification email sent to player {email}")
+                except Exception as email_error:
+                    print(f"Warning: Failed to send verification email to {email}: {email_error}")
+            else:
+                print(f"Warning: Failed to generate verification token for {email}: {token_result.get('error')}")
     except Exception as e:
         # Don't fail the request if email sending fails
-        print(f"Warning: Failed to send player invitation email: {e}")
+        print(f"Warning: Failed to send player verification email: {e}")
     
     return flask_success_response({"player": player}, status_code=201)
 
@@ -2598,26 +3002,20 @@ def upload_players_csv():
         try:
             table.put_item(Item=player_item)
             
-            # Send invitation email if email is valid
+            # Send verification email if email is valid
             try:
-                team = get_team_by_id(team_id) if team_id else None
-                club = get_club_by_id(club_id) if club_id else None
-                team_name = team.get("teamName", "Unknown Team") if team else "Unknown Team"
-                club_name = club.get("clubName", "Unknown Club") if club else "Unknown Club"
-                
                 frontend_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net")
-                login_url = f"{frontend_url}/login"
-                
-                template = get_player_invitation_template(
-                    player_name=name,
-                    email=email,
-                    temporary_password=temporary_password,
-                    login_url=login_url,
-                    team_name=team_name,
-                    club_name=club_name
-                )
-                send_templated_email([email], template)
-                print(f"Invitation email sent to {email} from CSV upload")
+                token_result = generate_email_verification_token(email, frontend_url)
+                if token_result.get("success"):
+                    verification_url = token_result.get("verification_url")
+                    verification_template = get_email_verification_template(email, verification_url, name)
+                    send_templated_email(
+                        to_addresses=[email],
+                        template_data=verification_template
+                    )
+                    print(f"Verification email sent to {email} from CSV upload")
+                else:
+                    print(f"Warning: Failed to generate verification token for {email} from CSV: {token_result.get('error')}")
             except Exception as e:
                 print(f"Warning: Failed to send invitation email to {email} from CSV: {e}")
             
@@ -2772,7 +3170,7 @@ def delete_player(player_id):
 @require_club
 @require_resource_access('player', 'player_id', get_player_by_id)
 def invite_player(player_id):
-    """Send invitation email to player (create Cognito user if needed)."""
+    """Resend verification email to player (create Cognito user if needed)."""
     # Get existing player (already validated by decorator)
     player = g.current_resource
     
@@ -2820,20 +3218,134 @@ def invite_player(player_id):
         frontend_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net")
         login_url = f"{frontend_url}/login"
         
-        template = get_player_invitation_template(
-            player_name=player_name,
-            email=email,
-            temporary_password=temporary_password,
-            login_url=login_url,
-            team_name=team_name,
-            club_name=club_name
-        )
-        send_templated_email([email], template)
+        # Generate verification token and send custom verification email
+        token_result = generate_email_verification_token(email, frontend_url)
+        if token_result.get("success"):
+            verification_url = token_result.get("verification_url")
+            verification_template = get_email_verification_template(email, verification_url, player_name)
+            try:
+                send_templated_email(
+                    to_addresses=[email],
+                    template_data=verification_template
+                )
+                print(f"Verification email sent to player {email}")
+            except Exception as email_error:
+                print(f"Warning: Failed to send verification email to {email}: {email_error}")
         
-        return flask_success_response({"success": True, "message": "Invitation sent successfully"})
+        # Note: Player already received verification email above
+        # No need to send invitation email with temporary password - user will set password during verification
+        
+        return flask_success_response({"success": True, "message": "Verification email sent successfully"})
     except Exception as e:
         print(f"Error sending player invitation email: {e}")
         return flask_error_response(f"Failed to send invitation email: {str(e)}", status_code=500)
+
+
+@app.route('/admin/teams/<team_id>/coaches/<coach_id>/resend-verification', methods=['POST'])
+@require_admin
+@require_club
+def resend_coach_verification(team_id, coach_id):
+    """Resend verification email to coach."""
+    # Validate team belongs to club
+    team = get_team_by_id(team_id)
+    if not team:
+        return flask_error_response("Team not found", status_code=404)
+    
+    club_id = g.club_id
+    if team.get("clubId") != club_id:
+        return flask_error_response("Team not found or access denied", status_code=403)
+    
+    # Get coach
+    coach = get_coach_by_id(coach_id)
+    if not coach:
+        return flask_error_response("Coach not found", status_code=404)
+    
+    if coach.get("teamId") != team_id:
+        return flask_error_response("Coach does not belong to this team", status_code=403)
+    
+    if coach.get("clubId") != club_id:
+        return flask_error_response("Coach does not belong to your club", status_code=403)
+    
+    email = coach.get("email")
+    if not email or not validate_email_address(email):
+        return flask_error_response("Coach email address is invalid", status_code=400)
+    
+    coach_name = f"{coach.get('firstName', '')} {coach.get('lastName', '')}".strip() or "Coach"
+    
+    try:
+        frontend_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net")
+        token_result = generate_email_verification_token(email, frontend_url)
+        if token_result.get("success"):
+            verification_url = token_result.get("verification_url")
+            verification_template = get_email_verification_template(email, verification_url, coach_name)
+            try:
+                send_templated_email(
+                    to_addresses=[email],
+                    template_data=verification_template
+                )
+                print(f"Verification email resent to coach {email}")
+                return flask_success_response({"success": True, "message": "Verification email sent successfully"})
+            except Exception as email_error:
+                print(f"Warning: Failed to send verification email to {email}: {email_error}")
+                return flask_error_response(f"Failed to send verification email: {str(email_error)}", status_code=500)
+        else:
+            return flask_error_response(f"Failed to generate verification token: {token_result.get('error')}", status_code=500)
+    except Exception as e:
+        print(f"Error resending coach verification email: {e}")
+        return flask_error_response(f"Failed to resend verification email: {str(e)}", status_code=500)
+
+
+@app.route('/admin/clubs/<club_id>/admins/<admin_id>/resend-verification', methods=['POST'])
+@require_admin
+@require_app_admin
+def resend_club_admin_verification(club_id, admin_id):
+    """Resend verification email to club admin (app-admin only)."""
+    # Ensure club exists
+    club = get_club_by_id(club_id)
+    if not club:
+        return flask_error_response("Club not found", status_code=404)
+    
+    # Get club admin
+    admin = get_club_admin_by_id(admin_id)
+    if not admin:
+        return flask_error_response("Club admin not found", status_code=404)
+    
+    if admin.get("clubId") != club_id:
+        return flask_error_response("Club admin does not belong to this club", status_code=403)
+    
+    email = admin.get("email")
+    if not email or not validate_email_address(email):
+        return flask_error_response("Club admin email address is invalid", status_code=400)
+    
+    admin_name = f"{admin.get('firstName', '')} {admin.get('lastName', '')}".strip() or "Admin"
+    
+    try:
+        frontend_url = os.environ.get("FRONTEND_URL", "https://repwarrior.net")
+        token_result = generate_email_verification_token(email, frontend_url)
+        if token_result.get("success"):
+            verification_url = token_result.get("verification_url")
+            verification_template = get_email_verification_template(email, verification_url, admin_name)
+            club_admin_from_email = os.environ.get("SES_CLUB_ADMIN_FROM_EMAIL") or os.environ.get(
+                "SES_FROM_EMAIL", "noreply@repwarrior.net"
+            )
+            ses_from_name = os.environ.get("SES_FROM_NAME", "Consistency Tracker")
+            try:
+                send_templated_email(
+                    to_addresses=[email],
+                    template_data=verification_template,
+                    from_email=club_admin_from_email,
+                    from_name=ses_from_name
+                )
+                print(f"Verification email resent to club admin {email}")
+                return flask_success_response({"success": True, "message": "Verification email sent successfully"})
+            except Exception as email_error:
+                print(f"Warning: Failed to send verification email to {email}: {email_error}")
+                return flask_error_response(f"Failed to send verification email: {str(email_error)}", status_code=500)
+        else:
+            return flask_error_response(f"Failed to generate verification token: {token_result.get('error')}", status_code=500)
+    except Exception as e:
+        print(f"Error resending club admin verification email: {e}")
+        return flask_error_response(f"Failed to resend verification email: {str(e)}", status_code=500)
 
 
 # ============================================================================

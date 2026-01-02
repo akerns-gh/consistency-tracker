@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { getClubs, createClub, updateClub, disableClub, enableClub, addClubAdmin, getClubAdmins, updateClubAdmin, deleteClubAdmin, Club, ClubAdmin } from '../../../services/adminApi'
+import { getClubs, createClub, updateClub, disableClub, enableClub, addClubAdmin, getClubAdmins, updateClubAdmin, deleteClubAdmin, resendClubAdminVerification, Club, ClubAdmin } from '../../../services/adminApi'
 import Card from '../../ui/Card'
 import Button from '../../ui/Button'
 import Loading from '../../ui/Loading'
@@ -24,7 +24,6 @@ export default function ClubManagement() {
   const [adminFirstName, setAdminFirstName] = useState('')
   const [adminLastName, setAdminLastName] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
-  const [adminPassword, setAdminPassword] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   
@@ -141,6 +140,19 @@ export default function ClubManagement() {
     }
   }
 
+  const handleResendAdminVerification = async (clubId: string, admin: ClubAdmin) => {
+    if (!admin.email) {
+      alert('Club admin must have an email address to resend verification')
+      return
+    }
+    try {
+      await resendClubAdminVerification(clubId, admin.adminId)
+      alert('Verification email sent successfully')
+    } catch (err: any) {
+      alert(err?.message || 'Failed to send verification email')
+    }
+  }
+
   const handleCreateClub = async () => {
     setFormError(null)
     const name = clubName.trim()
@@ -152,9 +164,8 @@ export default function ClubManagement() {
     const firstName = adminFirstName.trim()
     const lastName = adminLastName.trim()
     const email = adminEmail.trim()
-    const password = adminPassword.trim()
     
-    // Admin firstName, lastName, email and password are required
+    // Admin firstName, lastName, and email are required (password auto-generated)
     if (!firstName) {
       setFormError('Please enter a first name for the club administrator')
       return
@@ -170,11 +181,6 @@ export default function ClubManagement() {
       return
     }
     
-    if (!password) {
-      setFormError('Please enter a temporary password for the club administrator')
-      return
-    }
-    
     // Validate email format
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setFormError('Please enter a valid email address')
@@ -187,8 +193,7 @@ export default function ClubManagement() {
         clubName: name,
         firstName,
         lastName,
-        adminEmail: email,
-        adminPassword: password
+        adminEmail: email
       }
       
       await createClub(createData)
@@ -196,7 +201,6 @@ export default function ClubManagement() {
       setAdminFirstName('')
       setAdminLastName('')
       setAdminEmail('')
-      setAdminPassword('')
       setShowCreateForm(false)
       await loadClubs()
     } catch (err: any) {
@@ -219,19 +223,17 @@ export default function ClubManagement() {
     const firstName = adminFirstName.trim()
     const lastName = adminLastName.trim()
     const email = adminEmail.trim()
-    const password = adminPassword.trim()
 
     try {
       setSubmitting(true)
       await updateClub(editingClub.clubId, { clubName: name })
 
       // Optionally add an additional club admin if all fields provided
-      if (firstName && lastName && email && password) {
+      if (firstName && lastName && email) {
         await addClubAdmin(editingClub.clubId, {
           firstName,
           lastName,
           adminEmail: email,
-          adminPassword: password,
         })
       }
 
@@ -240,7 +242,6 @@ export default function ClubManagement() {
       setAdminFirstName('')
       setAdminLastName('')
       setAdminEmail('')
-      setAdminPassword('')
       await loadClubs()
     } catch (err: any) {
       setFormError(err?.message || 'Failed to update club')
@@ -280,6 +281,9 @@ export default function ClubManagement() {
     setClubName(club.clubName)
     setShowCreateForm(false)
     setFormError(null)
+    // Automatically expand and load club admins when editing
+    setExpandedClubs(prev => new Set([...prev, club.clubId]))
+    loadAdminsForClub(club.clubId)
   }
 
   const cancelEdit = () => {
@@ -294,7 +298,6 @@ export default function ClubManagement() {
     setAdminFirstName('')
     setAdminLastName('')
     setAdminEmail('')
-    setAdminPassword('')
     setFormError(null)
   }
 
@@ -442,7 +445,7 @@ export default function ClubManagement() {
                         Club Administrator <span className="text-red-500">*</span>
                       </h4>
                       <p className="text-xs text-gray-500 mb-3">
-                        Create a club administrator account. The admin will receive an invitation email with login credentials.
+                        Create a club administrator account. The admin will receive a verification email to set their password.
                       </p>
                       
                       <div className="space-y-3">
@@ -490,38 +493,141 @@ export default function ClubManagement() {
                             required
                           />
                         </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Temporary Password <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="password"
-                            value={adminPassword}
-                            onChange={(e) => setAdminPassword(e.target.value)}
-                            placeholder="Minimum 12 characters"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                            disabled={submitting}
-                            required
-                          />
-                          <p className="text-xs text-gray-500 mt-1">
-                            Must be at least 12 characters with uppercase, lowercase, and numbers. The admin will be required to change this on first login.
-                          </p>
-                        </div>
                       </div>
                     </div>
                   </>
                 ) : (
                   <>
+                    {/* Club Admins Management (only when editing) - moved to appear first */}
+                    {editingClub && (
+                      <div className="border-t border-gray-200 pt-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-sm font-medium text-gray-700">
+                            Club Administrators
+                          </h4>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => toggleClubExpanded(editingClub.clubId)}
+                          >
+                            {expandedClubs.has(editingClub.clubId) ? 'Hide' : 'Manage'} Admins
+                          </Button>
+                        </div>
+
+                        {expandedClubs.has(editingClub.clubId) && (
+                          <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            {/* Admins List */}
+                            {loadingAdmins.has(editingClub.clubId) ? (
+                              <div className="text-sm text-gray-500 py-2">Loading admins...</div>
+                            ) : (adminsByClub[editingClub.clubId] || []).length === 0 ? (
+                              <div className="text-sm text-gray-500 py-2">No club administrators found.</div>
+                            ) : (
+                              <div className="space-y-2 mb-4">
+                                {adminsByClub[editingClub.clubId].map((admin) => (
+                                  <div key={admin.adminId} className="flex items-center justify-between bg-white px-4 py-2 rounded border border-gray-200">
+                                    <div className="flex-1">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {admin.firstName} {admin.lastName}
+                                    </div>
+                                    {admin.verificationStatus === "pending" && (
+                                      <span className="px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800">
+                                        Verification Pending
+                                      </span>
+                                    )}
+                                    {(() => {
+                                      const isFullyActive = admin.isActive !== false && admin.verificationStatus !== "pending"
+                                      return (
+                                        <span
+                                          className={`px-2 py-1 rounded text-xs ${
+                                            isFullyActive
+                                              ? 'bg-green-100 text-green-800'
+                                              : 'bg-gray-100 text-gray-800'
+                                          }`}
+                                        >
+                                          {isFullyActive ? 'Active' : 'Inactive'}
+                                        </span>
+                                      )
+                                    })()}
+                                  </div>
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        {admin.email}
+                                        {admin.createdAt && ` • Created ${new Date(admin.createdAt).toLocaleDateString()}`}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleEditAdmin(editingClub.clubId, admin)}
+                                      >
+                                        Edit
+                                      </Button>
+                                      {admin.isActive !== false && admin.email && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleResendAdminVerification(editingClub.clubId, admin)}
+                                        >
+                                          Resend Verification
+                                        </Button>
+                                      )}
+                                      {/* Remove button hidden - functionality not implemented yet */}
+                                      {/* <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleRemoveAdmin(editingClub.clubId, admin.adminId)}
+                                        className="text-red-600 hover:text-red-700 border-red-300 hover:border-red-400"
+                                      >
+                                        Remove
+                                      </Button> */}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <div className="border-t border-gray-200 pt-4">
                       <h4 className="text-sm font-medium text-gray-700 mb-2">
                         Additional Club Administrator <span className="text-gray-500 text-xs font-normal">(optional)</span>
                       </h4>
                       <p className="text-xs text-gray-500 mb-3">
-                        Optionally add another club administrator for this club. If provided, they will receive an invitation email with login credentials.
+                        Optionally add another club administrator for this club. If provided, they will receive a verification email to set their password.
                       </p>
                       
                       <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            First Name
+                          </label>
+                          <input
+                            type="text"
+                            value={adminFirstName}
+                            onChange={(e) => setAdminFirstName(e.target.value)}
+                            placeholder="First Name"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                            disabled={submitting}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Last Name
+                          </label>
+                          <input
+                            type="text"
+                            value={adminLastName}
+                            onChange={(e) => setAdminLastName(e.target.value)}
+                            placeholder="Last Name"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                            disabled={submitting}
+                          />
+                        </div>
+                        
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             Admin Email
@@ -535,99 +641,9 @@ export default function ClubManagement() {
                             disabled={submitting}
                           />
                         </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Temporary Password
-                          </label>
-                          <input
-                            type="password"
-                            value={adminPassword}
-                            onChange={(e) => setAdminPassword(e.target.value)}
-                            placeholder="Minimum 12 characters"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                            disabled={submitting}
-                          />
-                          <p className="text-xs text-gray-500 mt-1">
-                            Must be at least 12 characters with uppercase, lowercase, and numbers. The admin will be required to change this on first login.
-                          </p>
-                        </div>
                       </div>
                     </div>
                   </>
-                )}
-
-                {/* Club Admins Management (only when editing) */}
-                {editingClub && (
-                  <div className="border-t border-gray-200 pt-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-sm font-medium text-gray-700">
-                        Club Administrators
-                      </h4>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => toggleClubExpanded(editingClub.clubId)}
-                      >
-                        {expandedClubs.has(editingClub.clubId) ? 'Hide' : 'Manage'} Admins
-                      </Button>
-                    </div>
-
-                    {expandedClubs.has(editingClub.clubId) && (
-                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                        {/* Admins List */}
-                        {loadingAdmins.has(editingClub.clubId) ? (
-                          <div className="text-sm text-gray-500 py-2">Loading admins...</div>
-                        ) : (adminsByClub[editingClub.clubId] || []).length === 0 ? (
-                          <div className="text-sm text-gray-500 py-2">No club administrators found.</div>
-                        ) : (
-                          <div className="space-y-2 mb-4">
-                            {adminsByClub[editingClub.clubId].map((admin) => (
-                              <div key={admin.adminId} className="flex items-center justify-between bg-white px-4 py-2 rounded border border-gray-200">
-                                <div className="flex-1">
-                                  <div className="flex items-center space-x-2">
-                                    <div className="text-sm font-medium text-gray-900">
-                                      {admin.firstName} {admin.lastName}
-                                    </div>
-                                    <span
-                                      className={`px-2 py-1 rounded text-xs ${
-                                        admin.isActive !== false
-                                          ? 'bg-green-100 text-green-800'
-                                          : 'bg-gray-100 text-gray-800'
-                                      }`}
-                                    >
-                                      {admin.isActive !== false ? 'Active' : 'Inactive'}
-                                    </span>
-                                  </div>
-                                  <div className="text-xs text-gray-500 mt-1">
-                                    {admin.email}
-                                    {admin.createdAt && ` • Created ${new Date(admin.createdAt).toLocaleDateString()}`}
-                                  </div>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleEditAdmin(editingClub.clubId, admin)}
-                                  >
-                                    Edit
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleRemoveAdmin(editingClub.clubId, admin.adminId)}
-                                    className="text-red-600 hover:text-red-700 border-red-300 hover:border-red-400"
-                                  >
-                                    Remove
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
                 )}
 
                 {/* Edit Admin Modal */}

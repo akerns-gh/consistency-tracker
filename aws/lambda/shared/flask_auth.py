@@ -102,6 +102,27 @@ def require_admin(f):
         if not verify_admin_role(event):
             abort(403, description="Admin access required")
         
+        # Check verification status for coaches and club-admins
+        email = user_info.get("email")
+        if email:
+            # Lazy import to avoid circular dependencies
+            from shared.db_utils import get_coach_by_email, get_club_admin_by_email
+            
+            # Check if user is a coach
+            coach = get_coach_by_email(email)
+            if coach:
+                verification_status = coach.get("verificationStatus")
+                if verification_status == "pending":
+                    abort(403, description="Account verification pending. Please complete email verification and password setup.")
+            
+            # Check if user is a club-admin (only if not a coach)
+            if not coach:
+                admin = get_club_admin_by_email(email)
+                if admin:
+                    verification_status = admin.get("verificationStatus")
+                    if verification_status == "pending":
+                        abort(403, description="Account verification pending. Please complete email verification and password setup.")
+        
         # Store user info in Flask's g object
         g.current_user = user_info
         g.club_id = get_club_id_from_user(event)

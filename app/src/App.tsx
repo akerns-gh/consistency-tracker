@@ -9,6 +9,7 @@ import ReflectionView from './pages/ReflectionView'
 import ContentListView from './pages/ContentListView'
 import ContentPageView from './pages/ContentPageView'
 import HelpView from './pages/HelpView'
+import EmailVerificationView from './pages/EmailVerificationView'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import ErrorBoundary from './components/ui/ErrorBoundary'
 
@@ -21,6 +22,7 @@ function App() {
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/admin/login" element={<Login />} />
+            <Route path="/verify-email" element={<EmailVerificationView />} />
             
             {/* Player routes (protected, no admin required) */}
             <Route

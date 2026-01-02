@@ -7,6 +7,7 @@ WARNING: This is a destructive operation that cannot be undone.
 
 import boto3
 import sys
+import re
 from botocore.exceptions import ClientError
 from typing import List, Dict
 
@@ -36,6 +37,50 @@ def get_user_pool_id():
     except Exception as e:
         print(f"❌ Error fetching User Pool ID: {e}")
         sys.exit(1)
+
+
+def sanitize_club_name_for_group(club_name: str) -> str:
+    """
+    Sanitize club name for use in Cognito group names.
+    Matches the logic used in aws/lambda/admin_app.py
+    
+    Cognito group names must:
+    - Start with a letter
+    - Contain only alphanumeric characters, underscores, and hyphens
+    - Be between 1 and 128 characters
+    
+    Args:
+        club_name: Original club name
+    
+    Returns:
+        Sanitized club name safe for Cognito group names
+    """
+    if not club_name:
+        return "club"
+    
+    # Convert to lowercase and replace spaces/special chars with underscores
+    sanitized = re.sub(r'[^a-zA-Z0-9_-]', '_', club_name)
+    sanitized = sanitized.lower()
+    
+    # Ensure it starts with a letter (prepend 'club' if it starts with a number or underscore)
+    if not sanitized or not sanitized[0].isalpha():
+        sanitized = 'club_' + sanitized
+    
+    # Remove consecutive underscores
+    sanitized = re.sub(r'_+', '_', sanitized)
+    
+    # Remove leading/trailing underscores
+    sanitized = sanitized.strip('_')
+    
+    # Ensure it's not empty and limit length (Cognito max is 128, but we need room for 'club-' and '-admins')
+    if not sanitized:
+        sanitized = "club"
+    
+    # Limit to 100 chars to leave room for 'club-' prefix and '-admins' suffix
+    if len(sanitized) > 100:
+        sanitized = sanitized[:100].rstrip('_')
+    
+    return sanitized
 
 def delete_club_and_related_data(club_id: str, club_name: str = None):
     """Delete club and all related data."""
@@ -166,6 +211,18 @@ def delete_club_and_related_data(club_id: str, club_name: str = None):
     # 4. Delete all club admins for this club
     print("\n📋 Deleting club admins...")
     admin_table = dynamodb.Table("ConsistencyTracker-ClubAdmins")
+    
+    # Get club record to determine group name (if not provided)
+    if not club_name:
+        club_table = dynamodb.Table("ConsistencyTracker-Clubs")
+        try:
+            club_response = club_table.get_item(Key={"clubId": club_id})
+            if "Item" in club_response:
+                club_name = club_response["Item"].get("clubName")
+                print(f"  📝 Fetched club name: {club_name}")
+        except Exception as e:
+            print(f"  ⚠️  Could not fetch club name: {e}")
+    
     try:
         response = admin_table.query(
             IndexName="clubId-index",
@@ -183,11 +240,9 @@ def delete_club_and_related_data(club_id: str, club_name: str = None):
                 print(f"  ✅ Deleted club admin: {admin_id} ({email})")
                 deleted_items['club_admins'] += 1
                 
-                # Remove from Cognito group
+                # Remove from Cognito group (if club_name available)
                 if club_name:
-                    # Sanitize club name for group name (replace spaces and special chars with underscores, lowercase)
-                    sanitized_name = club_name.lower().replace(' ', '_').replace('-', '_')
-                    sanitized_name = ''.join(c if c.isalnum() or c == '_' else '' for c in sanitized_name)
+                    sanitized_name = sanitize_club_name_for_group(club_name)
                     group_name = f"club-{sanitized_name}-admins"
                     try:
                         cognito.admin_remove_user_from_group(
@@ -200,7 +255,7 @@ def delete_club_and_related_data(club_id: str, club_name: str = None):
                         if e.response['Error']['Code'] != 'ResourceNotFoundException':
                             print(f"     ⚠️  Could not remove from group: {e}")
                 
-                # Delete Cognito user
+                # Delete Cognito user (this removes from all groups anyway)
                 if email:
                     try:
                         cognito.admin_delete_user(
@@ -239,12 +294,20 @@ def delete_club_and_related_data(club_id: str, club_name: str = None):
         # Find and delete groups related to this club
         for group in groups:
             group_name = group['GroupName']
-            sanitized_name = None
-            if club_name:
-                sanitized_name = club_name.lower().replace(' ', '_').replace('-', '_')
-                sanitized_name = ''.join(c if c.isalnum() or c == '_' else '' for c in sanitized_name)
+            should_delete = False
             
-            if club_id in group_name or (sanitized_name and sanitized_name in group_name):
+            # Match by club_id in group name (for coach groups: coach-{clubId}-{teamId})
+            if club_id in group_name:
+                should_delete = True
+            
+            # Match by sanitized club name (for club-admin groups: club-{sanitizedName}-admins)
+            if club_name:
+                sanitized_name = sanitize_club_name_for_group(club_name)
+                expected_group_name = f"club-{sanitized_name}-admins"
+                if group_name == expected_group_name:
+                    should_delete = True
+            
+            if should_delete:
                 try:
                     cognito.delete_group(
                         UserPoolId=user_pool_id,

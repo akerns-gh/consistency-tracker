@@ -305,3 +305,62 @@ class DatabaseStack(Stack):
             ),
         )
 
+        # Email Verifications Table
+        # Partition Key: token (String)
+        # GSI: email-index (for querying by email)
+        # TTL: expiresAt (auto-delete expired tokens)
+        self.email_verification_table = dynamodb.Table(
+            self,
+            "EmailVerificationTable",
+            table_name="ConsistencyTracker-EmailVerifications",
+            partition_key=dynamodb.Attribute(
+                name="token", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery=True,
+            removal_policy=RemovalPolicy.RETAIN,
+            time_to_live_attribute="expiresAt",
+        )
+
+        # GSI: email for querying verification tokens by email
+        self.email_verification_table.add_global_secondary_index(
+            index_name="email-index",
+            partition_key=dynamodb.Attribute(
+                name="email", type=dynamodb.AttributeType.STRING
+            ),
+        )
+
+        # Verification Attempts Table
+        # Tracks failed verification attempts per IP address for brute-force protection
+        # Partition Key: ipAddress (String)
+        # TTL: expiresAt (auto-delete after 1 hour)
+        self.verification_attempts_table = dynamodb.Table(
+            self,
+            "VerificationAttemptsTable",
+            table_name="ConsistencyTracker-VerificationAttempts",
+            partition_key=dynamodb.Attribute(
+                name="ipAddress", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery=True,
+            removal_policy=RemovalPolicy.RETAIN,
+            time_to_live_attribute="expiresAt",
+        )
+
+        # Resend Tracking Table
+        # Tracks resend requests per email address for rate limiting
+        # Partition Key: email (String)
+        # TTL: expiresAt (auto-delete after 5 minutes)
+        self.resend_tracking_table = dynamodb.Table(
+            self,
+            "ResendTrackingTable",
+            table_name="ConsistencyTracker-ResendTracking",
+            partition_key=dynamodb.Attribute(
+                name="email", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            point_in_time_recovery=True,
+            removal_policy=RemovalPolicy.RETAIN,
+            time_to_live_attribute="expiresAt",
+        )
+

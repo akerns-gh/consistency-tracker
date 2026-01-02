@@ -27,6 +27,7 @@ export interface Coach {
   teamId: string
   clubId: string
   isActive: boolean
+  verificationStatus?: "pending" | "verified"
   createdAt?: string
   updatedAt?: string
 }
@@ -38,6 +39,7 @@ export interface ClubAdmin {
   email: string
   clubId: string
   isActive: boolean
+  verificationStatus?: "pending" | "verified"
   createdAt?: string
   updatedAt?: string
 }
@@ -59,7 +61,6 @@ export async function createClub(data: {
   firstName: string
   lastName: string
   adminEmail: string
-  adminPassword: string
 }): Promise<{ club: Club }> {
   const response = await api.post('/admin/clubs', data)
   return response.data.data
@@ -78,7 +79,7 @@ export async function getClubAdmins(clubId: string): Promise<{ admins: ClubAdmin
  */
 export async function addClubAdmin(
   clubId: string,
-  data: { firstName: string; lastName: string; adminEmail: string; adminPassword: string }
+  data: { firstName: string; lastName: string; adminEmail: string }
 ): Promise<{ admin: ClubAdmin; emailStatus: any; message: string }> {
   const response = await api.post(`/admin/clubs/${clubId}/admins`, data)
   return response.data.data
@@ -243,6 +244,7 @@ export interface Player {
   clubId: string
   teamId: string
   isActive: boolean
+  verificationStatus?: "pending" | "verified"
   uniqueLink?: string
   createdAt?: string
 }
@@ -302,13 +304,35 @@ export async function deactivatePlayer(playerId: string): Promise<void> {
 }
 
 /**
- * Invite a player (create Cognito user and send email)
+ * Resend verification email to a player
  */
 export async function invitePlayer(
   playerId: string,
   email: string
 ): Promise<{ success: boolean }> {
   const response = await api.post(`/admin/players/${playerId}/invite`, { email })
+  return response.data.data
+}
+
+/**
+ * Resend verification email to a coach
+ */
+export async function resendCoachVerification(
+  teamId: string,
+  coachId: string
+): Promise<{ success: boolean; message: string }> {
+  const response = await api.post(`/admin/teams/${teamId}/coaches/${coachId}/resend-verification`)
+  return response.data.data
+}
+
+/**
+ * Resend verification email to a club admin (app-admin only)
+ */
+export async function resendClubAdminVerification(
+  clubId: string,
+  adminId: string
+): Promise<{ success: boolean; message: string }> {
+  const response = await api.post(`/admin/clubs/${clubId}/admins/${adminId}/resend-verification`)
   return response.data.data
 }
 

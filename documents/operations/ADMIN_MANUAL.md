@@ -183,8 +183,14 @@ The email field is **disabled** when editing existing players. This is because:
 ### Player Status
 
 Players can be activated or deactivated:
-- **Active**: Player can log in and access the application
-- **Inactive**: Player cannot log in (account is disabled)
+- **Active**: Player can log in and access the application (requires both `isActive=true` AND email verification complete)
+- **Inactive**: Player cannot log in (account is disabled OR email verification is pending)
+
+**Important**: The status badge shows "Inactive" if:
+- The player's `isActive` flag is `false`, OR
+- The player's email verification is pending (`verificationStatus="pending"`)
+
+Players with pending email verification will show as "Inactive" even if their account is marked as active, because they cannot log in until they complete email verification and set their password.
 
 Use the "Disable" or "Enable" button in the Players table to change a player's status.
 
@@ -236,8 +242,14 @@ To edit a coach's name:
 ### Coach Status
 
 Coaches can be activated or deactivated:
-- **Active**: Coach can log in and access the team
-- **Inactive**: Coach cannot log in (account is disabled)
+- **Active**: Coach can log in and access the team (requires both `isActive=true` AND email verification complete)
+- **Inactive**: Coach cannot log in (account is disabled OR email verification is pending)
+
+**Important**: The status badge shows "Inactive" if:
+- The coach's `isActive` flag is `false`, OR
+- The coach's email verification is pending (`verificationStatus="pending"`)
+
+Coaches with pending email verification will show as "Inactive" even if their account is marked as active, because they cannot log in until they complete email verification and set their password.
 
 Use the "Activate" or "Deactivate" button in the coach list to change status.
 
@@ -317,19 +329,19 @@ To edit a club admin's name:
 
 ### Removing Club Admins
 
-To remove a club admin:
-
-1. Navigate to the club's admin list
-2. Click "Remove" on the admin you want to remove
-3. Confirm the removal
-
-**Important**: You cannot remove the last active club admin for a club. The system will prevent this to ensure every club has at least one administrator.
+**Note**: The "Remove" button for club administrators is currently hidden in the UI. Club admin removal functionality is not yet implemented. To remove a club admin, contact `admin@repwarrior.net` or use AWS Console/CLI.
 
 ### Club Admin Status
 
 Club admins can be activated or deactivated:
-- **Active**: Can log in and access the club
-- **Inactive**: Cannot log in (account is disabled)
+- **Active**: Can log in and access the club (requires both `isActive=true` AND email verification complete)
+- **Inactive**: Cannot log in (account is disabled OR email verification is pending)
+
+**Important**: The status badge shows "Inactive" if:
+- The admin's `isActive` flag is `false`, OR
+- The admin's email verification is pending (`verificationStatus="pending"`)
+
+Club admins with pending email verification will show as "Inactive" even if their account is marked as active, because they cannot log in until they complete email verification and set their password.
 
 Status is managed automatically when admins are added or removed.
 

@@ -291,6 +291,8 @@ for region in ['us-east-1', 'us-west-2', 'eu-west-1']:
 
 ## Security Best Practices
 
+For comprehensive security documentation, see [SECURITY.md](../SECURITY.md).
+
 1. **Enable MFA** on AWS account
 2. **Use IAM roles** with least privilege
 3. **Enable SES event notifications** (bounces, complaints)
@@ -298,6 +300,7 @@ for region in ['us-east-1', 'us-west-2', 'eu-west-1']:
 5. **Enable DMARC reporting** and monitor it
 6. **Use SES configuration sets** for tracking
 7. **Rotate SMTP credentials** regularly
+8. **Email verification security**: See [SECURITY.md](../SECURITY.md#email-verification-security) for details on token security, rate limiting, and brute-force protection
 
 ## Cost Estimate
 

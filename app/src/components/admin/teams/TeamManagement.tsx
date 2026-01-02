@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { getTeams, createTeam, updateTeam, activateTeam, deactivateTeam, getTeamCoaches, addTeamCoach, removeTeamCoach, activateCoach, deactivateCoach, updateCoach, Team, Coach, CsvUploadResults } from '../../../services/adminApi'
+import { getTeams, createTeam, updateTeam, activateTeam, deactivateTeam, getTeamCoaches, addTeamCoach, removeTeamCoach, activateCoach, deactivateCoach, updateCoach, resendCoachVerification, Team, Coach, CsvUploadResults } from '../../../services/adminApi'
 import Card from '../../ui/Card'
 import Button from '../../ui/Button'
 import Loading from '../../ui/Loading'
@@ -303,6 +303,19 @@ export default function TeamManagement() {
     }
   }
 
+  const handleResendCoachVerification = async (teamId: string, coach: Coach) => {
+    if (!coach.email) {
+      alert('Coach must have an email address to resend verification')
+      return
+    }
+    try {
+      await resendCoachVerification(teamId, coach.coachId)
+      alert('Verification email sent successfully')
+    } catch (err: any) {
+      alert(err?.message || 'Failed to send verification email')
+    }
+  }
+
   const startEdit = (team: Team) => {
     setEditingTeam(team)
     setTeamName(team.teamName)
@@ -601,15 +614,25 @@ export default function TeamManagement() {
                                         ? `${coach.firstName} ${coach.lastName}`
                                         : coach.email}
                                     </div>
-                                    <span
-                                      className={`px-2 py-1 rounded text-xs ${
-                                        coach.isActive !== false
-                                          ? 'bg-green-100 text-green-800'
-                                          : 'bg-gray-100 text-gray-800'
-                                      }`}
-                                    >
-                                      {coach.isActive !== false ? 'Active' : 'Inactive'}
-                                    </span>
+                                    {coach.verificationStatus === "pending" && (
+                                      <span className="px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800">
+                                        Verification Pending
+                                      </span>
+                                    )}
+                                    {(() => {
+                                      const isFullyActive = coach.isActive !== false && coach.verificationStatus !== "pending"
+                                      return (
+                                        <span
+                                          className={`px-2 py-1 rounded text-xs ${
+                                            isFullyActive
+                                              ? 'bg-green-100 text-green-800'
+                                              : 'bg-gray-100 text-gray-800'
+                                          }`}
+                                        >
+                                          {isFullyActive ? 'Active' : 'Inactive'}
+                                        </span>
+                                      )
+                                    })()}
                                   </div>
                                   <div className="text-xs text-gray-500 mt-1">
                                     {coach.email}
@@ -624,6 +647,15 @@ export default function TeamManagement() {
                                   >
                                     Edit
                                   </Button>
+                                  {coach.isActive !== false && coach.email && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleResendCoachVerification(team.teamId, coach)}
+                                    >
+                                      Resend Verification
+                                    </Button>
+                                  )}
                                   {coach.isActive !== false ? (
                                     <Button
                                       variant="outline"

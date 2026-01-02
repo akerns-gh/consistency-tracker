@@ -58,15 +58,15 @@ export default function PlayerList() {
 
   const handleInvite = async (player: Player) => {
     if (!player.email) {
-      alert('Player must have an email address to invite')
+      alert('Player must have an email address to resend verification')
       return
     }
     try {
       await invitePlayer(player.playerId, player.email)
-      alert('Invitation sent successfully')
+      alert('Verification email sent successfully')
       loadPlayers()
     } catch (err: any) {
-      alert(err.message || 'Failed to send invitation')
+      alert(err.message || 'Failed to send verification email')
     }
   }
 
@@ -320,7 +320,7 @@ export default function PlayerList() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredAndSortedPlayers.map((player) => {
-                    const isActive = player.isActive !== false
+                    const isActive = player.isActive !== false && player.verificationStatus !== "pending"
                     return (
                       <tr
                         key={player.playerId}
@@ -339,15 +339,22 @@ export default function PlayerList() {
                           <div className="text-sm text-gray-500">{player.teamId || 'N/A'}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          {isActive ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              Active
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                              Inactive
-                            </span>
-                          )}
+                          <div className="flex items-center space-x-2">
+                            {player.verificationStatus === "pending" && (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                Verification Pending
+                              </span>
+                            )}
+                            {isActive ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                Active
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                Inactive
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-500">
@@ -366,14 +373,14 @@ export default function PlayerList() {
                             >
                               Edit
                             </Button>
-                            {isActive && (
+                            {isActive && player.email && (
                               <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleInvite(player)}
                                 disabled={!player.email}
                               >
-                                Invite
+                                Resend Verification
                               </Button>
                             )}
                             <Button

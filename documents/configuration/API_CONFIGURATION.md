@@ -72,3 +72,7 @@ VITE_COGNITO_USER_POOL_ID=us-east-1_1voH0LIGL
 VITE_COGNITO_USER_POOL_CLIENT_ID=5bqs4fe26rmer34rs564pkcdeu
 ```
 
+## Security
+
+For comprehensive security documentation, including API Gateway security, rate limiting, WAF protection, and email verification security, see [SECURITY.md](../SECURITY.md).
+
