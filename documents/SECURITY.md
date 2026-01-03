@@ -122,6 +122,44 @@ AWS WAF (Web Application Firewall) provides additional protection:
 **WAF Rules:**
 - Priority 1: VerifyEmailRateLimit (blocks excessive requests to `/verify-email`)
 
+### IP Allowlisting (Optional - Additional Security Layer)
+
+For enhanced security, you can configure IP allowlisting to restrict access to specific IP addresses. This provides an additional layer of protection on top of geographic restrictions and rate limiting.
+
+**Configuration Script:**
+```bash
+python scripts/utilities/configure_ip_restriction.py
+```
+
+**Capabilities:**
+- ✅ **Complete Lockdown**: Restrict both API Gateway and CloudFront to specific IPs
+- ✅ **Selective Restriction**: Restrict only API Gateway or only CloudFront
+- ✅ **IPv4 and IPv6 Support**: Handle both address types
+- ✅ **Interactive Mode**: User-friendly menu for configuration
+- ✅ **Undo Capability**: Easily remove restrictions when no longer needed
+- ✅ **Preserves Existing Rules**: Does not modify other WAF rules (geographic restrictions, rate limits, etc.)
+
+**Use Cases:**
+- Emergency lockdown during security incidents
+- Restrict access to specific office IPs
+- Temporary access control for maintenance
+- Additional layer beyond geographic restrictions
+
+**Security Considerations:**
+- IP restrictions are enforced at the WAF level (before traffic reaches the application)
+- Default action is set to "Block" when restrictions are active
+- IP sets are managed separately for API Gateway (REGIONAL) and CloudFront (CLOUDFRONT)
+- Changes propagate globally within 2-3 minutes
+- Built-in propagation timer helps track when restrictions are active
+
+**Important Notes:**
+- Always ensure your IP is in the allowlist before enabling restrictions
+- The script prevents lockout by adding your IP first, then setting default to Block
+- If your IP changes, run the script again to update the allowlist
+- Use the undo feature (`--remove-restrictions`) to restore normal access
+
+For complete documentation, see [SCRIPTS.md](deployment/SCRIPTS.md#configure_ip_restrictionpy).
+
 ## Authentication & Authorization
 
 ### Cognito User Pool

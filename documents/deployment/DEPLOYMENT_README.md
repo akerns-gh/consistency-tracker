@@ -740,18 +740,45 @@ cdk deploy ConsistencyTracker-Storage
 If you want to add additional IP-based restrictions on top of geographic blocking, you can use the provided script:
 
 ```bash
-./aws/scripts/update-waf-ip-allowlist.sh
+python scripts/utilities/configure_ip_restriction.py
 ```
 
+**Recommended**: This Python script provides a comprehensive solution for IP restrictions with interactive mode, undo capability, and support for both API Gateway and CloudFront WAFs.
+
 **Use cases:**
+- Complete lockdown: Restrict both frontend and API access to specific IPs
 - Allow specific IPs outside the US (if needed)
 - Add an additional layer of IP-based access control
 - Temporarily allow access from non-US IPs
+- API-only or CloudFront-only restrictions
 
-This script will:
-1. Automatically detect your current IPv4 and IPv6 addresses
-2. Create or update AWS WAF IP sets for both addresses
-3. Update the WAF Web ACL to allow traffic from these IPs (in addition to US geo-blocking)
+**Key features:**
+- ✅ Interactive menu for easy configuration
+- ✅ Auto-detect current IP address
+- ✅ IPv4 and IPv6 support
+- ✅ Undo capability to remove restrictions
+- ✅ Preserves existing WAF rules
+- ✅ Built-in propagation timer
+- ✅ Automatic retry on transient errors
+
+**Quick start:**
+```bash
+# Interactive mode (recommended)
+python scripts/utilities/configure_ip_restriction.py
+
+# Auto-detect and use current IP
+python scripts/utilities/configure_ip_restriction.py --auto-detect-ip
+
+# Remove restrictions
+python scripts/utilities/configure_ip_restriction.py --remove-restrictions
+```
+
+For complete documentation, see [SCRIPTS.md](./SCRIPTS.md#configure_ip_restrictionpy).
+
+**Legacy script** (CloudFront only):
+```bash
+./aws/scripts/update-waf-ip-allowlist.sh
+```
 4. Set the default action to "Block" to enforce IP restriction
 
 **Important Notes:**
