@@ -292,6 +292,8 @@ class WAFIPRestrictionConfigurator:
         self.web_acl_name_pattern = web_acl_name_pattern
         self.ipv4_ipset_name = ipv4_ipset_name
         self.ipv6_ipset_name = ipv6_ipset_name
+        # Store removed USOnlyGeoMatch rule for restoration
+        self.removed_geo_match_rule = None
         # CloudFront WAF must use us-east-1, regardless of scope
         waf_region = "us-east-1" if scope == "CLOUDFRONT" else region
         self.wafv2_client = boto3.client('wafv2', region_name=waf_region)
@@ -424,6 +426,7 @@ class WAFIPRestrictionConfigurator:
     ) -> bool:
         """
         Update Web ACL to add IP allowlist rule and set default action to Block.
+        Temporarily removes USOnlyGeoMatch rule to prevent it from overriding IP restrictions.
         
         Args:
             ipv4_arn: ARN of IPv4 IP set
@@ -506,61 +509,72 @@ class WAFIPRestrictionConfigurator:
         }
         
         # Update or add the allowlist rule
-        # IMPORTANT: Preserve all existing rules exactly as they are - only modify IPAllowlist
+        # IMPORTANT: Preserve all existing rules except USOnlyGeoMatch (temporarily remove it)
         updated_rules = []
         allowlist_exists = False
         allowlist_current_priority = None
         used_priorities = set()
+        geo_match_rule = None
         
-        # First pass: check if IPAllowlist exists, get its priority, and collect all used priorities
+        # First pass: check if IPAllowlist exists, get its priority, find USOnlyGeoMatch, and collect all used priorities
         for rule in current_rules:
             if rule['Name'] == 'IPAllowlist':
                 allowlist_exists = True
                 allowlist_current_priority = rule.get('Priority', 0)
+            elif rule['Name'] == 'USOnlyGeoMatch':
+                # Store the geo match rule for later restoration
+                geo_match_rule = copy.deepcopy(rule)
+                log_info("Found USOnlyGeoMatch rule - will temporarily remove it during IP restrictions")
             else:
                 # Only add priorities of non-IPAllowlist rules to used_priorities
                 used_priorities.add(rule.get('Priority', 0))
         
-        # Second pass: preserve all existing rules exactly as they are
+        # Store removed geo match rule for restoration
+        if geo_match_rule:
+            self.removed_geo_match_rule = geo_match_rule
+        
+        # Second pass: preserve all existing rules except IPAllowlist and USOnlyGeoMatch
         for rule in current_rules:
             if rule['Name'] == 'IPAllowlist':
                 # Update existing IPAllowlist rule
                 updated_rules.append(allowlist_rule)
+            elif rule['Name'] == 'USOnlyGeoMatch':
+                # Skip USOnlyGeoMatch - temporarily remove it
+                log_info("Temporarily removing USOnlyGeoMatch rule to enforce IP restrictions")
             else:
                 # Keep existing rule EXACTLY as it is (deep copy to avoid mutation)
                 preserved_rule = copy.deepcopy(rule)
+                current_priority = preserved_rule.get('Priority', 999)
+                
+                # If this rule is at priority 0 and it's not IPAllowlist, move it to priority 1
+                # This ensures IPAllowlist can be at priority 0 without conflicts
+                if current_priority == 0:
+                    preserved_rule['Priority'] = 1
+                    log_info(f"Moving {rule.get('Name', 'unknown')} from priority 0 to priority 1 to make room for IPAllowlist")
+                
                 updated_rules.append(preserved_rule)
         
-        # Determine priority for IPAllowlist rule
+        # Determine priority for IPAllowlist rule - always set to 0
         if not allowlist_exists:
-            # IPAllowlist doesn't exist - find the next available priority
-            if 0 not in used_priorities:
-                allowlist_rule['Priority'] = 0
-                updated_rules.insert(0, allowlist_rule)
-                log_info("IPAllowlist rule added at priority 0 (highest priority)")
-            else:
-                # Priority 0 is taken, find the next available priority
-                next_priority = 0
-                while next_priority in used_priorities:
-                    next_priority += 1
-                allowlist_rule['Priority'] = next_priority
-                updated_rules.append(allowlist_rule)
-                log_warn(f"IPAllowlist rule added at priority {next_priority} (priority 0 is already in use by another rule)")
+            # IPAllowlist doesn't exist - add it at priority 0
+            allowlist_rule['Priority'] = 0
+            updated_rules.insert(0, allowlist_rule)
+            log_info("IPAllowlist rule added at priority 0 (highest priority)")
         else:
-            # IPAllowlist exists - try to set it to priority 0 if available
+            # IPAllowlist exists - ensure it's at priority 0
             for rule in updated_rules:
                 if rule['Name'] == 'IPAllowlist':
-                    if 0 not in used_priorities:
-                        rule['Priority'] = 0
-                        log_info("IPAllowlist rule set to priority 0 (highest priority)")
-                    elif allowlist_current_priority == 0:
-                        # Already at priority 0, no change needed
-                        log_info("IPAllowlist rule already at priority 0")
-                    else:
-                        # Keep at current priority (can't move to 0 because it's taken)
-                        rule['Priority'] = allowlist_current_priority
-                        log_info(f"IPAllowlist rule kept at priority {allowlist_current_priority} (priority 0 is in use)")
+                    rule['Priority'] = 0
+                    log_info("IPAllowlist rule set to priority 0 (highest priority)")
                     break
+        
+        # Sort rules by priority to ensure correct order (important for AWS WAF)
+        # This prevents duplicate priority errors and ensures rules are evaluated in the correct order
+        updated_rules.sort(key=lambda r: r.get('Priority', 999))
+        
+        log_info(f"Final rule order:")
+        for rule in updated_rules:
+            print(f"  Priority {rule.get('Priority')}: {rule.get('Name')}")
         
         # Update Web ACL with retry logic
         max_retries = 5
@@ -599,6 +613,8 @@ class WAFIPRestrictionConfigurator:
                 self.wafv2_client.update_web_acl(**update_params)
                 
                 log_success("Web ACL updated successfully!")
+                if geo_match_rule:
+                    log_info("USOnlyGeoMatch rule temporarily removed - will be restored when IP restrictions are removed")
                 return True
                 
             except ClientError as e:
@@ -681,6 +697,7 @@ class WAFIPRestrictionConfigurator:
     def remove_ip_restrictions(self, delete_ip_sets: bool = False) -> bool:
         """
         Remove IP restrictions by deleting the IPAllowlist rule and setting default action to Allow.
+        Restores USOnlyGeoMatch rule if it was previously removed.
         
         Args:
             delete_ip_sets: If True, also delete the IP sets. If False, keep them for future use.
@@ -712,10 +729,17 @@ class WAFIPRestrictionConfigurator:
         current_rules = web_acl_details.get('Rules', [])
         custom_response_bodies = web_acl_details.get('CustomResponseBodies', {})
         
-        # Remove IPAllowlist rule
+        # Remove IPAllowlist rule and restore USOnlyGeoMatch if it was removed
         # IMPORTANT: Preserve all existing rules exactly as they are - only remove IPAllowlist
         updated_rules = []
         allowlist_found = False
+        geo_match_exists = False
+        
+        # Check if USOnlyGeoMatch already exists in current rules
+        for rule in current_rules:
+            if rule['Name'] == 'USOnlyGeoMatch':
+                geo_match_exists = True
+                break
         
         for rule in current_rules:
             if rule['Name'] == 'IPAllowlist':
@@ -727,10 +751,54 @@ class WAFIPRestrictionConfigurator:
                 preserved_rule = copy.deepcopy(rule)
                 updated_rules.append(preserved_rule)
         
+        # Restore USOnlyGeoMatch rule if it was previously removed and doesn't exist now
+        if not geo_match_exists:
+            if self.removed_geo_match_rule:
+                # Use stored copy if available
+                log_info("Restoring USOnlyGeoMatch rule from stored copy...")
+                restored_rule = copy.deepcopy(self.removed_geo_match_rule)
+            else:
+                # Create USOnlyGeoMatch rule from expected configuration
+                # This handles the case where the script was run in a different session
+                log_info("USOnlyGeoMatch rule not found - creating from expected configuration...")
+                restored_rule = {
+                    'Name': 'USOnlyGeoMatch',
+                    'Priority': 0,
+                    'Statement': {
+                        'GeoMatchStatement': {
+                            'CountryCodes': ['US']  # Only allow US IP addresses
+                        }
+                    },
+                    'Action': {
+                        'Allow': {}  # Allow requests from US
+                    },
+                    'VisibilityConfig': {
+                        'SampledRequestsEnabled': True,
+                        'CloudWatchMetricsEnabled': True,
+                        'MetricName': 'USOnlyGeoMatch'
+                    }
+                }
+            
+            # Ensure it's at priority 0 (highest priority)
+            restored_rule['Priority'] = 0
+            # Adjust other rules' priorities if needed
+            for rule in updated_rules:
+                if rule.get('Priority') == 0:
+                    # Move this rule to priority 1
+                    rule['Priority'] = 1
+                    log_info(f"Moved {rule.get('Name', 'unknown')} rule from priority 0 to priority 1")
+            updated_rules.insert(0, restored_rule)
+            log_success("USOnlyGeoMatch rule restored at priority 0")
+        
         if not allowlist_found:
             log_warn("IPAllowlist rule not found - restrictions may already be removed")
         
-        # Do NOT renumber priorities - keep all existing rules with their original priorities
+        # Sort rules by priority to ensure correct order (important for AWS WAF)
+        updated_rules.sort(key=lambda r: r.get('Priority', 999))
+        
+        log_info(f"Final rule order after removal:")
+        for rule in updated_rules:
+            print(f"  Priority {rule.get('Priority')}: {rule.get('Name')}")
         
         # Update Web ACL - remove rule and set default to Allow (with retry logic)
         max_retries = 5
@@ -769,6 +837,10 @@ class WAFIPRestrictionConfigurator:
                 self.wafv2_client.update_web_acl(**update_params)
                 
                 log_success("IP restrictions removed from Web ACL!")
+                
+                # Clear stored geo match rule after successful restoration
+                if not geo_match_exists and self.removed_geo_match_rule:
+                    self.removed_geo_match_rule = None
                 
                 # Optionally delete IP sets
                 if delete_ip_sets:
