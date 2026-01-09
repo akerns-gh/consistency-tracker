@@ -22,7 +22,7 @@ export default function PlayerList() {
   const navigate = useNavigate()
   const { isAppAdmin } = useAuth()
   const { selectedUniqueLink, setSelectedUniqueLink, isViewingAsPlayer, clearViewAsPlayer } = useViewAsPlayer()
-  const { selectedClubId: viewAsClubId, isViewingAsClubAdmin } = useViewAsClubAdmin()
+  const { selectedClubId: viewAsClubId, isViewingAsClubAdmin, clearViewAsClubAdmin } = useViewAsClubAdmin()
   
   const [players, setPlayers] = useState<Player[]>([])
   const [clubs, setClubs] = useState<Club[]>([])
@@ -166,6 +166,13 @@ export default function PlayerList() {
       alert('This player does not have a unique link. Cannot view as player.')
       return
     }
+    
+    // Clear club admin view-as state when entering player view
+    // This prevents nested view-as states and keeps the UX simple
+    if (isViewingAsClubAdmin) {
+      clearViewAsClubAdmin()
+    }
+    
     setSelectedUniqueLink(player.uniqueLink)
     // Navigate to player view
     navigate(`/player/${player.uniqueLink}`)
