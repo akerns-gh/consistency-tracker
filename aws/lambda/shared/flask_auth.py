@@ -168,33 +168,43 @@ def require_club(f):
     
     Must be used after @require_admin. Validates that the user
     is associated with a club and the club is not disabled.
+    App-admins can bypass this requirement.
     
     Usage:
         @app.route('/admin/endpoint')
         @require_admin
         @require_club
         def my_endpoint():
-            # g.club_id is available
+            # g.club_id is available (or None for app-admins)
             pass
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # Check if user is app-admin first
+        is_app_admin = getattr(g, 'is_app_admin', False)
+        
+        # App-admins can bypass club requirement
+        if is_app_admin:
+            # Set club_id to None if not present (app-admins don't need a club)
+            if not hasattr(g, 'club_id'):
+                g.club_id = None
+            return f(*args, **kwargs)
+        
+        # For non-app-admins, require club_id
         if not hasattr(g, 'club_id') or not g.club_id:
             abort(403, description="User not associated with a club")
         
         # Check if club is disabled (app-admins can still access disabled clubs)
-        is_app_admin = getattr(g, 'is_app_admin', False)
-        if not is_app_admin:
-            try:
-                # Lazy import to avoid import issues at module load time
-                from shared.db_utils import get_club_by_id
-                club = get_club_by_id(g.club_id)
-                if club and club.get("isDisabled", False):
-                    abort(403, description="Club is disabled")
-            except Exception as e:
-                # If we can't check club status, allow access (fail open)
-                # This prevents blocking access due to transient DB issues
-                print(f"Warning: Could not check club disabled status: {e}")
+        try:
+            # Lazy import to avoid import issues at module load time
+            from shared.db_utils import get_club_by_id
+            club = get_club_by_id(g.club_id)
+            if club and club.get("isDisabled", False):
+                abort(403, description="Club is disabled")
+        except Exception as e:
+            # If we can't check club status, allow access (fail open)
+            # This prevents blocking access due to transient DB issues
+            print(f"Warning: Could not check club disabled status: {e}")
         
         return f(*args, **kwargs)
     return decorated_function

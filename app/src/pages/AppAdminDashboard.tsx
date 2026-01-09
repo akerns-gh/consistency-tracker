@@ -5,8 +5,6 @@ import AdminMenu from '../components/admin/AdminMenu'
 import PlayerList from '../components/admin/players/PlayerList'
 import ActivityList from '../components/admin/activities/ActivityList'
 import SummaryCards from '../components/admin/overview/SummaryCards'
-import Charts from '../components/admin/overview/Charts'
-import ReflectionHighlights from '../components/admin/overview/ReflectionHighlights'
 import SettingsForm from '../components/admin/settings/SettingsForm'
 import TeamManagement from '../components/admin/teams/TeamManagement'
 import ClubManagement from '../components/admin/clubs/ClubManagement'
@@ -40,8 +38,6 @@ export default function AppAdminDashboard() {
         return (
           <div className="space-y-6">
             <SummaryCards />
-            <Charts />
-            <ReflectionHighlights />
           </div>
         )
       case 'teams':

@@ -22,11 +22,13 @@ export default function SummaryCards() {
     try {
       setLoading(true)
       const response = await getOverview()
+      // Map from backend response structure
+      const currentWeek = response.currentWeek || {}
       setData({
-        totalPlayers: response.totalPlayers || 0,
-        averageScore: response.averageScore || 0,
-        totalWeeks: response.totalWeeks || 0,
-        contentPages: response.contentPages || 0,
+        totalPlayers: currentWeek.totalPlayers || 0,
+        averageScore: currentWeek.averageWeeklyScore || 0,
+        totalWeeks: 0, // Not provided by backend
+        contentPages: response.activities?.total || 0,
       })
     } catch (err) {
       console.error('Failed to load overview data:', err)

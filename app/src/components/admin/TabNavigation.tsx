@@ -8,10 +8,10 @@ interface TabNavigationProps {
 
 export default function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
   const tabs: { id: AdminTab; label: string; icon: string }[] = [
+    { id: 'overview', label: 'Overview', icon: '📊' },
     { id: 'players', label: 'Players', icon: '👥' },
     { id: 'activities', label: 'Activities', icon: '🏃' },
     { id: 'content', label: 'Content', icon: '📄' },
-    { id: 'overview', label: 'Overview', icon: '📊' },
     { id: 'teams', label: 'Teams', icon: '🏆' },
     { id: 'settings', label: 'Settings', icon: '⚙️' },
   ]

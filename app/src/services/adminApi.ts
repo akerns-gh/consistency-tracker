@@ -478,11 +478,26 @@ export async function deleteActivity(activityId: string): Promise<void> {
  * Get overview statistics
  */
 export async function getOverview(): Promise<{
-  totalPlayers: number
-  averageScore: number
-  totalWeeks: number
-  contentPages: number
-  trends?: any
+  currentWeek: {
+    weekId: string
+    totalPlayers: number
+    participatingPlayers: number
+    averageWeeklyScore: number
+    totalWeeklyScore: number
+  }
+  topPerformers: Array<{
+    playerId: string
+    name: string
+    weeklyScore: number
+    daysCompleted: number
+  }>
+  activities: {
+    total: number
+    list: Array<{
+      activityId: string
+      name: string
+    }>
+  }
 }> {
   const response = await api.get('/admin/overview')
   return response.data.data

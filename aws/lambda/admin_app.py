@@ -4074,7 +4074,16 @@ def image_upload():
 @require_club
 def overview():
     """Team statistics and overview."""
+    # For app-admins, allow club_id to be passed as query parameter
+    is_app_admin = getattr(g, 'is_app_admin', False)
     club_id = g.club_id
+    
+    # If app-admin and no club_id, check query parameter
+    if is_app_admin and not club_id:
+        club_id = request.args.get('clubId')
+        if not club_id:
+            return flask_error_response("clubId query parameter required for app-admin", status_code=400)
+    
     current_week_id = get_current_week_id()
     
     # Get all players in club
@@ -4136,31 +4145,7 @@ def overview():
                 "daysCompleted": score_data["daysCompleted"],
             })
     
-    # Get last 4 weeks of data for trends
-    weeks_data = []
-    for i in range(4):
-        week_date = datetime.utcnow() - timedelta(weeks=i)
-        week_id = get_week_id(week_date)
-        
-        week_tracking = get_tracking_by_week(week_id)
-        week_club_tracking = [t for t in week_tracking if t.get("clubId") == club_id]
-        
-        week_player_scores = {}
-        for record in week_club_tracking:
-            player_id = record.get("playerId")
-            daily_score = record.get("dailyScore", 0)
-            
-            if player_id not in week_player_scores:
-                week_player_scores[player_id] = 0
-            week_player_scores[player_id] += daily_score
-        
-        weeks_data.append({
-            "weekId": week_id,
-            "averageScore": sum(week_player_scores.values()) / len(week_player_scores) if week_player_scores else 0,
-            "participatingPlayers": len(week_player_scores),
-        })
-    
-    # Build response
+    # Build response (removed weeksTrend)
     response_data = {
         "currentWeek": {
             "weekId": current_week_id,
@@ -4170,7 +4155,6 @@ def overview():
             "totalWeeklyScore": total_weekly_score,
         },
         "topPerformers": top_performers_list,
-        "weeksTrend": weeks_data,
         "activities": {
             "total": len(activities),
             "list": [{"activityId": a.get("activityId"), "name": a.get("name")} for a in activities],
@@ -4346,7 +4330,15 @@ def advance_week():
 @require_club
 def list_reflections():
     """View all player reflections."""
+    # For app-admins, allow club_id to be passed as query parameter
+    is_app_admin = getattr(g, 'is_app_admin', False)
     club_id = g.club_id
+    
+    # If app-admin and no club_id, check query parameter
+    if is_app_admin and not club_id:
+        club_id = request.args.get('clubId')
+        if not club_id:
+            return flask_error_response("clubId query parameter required for app-admin", status_code=400)
     
     # Get weekId from query parameters (optional)
     week_id = request.args.get("weekId")
