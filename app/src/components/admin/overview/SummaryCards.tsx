@@ -33,7 +33,7 @@ export default function SummaryCards() {
     try {
       setLoading(true)
       // Pass clubId if viewing as club admin
-      const clubId = isViewingAsClubAdmin ? selectedClubId : undefined
+      const clubId = isViewingAsClubAdmin && selectedClubId ? selectedClubId : undefined
       const response = await getOverview(clubId)
       // Map from backend response structure
       const currentWeek = response.currentWeek || {}
