@@ -18,6 +18,8 @@ export default function AdminDashboard() {
   const { isAppAdmin } = useAuth()
   const { selectedClubId, isViewingAsClubAdmin, clearViewAsClubAdmin } = useViewAsClubAdmin()
   const [viewingClub, setViewingClub] = useState<Club | null>(null)
+  const [activeTab, setActiveTab] = useState<AdminTab>('overview')
+  const [menuOpen, setMenuOpen] = useState(false)
   const navigate = useNavigate()
   
   // Load club info when viewing as club admin
@@ -46,8 +48,6 @@ export default function AdminDashboard() {
   if (isAppAdmin && !isViewingAsClubAdmin) {
     return <AppAdminDashboard />
   }
-  const [activeTab, setActiveTab] = useState<AdminTab>('overview')
-  const [menuOpen, setMenuOpen] = useState(false)
 
   const renderTabContent = () => {
     switch (activeTab) {
