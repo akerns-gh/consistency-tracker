@@ -20,14 +20,16 @@ export default function TabNavigation({ activeTab, onTabChange }: TabNavigationP
     return tabId === 'overview' || tabId === 'settings'
   }
 
-  const tabs: { id: AdminTab; label: string; icon: string }[] = [
+  const allTabs: { id: AdminTab; label: string; icon: string }[] = [
     { id: 'overview', label: 'Overview', icon: '📊' },
     { id: 'players', label: 'Players', icon: '👥' },
     { id: 'activities', label: 'Activities', icon: '🏃' },
     { id: 'content', label: 'Content', icon: '📄' },
     { id: 'teams', label: 'Teams', icon: '🏆' },
     { id: 'settings', label: 'Settings', icon: '⚙️' },
-  ].filter(tab => shouldShowTab(tab.id))
+  ]
+  
+  const tabs = allTabs.filter(tab => shouldShowTab(tab.id))
 
   return (
     <div className="bg-white border-b">
