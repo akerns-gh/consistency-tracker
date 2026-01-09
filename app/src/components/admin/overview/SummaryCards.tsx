@@ -60,20 +60,9 @@ export default function SummaryCards() {
     return <Loading text="Loading overview..." />
   }
 
-  // For app_admins not viewing as club admin, show message instead of stats
+  // For app_admins not viewing as club admin, hide the summary cards completely
   if (isAppAdmin && !isViewingAsClubAdmin) {
-    return (
-      <Card>
-        <div className="text-center py-8">
-          <p className="text-gray-600 mb-2">
-            Overview statistics are available when viewing as a club admin.
-          </p>
-          <p className="text-sm text-gray-500">
-            Use the "View As" button in Club Management to see club-specific statistics.
-          </p>
-        </div>
-      </Card>
-    )
+    return null
   }
 
   if (!data) {
