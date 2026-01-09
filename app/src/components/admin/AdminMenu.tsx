@@ -1,14 +1,28 @@
 import { Link } from 'react-router-dom'
-import { AdminTab } from './TabNavigation'
+import { useAuth } from '../../contexts/AuthContext'
+import { useViewAsPlayer } from '../../contexts/ViewAsPlayerContext'
 
 interface AdminMenuProps {
   isOpen: boolean
   onClose: () => void
-  activeTab: AdminTab
-  onTabChange: (tab: AdminTab) => void
 }
 
-export default function AdminMenu({ isOpen, onClose, activeTab, onTabChange }: AdminMenuProps) {
+export default function AdminMenu({ isOpen, onClose }: AdminMenuProps) {
+  const { isAdmin } = useAuth()
+  const { selectedUniqueLink, isViewingAsPlayer } = useViewAsPlayer()
+
+  const getAppPagePath = (basePath: string) => {
+    if (isViewingAsPlayer && selectedUniqueLink) {
+      // For player pages, use uniqueLink format
+      if (basePath.startsWith('/player')) {
+        const subPath = basePath.replace('/player', '')
+        return `/player/${selectedUniqueLink}${subPath || ''}`
+      }
+      return basePath
+    }
+    return basePath
+  }
+
   const appPages = [
     { path: '/player', label: 'My Week', icon: '📅' },
     { path: '/player/progress', label: 'My Progress', icon: '📊' },
@@ -18,17 +32,7 @@ export default function AdminMenu({ isOpen, onClose, activeTab, onTabChange }: A
     { path: '/help', label: 'Help & Support', icon: '❓' },
   ]
 
-  const adminTabs: { id: AdminTab; label: string; icon: string }[] = [
-    { id: 'players', label: 'Players', icon: '👥' },
-    { id: 'activities', label: 'Activities', icon: '🏃' },
-    { id: 'content', label: 'Content', icon: '📄' },
-    { id: 'overview', label: 'Overview', icon: '📊' },
-    { id: 'teams', label: 'Teams', icon: '🏆' },
-    { id: 'settings', label: 'Settings', icon: '⚙️' },
-  ]
-
-  const handleTabClick = (tab: AdminTab) => {
-    onTabChange(tab)
+  const handleLinkClick = () => {
     onClose()
   }
 
@@ -47,6 +51,7 @@ export default function AdminMenu({ isOpen, onClose, activeTab, onTabChange }: A
         className={`fixed top-0 left-0 h-full w-64 bg-white shadow-lg z-50 transform transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 h-full overflow-y-auto">
           {/* Close Button */}
@@ -62,38 +67,36 @@ export default function AdminMenu({ isOpen, onClose, activeTab, onTabChange }: A
           <div className="mb-6">
             <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">App Pages</h3>
             <nav className="space-y-1">
-              {appPages.map((page) => (
-                <Link
-                  key={page.path}
-                  to={page.path}
-                  onClick={onClose}
-                  className="flex items-center space-x-3 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <span className="text-lg">{page.icon}</span>
-                  <span className="text-gray-700">{page.label}</span>
-                </Link>
-              ))}
-            </nav>
-          </div>
-
-          {/* Admin Dashboard Section */}
-          <div className="border-t pt-6">
-            <h3 className="text-sm font-semibold text-gray-500 uppercase mb-3">Admin Dashboard</h3>
-            <nav className="space-y-1">
-              {adminTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => handleTabClick(tab.id)}
-                  className={`w-full flex items-center space-x-3 px-4 py-2 rounded-lg transition-colors ${
-                    activeTab === tab.id
-                      ? 'bg-primary bg-opacity-10 text-primary'
-                      : 'hover:bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  <span className="text-lg">{tab.icon}</span>
-                  <span>{tab.label}</span>
-                </button>
-              ))}
+              {appPages.map((page) => {
+                const path = getAppPagePath(page.path)
+                // Disable all player pages except Help for admins until they select a player
+                const isDisabled = isAdmin && !isViewingAsPlayer && page.path !== '/help' && page.path.startsWith('/player')
+                
+                if (isDisabled) {
+                  return (
+                    <div
+                      key={page.path}
+                      className="flex items-center space-x-3 px-4 py-2 rounded-lg text-gray-400 cursor-not-allowed"
+                      title="Use 'View As' button on Players page to view this page"
+                    >
+                      <span className="text-lg">{page.icon}</span>
+                      <span className="text-gray-400">{page.label}</span>
+                    </div>
+                  )
+                }
+                
+                return (
+                  <Link
+                    key={page.path}
+                    to={path}
+                    onClick={handleLinkClick}
+                    className="flex items-center space-x-3 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <span className="text-lg">{page.icon}</span>
+                    <span className="text-gray-700">{page.label}</span>
+                  </Link>
+                )
+              })}
             </nav>
           </div>
         </div>

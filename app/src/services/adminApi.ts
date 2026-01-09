@@ -148,10 +148,12 @@ export async function enableClub(clubId: string): Promise<{ club: Club; message:
 }
 
 /**
- * Get teams in coach's club
+ * Get teams in coach's club, or for a specific club (app admins only)
+ * @param clubId - Optional club ID for app admins to filter teams
  */
-export async function getTeams(): Promise<{ teams: Team[]; total: number }> {
-  const response = await api.get('/admin/teams')
+export async function getTeams(clubId?: string): Promise<{ teams: Team[]; total: number }> {
+  const params = clubId ? { clubId } : {}
+  const response = await api.get('/admin/teams', { params })
   return response.data.data
 }
 
@@ -243,6 +245,8 @@ export interface Player {
   email?: string
   clubId: string
   teamId: string
+  clubName?: string
+  teamName?: string
   isActive: boolean
   verificationStatus?: "pending" | "verified"
   uniqueLink?: string
@@ -250,10 +254,12 @@ export interface Player {
 }
 
 /**
- * Get all players
+ * Get all players with optional filters
+ * @param filters - Optional filters: { clubId?: string, teamId?: string }
  */
-export async function getPlayers(): Promise<{ players: Player[]; total: number }> {
-  const response = await api.get('/admin/players')
+export async function getPlayers(filters?: { clubId?: string; teamId?: string }): Promise<{ players: Player[]; total: number }> {
+  const params = filters || {}
+  const response = await api.get('/admin/players', { params })
   return response.data.data
 }
 

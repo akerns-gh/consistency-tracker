@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
-import { getPlayers, Player, togglePlayerActivation, invitePlayer, CsvUploadResults } from '../../../services/adminApi'
+import { useNavigate } from 'react-router-dom'
+import { getPlayers, getClubs, getTeams, Player, Club, Team, togglePlayerActivation, invitePlayer, CsvUploadResults } from '../../../services/adminApi'
+import { useAuth } from '../../../contexts/AuthContext'
+import { useViewAsPlayer } from '../../../contexts/ViewAsPlayerContext'
 import Loading from '../../ui/Loading'
 import Card from '../../ui/Card'
 import Button from '../../ui/Button'
@@ -15,10 +18,19 @@ const getFullName = (player: Player): string => {
 }
 
 export default function PlayerList() {
+  const navigate = useNavigate()
+  const { isAppAdmin } = useAuth()
+  const { selectedUniqueLink, setSelectedUniqueLink, isViewingAsPlayer, clearViewAsPlayer } = useViewAsPlayer()
+  
   const [players, setPlayers] = useState<Player[]>([])
+  const [clubs, setClubs] = useState<Club[]>([])
+  const [teams, setTeams] = useState<Team[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingFilters, setLoadingFilters] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedClubId, setSelectedClubId] = useState<string>('')
+  const [selectedTeamId, setSelectedTeamId] = useState<string>('')
   const [showForm, setShowForm] = useState(false)
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null)
   const [showCsvUpload, setShowCsvUpload] = useState(false)
@@ -30,12 +42,67 @@ export default function PlayerList() {
 
   useEffect(() => {
     loadPlayers()
+    loadFilters()
   }, [])
+
+  useEffect(() => {
+    // Reload players when filters change
+    loadPlayers()
+  }, [selectedClubId, selectedTeamId])
+
+  const loadFilters = async () => {
+    try {
+      setLoadingFilters(true)
+      if (isAppAdmin) {
+        // App admins can see all clubs
+        const clubsData = await getClubs()
+        setClubs(clubsData.clubs || [])
+      } else {
+        // Club admins and coaches can see teams in their club
+        const teamsData = await getTeams()
+        setTeams(teamsData.teams || [])
+      }
+    } catch (err) {
+      console.error('Failed to load filters:', err)
+    } finally {
+      setLoadingFilters(false)
+    }
+  }
+
+  useEffect(() => {
+    // When app admin selects a club, load teams for that club
+    if (isAppAdmin && selectedClubId) {
+      loadTeamsForClub(selectedClubId)
+      // Reset team filter when club changes
+      setSelectedTeamId('')
+    } else if (isAppAdmin && !selectedClubId) {
+      // Clear teams when no club selected
+      setTeams([])
+      setSelectedTeamId('')
+    }
+  }, [selectedClubId, isAppAdmin])
+
+  const loadTeamsForClub = async (clubId: string) => {
+    try {
+      const teamsData = await getTeams(clubId)
+      setTeams(teamsData.teams || [])
+    } catch (err) {
+      console.error('Failed to load teams for club:', err)
+      setTeams([])
+    }
+  }
 
   const loadPlayers = async () => {
     try {
       setLoading(true)
-      const data = await getPlayers()
+      const params: any = {}
+      if (selectedClubId) {
+        params.clubId = selectedClubId
+      }
+      if (selectedTeamId) {
+        params.teamId = selectedTeamId
+      }
+      const data = await getPlayers(params)
       setPlayers(data.players || [])
       setError(null)
     } catch (err: any) {
@@ -83,6 +150,16 @@ export default function PlayerList() {
     }
   }
 
+  const handleViewAsPlayer = (player: Player) => {
+    if (!player.uniqueLink) {
+      alert('This player does not have a unique link. Cannot view as player.')
+      return
+    }
+    setSelectedUniqueLink(player.uniqueLink)
+    // Navigate to player view
+    navigate(`/player/${player.uniqueLink}`)
+  }
+
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
@@ -100,7 +177,9 @@ export default function PlayerList() {
         player.firstName?.toLowerCase().includes(searchLower) ||
         player.lastName?.toLowerCase().includes(searchLower) ||
         player.email?.toLowerCase().includes(searchLower) ||
-        player.teamId?.toLowerCase().includes(searchLower)
+        player.teamId?.toLowerCase().includes(searchLower) ||
+        player.teamName?.toLowerCase().includes(searchLower) ||
+        player.clubName?.toLowerCase().includes(searchLower)
       )
     })
 
@@ -232,18 +311,116 @@ export default function PlayerList() {
             />
           )}
 
-          {/* Search Bar */}
-          {players.length > 0 && (
-            <div className="mb-4">
+          {/* View As Player Status */}
+          {isViewingAsPlayer && (() => {
+            const viewingPlayer = players.find(p => p.uniqueLink === selectedUniqueLink)
+            if (!viewingPlayer) return null
+            
+            const name = `${viewingPlayer.firstName} ${viewingPlayer.lastName}`.trim()
+            const club = viewingPlayer.clubName || 'Unknown Club'
+            const team = viewingPlayer.teamName || 'Unknown Team'
+            
+            return (
+              <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-blue-800">
+                    <span className="font-semibold">Viewing as player:</span>{' '}
+                    {name} - {club} - {team}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      clearViewAsPlayer()
+                      navigate('/admin')
+                    }}
+                    className="text-blue-600 hover:text-blue-700 border-blue-300 hover:border-blue-400"
+                  >
+                    Stop Viewing
+                  </Button>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Filters and Search */}
+          <div className="mb-4 space-y-3">
+            {/* Filter Row */}
+            <div className="flex flex-wrap gap-3 items-end">
+              {/* Club Filter (App Admins only) */}
+              {isAppAdmin && (
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Filter by Club
+                  </label>
+                  <select
+                    value={selectedClubId}
+                    onChange={(e) => setSelectedClubId(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  >
+                    <option value="">All Clubs</option>
+                    {clubs
+                      .filter(c => !c.isDisabled)
+                      .map((club) => (
+                        <option key={club.clubId} value={club.clubId}>
+                          {club.clubName}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+              
+              {/* Team Filter (App Admins and Club Admins) */}
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Filter by Team
+                </label>
+                <select
+                  value={selectedTeamId}
+                  onChange={(e) => setSelectedTeamId(e.target.value)}
+                  disabled={isAppAdmin && !selectedClubId}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                >
+                  <option value="">All Teams</option>
+                  {teams
+                    .filter(t => !isAppAdmin || t.clubId === selectedClubId)
+                    .filter(t => t.isActive !== false)
+                    .map((team) => (
+                      <option key={team.teamId} value={team.teamId}>
+                        {team.teamName}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              
+              {/* Clear Filters Button */}
+              {(selectedClubId || selectedTeamId) && (
+                <div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedClubId('')
+                      setSelectedTeamId('')
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                </div>
+              )}
+            </div>
+            
+            {/* Search Bar */}
+            <div>
               <input
                 type="text"
-                placeholder="Search players by name, email, or team..."
+                placeholder="Search players by name, email, club, or team..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               />
             </div>
-          )}
+          </div>
 
           {/* Players Table */}
           {players.length === 0 ? (
@@ -291,7 +468,7 @@ export default function PlayerList() {
                       onClick={() => handleSort('teamId')}
                     >
                       <div className="flex items-center">
-                        Team
+                        Club / Team
                         {getSortIcon('teamId')}
                       </div>
                     </th>
@@ -336,7 +513,17 @@ export default function PlayerList() {
                           <div className="text-sm text-gray-500">{player.email || 'No email'}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500">{player.teamId || 'N/A'}</div>
+                          <div className="text-sm text-gray-500">
+                            {player.clubName && (
+                              <div className="font-medium">{player.clubName}</div>
+                            )}
+                            {player.teamName && (
+                              <div className="text-xs text-gray-400">{player.teamName}</div>
+                            )}
+                            {!player.clubName && !player.teamName && (
+                              <div>{player.teamId || 'N/A'}</div>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center space-x-2">
@@ -365,6 +552,17 @@ export default function PlayerList() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex justify-end space-x-2">
+                            {player.uniqueLink && isActive && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleViewAsPlayer(player)}
+                                className="text-blue-600 hover:text-blue-700 border-blue-300 hover:border-blue-400"
+                                title="View as this player"
+                              >
+                                View As
+                              </Button>
+                            )}
                             <Button
                               variant="outline"
                               size="sm"

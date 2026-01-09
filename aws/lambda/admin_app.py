@@ -1905,10 +1905,27 @@ def enable_club(club_id):
 
 @app.route('/admin/teams', methods=['GET'])
 @require_admin
-@require_club
 def list_teams():
-    """List teams in coach's club."""
+    """
+    List teams. 
+    - App-admins: can optionally filter by clubId query parameter
+    - Club-admins and coaches: see teams in their club
+    """
+    is_app_admin = getattr(g, 'is_app_admin', False)
     club_id = g.club_id
+    
+    # App-admins can query teams by clubId
+    if is_app_admin:
+        query_club_id = request.args.get('clubId')
+        if query_club_id:
+            club_id = query_club_id
+        else:
+            # If no clubId specified, return empty (app-admins should specify a club)
+            return flask_success_response({"teams": [], "total": 0})
+    elif not club_id:
+        # Non-app-admins must have a club_id
+        return flask_error_response("Access denied: club required", status_code=403)
+    
     active_only = request.args.get('active_only', 'false').lower() == 'true'
     teams = get_teams_by_club(club_id, active_only=active_only)
     
@@ -2726,34 +2743,125 @@ def update_team_coach(team_id, coach_id):
 
 @app.route('/admin/players', methods=['GET'])
 @require_admin
-@require_club
 def list_players():
-    """List all players in coach's club."""
-    club_id = g.club_id
+    """
+    List players based on user role with optional filtering:
+    - app_admin: all players in the app (can filter by club_id and team_id)
+    - club_admin: all players in their club (can filter by team_id)
+    - coach: players on their team(s) (no additional filters)
+    """
+    from shared.db_utils import get_club_by_id, get_team_by_id
+    
+    is_app_admin = getattr(g, 'is_app_admin', False)
+    club_id = getattr(g, 'club_id', None)
+    team_ids = getattr(g, 'team_ids', [])  # List of team IDs for coaches
+    
+    # Get optional filter parameters
+    filter_club_id = request.args.get('clubId')
+    filter_team_id = request.args.get('teamId')
+    
     table = get_table("ConsistencyTracker-Players")
     
-    # Query by clubId using GSI
-    response = table.query(
-        IndexName="clubId-index",
-        KeyConditionExpression="clubId = :clubId",
-        ExpressionAttributeValues={":clubId": club_id},
-    )
-    players = response.get("Items", [])
+    # Get players based on role
+    if is_app_admin:
+        # App admin: get all players (scan all clubs)
+        players = []
+        response = table.scan()
+        players.extend(response.get("Items", []))
+        # Handle pagination
+        while 'LastEvaluatedKey' in response:
+            response = table.scan(ExclusiveStartKey=response['LastEvaluatedKey'])
+            players.extend(response.get("Items", []))
+        
+        # Apply filters if provided
+        if filter_club_id:
+            players = [p for p in players if p.get("clubId") == filter_club_id]
+        if filter_team_id:
+            players = [p for p in players if p.get("teamId") == filter_team_id]
+    elif club_id and not team_ids:
+        # Club admin: get all players in club
+        response = table.query(
+            IndexName="clubId-index",
+            KeyConditionExpression="clubId = :clubId",
+            ExpressionAttributeValues={":clubId": club_id},
+        )
+        players = response.get("Items", [])
+        
+        # Apply team filter if provided (must be in their club)
+        if filter_team_id:
+            # Verify team belongs to their club
+            team = get_team_by_id(filter_team_id)
+            if team and team.get("clubId") == club_id:
+                players = [p for p in players if p.get("teamId") == filter_team_id]
+            else:
+                # Invalid team filter, return empty
+                players = []
+    elif team_ids:
+        # Coach: get players on their team(s)
+        players = []
+        # If team filter provided, only query that team (if coach has access)
+        teams_to_query = [filter_team_id] if filter_team_id and filter_team_id in team_ids else team_ids
+        
+        for team_id in teams_to_query:
+            # Query by teamId using GSI
+            response = table.query(
+                IndexName="teamId-index",
+                KeyConditionExpression="teamId = :teamId",
+                ExpressionAttributeValues={":teamId": team_id},
+            )
+            players.extend(response.get("Items", []))
+        # Deduplicate by playerId (in case coach is on multiple teams)
+        seen = set()
+        unique_players = []
+        for player in players:
+            player_id = player.get("playerId")
+            if player_id and player_id not in seen:
+                seen.add(player_id)
+                unique_players.append(player)
+        players = unique_players
+    else:
+        # Fallback: no access
+        players = []
     
-    # Format response
+    # Format response with club and team names
     player_list = []
+    club_cache = {}  # Cache club lookups
+    team_cache = {}  # Cache team lookups
+    
     for player in players:
+        player_club_id = player.get("clubId")
+        player_team_id = player.get("teamId")
+        
+        # Get club name
+        club_name = None
+        if player_club_id:
+            if player_club_id not in club_cache:
+                club = get_club_by_id(player_club_id)
+                club_cache[player_club_id] = club.get("clubName") if club else None
+            club_name = club_cache[player_club_id]
+        
+        # Get team name
+        team_name = None
+        if player_team_id:
+            if player_team_id not in team_cache:
+                team = get_team_by_id(player_team_id)
+                team_cache[player_team_id] = team.get("teamName") if team else None
+            team_name = team_cache[player_team_id]
+        
         player_list.append({
             "playerId": player.get("playerId"),
             "firstName": player.get("firstName", ""),
             "lastName": player.get("lastName", ""),
             "name": player.get("name", ""),  # Keep for backward compatibility
             "email": player.get("email"),
-            "clubId": player.get("clubId"),
-            "teamId": player.get("teamId"),
+            "clubId": player_club_id,
+            "teamId": player_team_id,
+            "clubName": club_name,
+            "teamName": team_name,
             "isActive": player.get("isActive", True),
             "verificationStatus": player.get("verificationStatus"),
             "createdAt": player.get("createdAt"),
+            "uniqueLink": player.get("uniqueLink"),  # Include uniqueLink for admin view-as feature
         })
     
     return flask_success_response({"players": player_list, "total": len(player_list)})

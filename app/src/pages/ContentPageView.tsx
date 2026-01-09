@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getContent, getPlayer } from '../services/playerApi'
+import { useViewAsPlayer } from '../contexts/ViewAsPlayerContext'
 import NavigationMenu from '../components/navigation/NavigationMenu'
 import Loading from '../components/ui/Loading'
 import Card from '../components/ui/Card'
 import DOMPurify from 'dompurify'
 
 export default function ContentPageView() {
-  const { slug } = useParams<{ slug: string }>()
+  const { slug, uniqueLink: urlUniqueLink } = useParams<{ slug: string; uniqueLink?: string }>()
+  const { selectedUniqueLink } = useViewAsPlayer()
+  const uniqueLink = urlUniqueLink || selectedUniqueLink || undefined
+  
   const [content, setContent] = useState<any>(null)
   const [player, setPlayer] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -18,15 +22,15 @@ export default function ContentPageView() {
     if (!slug) return
     
     loadData()
-  }, [slug])
+  }, [slug, uniqueLink])
 
   const loadData = async () => {
     try {
       setLoading(true)
-      const playerData = await getPlayer()
+      const playerData = await getPlayer(uniqueLink)
       setPlayer(playerData.player)
       
-      const contentData = await getContent(slug!)
+      const contentData = await getContent(slug!, uniqueLink)
       setContent(contentData)
       setError(null)
     } catch (err: any) {
@@ -47,7 +51,7 @@ export default function ContentPageView() {
           <h1 className="text-2xl font-bold text-red-600 mb-4">Error</h1>
           <p className="text-gray-600 mb-4">{error || 'Content not found'}</p>
           <Link
-            to="/player/resource-list"
+            to={uniqueLink ? `/player/${uniqueLink}/resource-list` : '/player/resource-list'}
             className="text-primary hover:underline"
           >
             Back to Resources

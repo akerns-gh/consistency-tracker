@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react'
+import { useParams } from 'react-router-dom'
 import { getPlayer, getWeek, saveReflection } from '../services/playerApi'
+import { useViewAsPlayer } from '../contexts/ViewAsPlayerContext'
 import NavigationMenu from '../components/navigation/NavigationMenu'
 import Loading from '../components/ui/Loading'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 
 export default function ReflectionView() {
+  const { uniqueLink: urlUniqueLink } = useParams<{ uniqueLink?: string }>()
+  const { selectedUniqueLink } = useViewAsPlayer()
+  const uniqueLink = urlUniqueLink || selectedUniqueLink || undefined
+  const isViewAsMode = !!uniqueLink
+  
   const [player, setPlayer] = useState<any>(null)
   const [weekData, setWeekData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -20,11 +27,11 @@ export default function ReflectionView() {
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [uniqueLink])
 
   // Auto-save effect - saves every 30 seconds if there are changes
   useEffect(() => {
-    if (!weekData) return
+    if (!weekData || isViewAsMode) return // Don't auto-save in view-as mode
 
     // Don't auto-save if all fields are empty
     if (!wentWell && !doBetter && !planForWeek) return
@@ -36,7 +43,8 @@ export default function ReflectionView() {
           weekData.weekId,
           wentWell,
           doBetter,
-          planForWeek
+          planForWeek,
+          uniqueLink
         )
         setLastSaved(new Date())
         setAutoSaveStatus('saved')
@@ -57,11 +65,11 @@ export default function ReflectionView() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const playerData = await getPlayer()
+      const playerData = await getPlayer(uniqueLink)
       setPlayer(playerData.player)
       
       const currentWeekId = playerData.currentWeek.weekId
-      const week = await getWeek(currentWeekId)
+      const week = await getWeek(currentWeekId, uniqueLink)
       setWeekData(week)
       
       // Load existing reflection if available
@@ -80,13 +88,19 @@ export default function ReflectionView() {
   const handleSave = async () => {
     if (!weekData) return
     
+    if (isViewAsMode) {
+      alert('You are viewing this page as a player. Modifications are not allowed in view-as mode.')
+      return
+    }
+    
     try {
       setSaving(true)
       await saveReflection(
         weekData.weekId,
         wentWell,
         doBetter,
-        planForWeek
+        planForWeek,
+        uniqueLink
       )
       setLastSaved(new Date())
       setAutoSaveStatus('saved')
@@ -147,7 +161,8 @@ export default function ReflectionView() {
               <textarea
                 value={wentWell}
                 onChange={(e) => setWentWell(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                disabled={isViewAsMode}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                 rows={4}
                 placeholder="Reflect on what went well..."
               />
@@ -160,7 +175,8 @@ export default function ReflectionView() {
               <textarea
                 value={doBetter}
                 onChange={(e) => setDoBetter(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                disabled={isViewAsMode}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                 rows={4}
                 placeholder="Think about areas for improvement..."
               />
@@ -173,7 +189,8 @@ export default function ReflectionView() {
               <textarea
                 value={planForWeek}
                 onChange={(e) => setPlanForWeek(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                disabled={isViewAsMode}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                 rows={4}
                 placeholder="Set goals and plans for the upcoming week..."
               />
@@ -182,7 +199,7 @@ export default function ReflectionView() {
             <div className="flex justify-end">
               <Button
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saving || isViewAsMode}
               >
                 {saving ? 'Saving...' : 'Save Reflection'}
               </Button>

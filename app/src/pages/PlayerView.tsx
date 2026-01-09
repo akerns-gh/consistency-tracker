@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { getPlayer, getWeek, checkIn, Activity } from '../services/playerApi'
+import { useViewAsPlayer } from '../contexts/ViewAsPlayerContext'
 import NavigationMenu from '../components/navigation/NavigationMenu'
 import Loading from '../components/ui/Loading'
 import Button from '../components/ui/Button'
@@ -33,6 +34,12 @@ function getAdjacentWeekId(weekId: string, direction: 'prev' | 'next'): string {
 
 export default function PlayerView() {
   const navigate = useNavigate()
+  const { uniqueLink: urlUniqueLink } = useParams<{ uniqueLink?: string }>()
+  const { selectedUniqueLink } = useViewAsPlayer()
+  // Use uniqueLink from URL params if available (for admin view-as), otherwise from context, otherwise undefined (JWT mode)
+  const uniqueLink = urlUniqueLink || selectedUniqueLink || undefined
+  const isViewAsMode = !!uniqueLink
+  
   const [playerData, setPlayerData] = useState<any>(null)
   const [currentWeekId, setCurrentWeekId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -43,18 +50,18 @@ export default function PlayerView() {
 
   useEffect(() => {
     loadPlayerData()
-  }, [])
+  }, [uniqueLink])
 
   const loadPlayerData = async (weekId?: string) => {
     try {
       setLoading(true)
-      const data = await getPlayer()
+      const data = await getPlayer(uniqueLink)
       const weekToLoad = weekId || data.currentWeek.weekId
       setCurrentWeekId(weekToLoad)
       
       // If loading a different week, fetch that week's data
       if (weekToLoad !== data.currentWeek.weekId) {
-        const weekData = await getWeek(weekToLoad)
+        const weekData = await getWeek(weekToLoad, uniqueLink)
         setPlayerData({
           player: data.player,
           currentWeek: weekData
@@ -84,13 +91,19 @@ export default function PlayerView() {
       })
       setFlyoutOpen(true)
     } else if (activity.activityType === 'link' && activity.contentSlug) {
-      navigate(`/player/content-page/${activity.contentSlug}`)
+      const basePath = uniqueLink ? `/player/${uniqueLink}` : '/player'
+      navigate(`${basePath}/content-page/${activity.contentSlug}`)
     }
   }
 
   const handleCheckIn = async (activityId: string, date: string, completed: boolean) => {
+    if (isViewAsMode) {
+      // Read-only mode - don't allow modifications when viewing as player
+      alert('You are viewing this page as a player. Modifications are not allowed in view-as mode.')
+      return
+    }
     try {
-      await checkIn(activityId, date, completed)
+      await checkIn(activityId, date, completed, uniqueLink)
       // Reload data to reflect changes
       await loadPlayerData()
     } catch (err: any) {

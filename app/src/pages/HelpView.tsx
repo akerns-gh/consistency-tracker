@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { getPlayer } from '../services/playerApi'
 import NavBar from '../components/admin/NavBar'
 import AdminMenu from '../components/admin/AdminMenu'
-import { AdminTab } from '../components/admin/TabNavigation'
 import NavigationMenu from '../components/navigation/NavigationMenu'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -21,7 +19,6 @@ type HelpSection =
 
 export default function HelpView() {
   const { isAdmin } = useAuth()
-  const navigate = useNavigate()
   const [activeSection, setActiveSection] = useState<HelpSection>('overview')
   const [menuOpen, setMenuOpen] = useState(false)
   const [player, setPlayer] = useState<any>(null)
@@ -45,14 +42,6 @@ export default function HelpView() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleAdminTabChange = (tab: AdminTab) => {
-    // Navigate to admin dashboard with the selected tab
-    navigate('/admin')
-    // Note: The AdminDashboard component will handle setting the active tab
-    // This is a limitation - we can't directly set the tab from here
-    // but at least we navigate them back to the admin dashboard
   }
 
   const sections: { id: HelpSection; label: string; icon: string }[] = [
@@ -99,8 +88,6 @@ export default function HelpView() {
           <AdminMenu
             isOpen={menuOpen}
             onClose={() => setMenuOpen(false)}
-            activeTab="overview"
-            onTabChange={handleAdminTabChange}
           />
         </>
       ) : (

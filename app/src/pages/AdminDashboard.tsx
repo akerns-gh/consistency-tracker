@@ -75,8 +75,6 @@ export default function AdminDashboard() {
       <AdminMenu
         isOpen={menuOpen}
         onClose={() => setMenuOpen(false)}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
       />
 
       <main className="max-w-7xl mx-auto px-4 py-6">

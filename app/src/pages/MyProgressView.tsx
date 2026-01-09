@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
+import { useParams } from 'react-router-dom'
 import { getProgress, getWeek } from '../services/playerApi'
+import { useViewAsPlayer } from '../contexts/ViewAsPlayerContext'
 import NavigationMenu from '../components/navigation/NavigationMenu'
 import Loading from '../components/ui/Loading'
 import Card from '../components/ui/Card'
@@ -33,6 +35,10 @@ function getAdjacentWeekId(weekId: string, direction: 'prev' | 'next'): string {
 }
 
 export default function MyProgressView() {
+  const { uniqueLink: urlUniqueLink } = useParams<{ uniqueLink?: string }>()
+  const { selectedUniqueLink } = useViewAsPlayer()
+  const uniqueLink = urlUniqueLink || selectedUniqueLink || undefined
+  
   const [progressData, setProgressData] = useState<any>(null)
   const [currentWeekId, setCurrentWeekId] = useState<string | null>(null)
   const [activityStats, setActivityStats] = useState<any[]>([])
@@ -42,12 +48,12 @@ export default function MyProgressView() {
 
   useEffect(() => {
     loadProgress()
-  }, [])
+  }, [uniqueLink])
 
   const loadProgress = async (weekId?: string) => {
     try {
       setLoading(true)
-      const data = await getProgress()
+      const data = await getProgress(uniqueLink)
       setProgressData(data)
       
       // Load activity stats for current week
@@ -67,7 +73,7 @@ export default function MyProgressView() {
 
   const loadActivityStats = async (weekId: string) => {
     try {
-      const weekData = await getWeek(weekId)
+      const weekData = await getWeek(weekId, uniqueLink)
       const activities = weekData.activities || []
       const dailyTracking = weekData.dailyTracking || {}
       
