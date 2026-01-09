@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import { useAuth } from '../../../contexts/AuthContext'
+import { useViewAsClubAdmin } from '../../../contexts/ViewAsClubAdminContext'
 import { getOverview } from '../../../services/adminApi'
 import Card from '../../ui/Card'
 import Loading from '../../ui/Loading'
@@ -11,17 +13,28 @@ interface SummaryData {
 }
 
 export default function SummaryCards() {
+  const { isAppAdmin } = useAuth()
+  const { isViewingAsClubAdmin, selectedClubId } = useViewAsClubAdmin()
   const [data, setData] = useState<SummaryData | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [isAppAdmin, isViewingAsClubAdmin, selectedClubId])
 
   const loadData = async () => {
+    // For app_admins not viewing as club admin, skip loading overview data
+    if (isAppAdmin && !isViewingAsClubAdmin) {
+      setData(null)
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
-      const response = await getOverview()
+      // Pass clubId if viewing as club admin
+      const clubId = isViewingAsClubAdmin ? selectedClubId : undefined
+      const response = await getOverview(clubId)
       // Map from backend response structure
       const currentWeek = response.currentWeek || {}
       setData({
@@ -45,6 +58,22 @@ export default function SummaryCards() {
 
   if (loading) {
     return <Loading text="Loading overview..." />
+  }
+
+  // For app_admins not viewing as club admin, show message instead of stats
+  if (isAppAdmin && !isViewingAsClubAdmin) {
+    return (
+      <Card>
+        <div className="text-center py-8">
+          <p className="text-gray-600 mb-2">
+            Overview statistics are available when viewing as a club admin.
+          </p>
+          <p className="text-sm text-gray-500">
+            Use the "View As" button in Club Management to see club-specific statistics.
+          </p>
+        </div>
+      </Card>
+    )
   }
 
   if (!data) {

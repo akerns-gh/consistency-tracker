@@ -478,8 +478,9 @@ export async function deleteActivity(activityId: string): Promise<void> {
 
 /**
  * Get overview statistics
+ * @param clubId - Optional club ID for app admins to filter overview
  */
-export async function getOverview(): Promise<{
+export async function getOverview(clubId?: string): Promise<{
   currentWeek: {
     weekId: string
     totalPlayers: number
@@ -501,7 +502,8 @@ export async function getOverview(): Promise<{
     }>
   }
 }> {
-  const response = await api.get('/admin/overview')
+  const params = clubId ? { clubId } : {}
+  const response = await api.get('/admin/overview', { params })
   return response.data.data
 }
 
