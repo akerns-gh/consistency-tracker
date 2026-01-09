@@ -442,9 +442,11 @@ export interface Activity {
 
 /**
  * Get all activities
+ * @param clubId - Optional club ID for app admins to filter activities
  */
-export async function getActivities(): Promise<{ activities: Activity[]; total: number }> {
-  const response = await api.get('/admin/activities')
+export async function getActivities(clubId?: string): Promise<{ activities: Activity[]; total: number }> {
+  const params = clubId ? { clubId } : {}
+  const response = await api.get('/admin/activities', { params })
   return response.data.data
 }
 

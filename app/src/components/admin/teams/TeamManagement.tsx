@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { getTeams, createTeam, updateTeam, activateTeam, deactivateTeam, getTeamCoaches, addTeamCoach, removeTeamCoach, activateCoach, deactivateCoach, updateCoach, resendCoachVerification, Team, Coach, CsvUploadResults } from '../../../services/adminApi'
+import { useViewAsClubAdmin } from '../../../contexts/ViewAsClubAdminContext'
 import Card from '../../ui/Card'
 import Button from '../../ui/Button'
 import Loading from '../../ui/Loading'
@@ -9,6 +10,7 @@ type SortColumn = 'teamName' | 'teamId' | 'createdAt'
 type SortDirection = 'asc' | 'desc'
 
 export default function TeamManagement() {
+  const { selectedClubId, isViewingAsClubAdmin } = useViewAsClubAdmin()
   const [teams, setTeams] = useState<Team[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -42,13 +44,15 @@ export default function TeamManagement() {
 
   useEffect(() => {
     loadTeams()
-  }, [])
+  }, [selectedClubId, isViewingAsClubAdmin])
 
   const loadTeams = async () => {
     try {
       setLoading(true)
       setError(null)
-      const data = await getTeams()
+      // Pass clubId if viewing as club admin
+      const clubId = isViewingAsClubAdmin ? selectedClubId : undefined
+      const data = await getTeams(clubId || undefined)
       setTeams(data.teams || [])
     } catch (err) {
       console.error('Failed to load teams:', err)

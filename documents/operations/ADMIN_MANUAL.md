@@ -13,7 +13,8 @@ This manual covers:
 3. Email notifications
 4. First-time login process
 5. Password requirements
-6. Troubleshooting
+6. View As functionality (View As Club Admin and View As Player)
+7. Troubleshooting
 
 ## Admin Group Hierarchy
 
@@ -27,7 +28,10 @@ The application uses a hierarchical admin group structure to manage permissions:
      - Create new clubs
      - Access all clubs and teams
      - Manage platform settings
+     - View as any club admin (to manage club-specific resources)
+     - View as any player (to see player experience)
    - **Creation**: Created manually via AWS Console or CLI (see "Creating Your First App-Admin" below)
+   - **Dashboard**: By default, app-admins see only "Overview" and "Settings" tabs. Use "View As Club Admin" to access club-specific management tabs (Players, Activities, Content, Teams).
 
 2. **`club-{clubName}-admins`** (Club Administrators)
    - **Scope**: Access to a specific club and all its teams
@@ -701,6 +705,122 @@ When viewing users in the AWS Cognito console, you may see different statuses:
 
 3. **Alternative**: Use the `scripts/utilities/update_user_club_id.py` script (if available) to automatically set the attribute based on the user's group membership.
 
+## View As Functionality
+
+The application provides two "View As" features that allow administrators to temporarily assume the perspective of other users for support, testing, and management purposes.
+
+### View As Club Admin (App Admins Only)
+
+**Purpose**: Allows platform administrators (app-admins) to temporarily view and manage a specific club as if they were a club administrator.
+
+**How It Works**:
+
+1. **Accessing View As Club Admin**:
+   - Log in as an app-admin
+   - Navigate to the "Overview" tab in the admin dashboard
+   - In the Club Management section, find the club you want to view
+   - Click the "View As" button next to the club name
+   - The system will switch to club admin view for that specific club
+
+2. **What Changes When Viewing As Club Admin**:
+   - All admin tabs become visible (Players, Activities, Content, Teams, Settings)
+   - A blue banner appears at the top showing: "Viewing as club admin: [Club Name]"
+   - All data and operations are scoped to the selected club
+   - The club selector in Players list is automatically set and disabled
+   - You can manage players, activities, content, and teams for that club
+
+3. **What You Can Do**:
+   - View all players in the club
+   - Create and edit activities for the club
+   - Manage content pages for the club
+   - View and manage teams in the club
+   - Access all club-specific settings and data
+
+4. **Stopping View As Club Admin**:
+   - Click the "Stop Viewing" button in the blue banner at the top of the page
+   - You will return to the app-admin dashboard
+   - Only Overview and Settings tabs will be visible again
+
+5. **Important Notes**:
+   - The view-as state persists across page navigation (stored in browser localStorage)
+   - You can only view one club at a time
+   - Disabled clubs cannot be viewed (View As button is disabled)
+   - All API calls automatically include the selected club ID when viewing as club admin
+
+**Use Cases**:
+- Troubleshooting club-specific issues
+- Providing support to club administrators
+- Testing club functionality without switching accounts
+- Reviewing club data and settings
+- Training new club administrators
+
+### View As Player (All Admins)
+
+**Purpose**: Allows administrators (app-admins, club-admins, and coaches) to view the application from a player's perspective to understand their experience, troubleshoot issues, or provide support.
+
+**How It Works**:
+
+1. **Accessing View As Player**:
+   - Log in as any admin (app-admin, club-admin, or coach)
+   - Navigate to the "Players" tab in the admin dashboard
+   - Find the player you want to view as
+   - Click the "View As" button next to the player's name
+   - The system will navigate to the player's view
+
+2. **What You Can See**:
+   - The player's weekly activity grid
+   - The player's progress dashboard
+   - The player's leaderboard view
+   - The player's reflection responses
+   - All content pages accessible to the player
+   - The player's navigation menu
+
+3. **What You Cannot Do** (Read-Only Mode):
+   - You cannot modify the player's check-ins or data
+   - You cannot edit the player's reflections
+   - You cannot change any player settings
+   - All modification actions are disabled or show alerts
+
+4. **Stopping View As Player**:
+   - Click the "Stop Viewing" button in the blue banner at the top of the page
+   - You will return to the admin dashboard
+   - The view-as state is cleared
+
+5. **Important Notes**:
+   - The view-as state persists across page navigation (stored in browser localStorage)
+   - You can navigate through all player pages while in view-as mode
+   - The player's unique link is used to access their data
+   - If a player doesn't have a unique link, View As is not available for that player
+
+**Use Cases**:
+- Troubleshooting player-specific issues
+- Understanding what players see and experience
+- Providing support to players
+- Testing player functionality
+- Reviewing player data and progress
+- Training new administrators on player features
+
+### Technical Details
+
+**View As Club Admin**:
+- Uses `ViewAsClubAdminContext` to store the selected club ID
+- Club ID is stored in browser localStorage as `viewAsClubAdminClubId`
+- API calls automatically include `clubId` query parameter when viewing as club admin
+- Tab visibility is controlled by checking `isViewingAsClubAdmin` flag
+
+**View As Player**:
+- Uses `ViewAsPlayerContext` to store the selected player's unique link
+- Unique link is stored in browser localStorage as `viewAsPlayerUniqueLink`
+- Player routes accept the unique link as a URL parameter
+- All player API calls use the unique link to fetch player-specific data
+
+**Security Considerations**:
+- View-as functionality respects existing permission boundaries
+- App-admins can view any club or player
+- Club-admins can only view players in their club
+- Coaches can only view players on their team(s)
+- All view-as actions are logged for audit purposes
+
 ## Best Practices
 
 1. **Secure Temporary Passwords**: Use strong temporary passwords that meet the password policy
@@ -708,6 +828,8 @@ When viewing users in the AWS Cognito console, you may see different statuses:
 3. **Set Password Expiration Reminders**: Remind users to change their password if they haven't logged in within a few days
 4. **Regular Audits**: Periodically review admin users in Cognito to ensure only authorized users have access
 5. **Document User Creation**: Keep a record of when users were created and by whom
+6. **Use View As Responsibly**: Only use view-as functionality when necessary for support or testing. Always stop viewing when done.
+7. **Respect Privacy**: When viewing as a player, remember you're seeing their personal data. Use this feature only for legitimate support purposes.
 
 ## Managing Dynamic Groups
 

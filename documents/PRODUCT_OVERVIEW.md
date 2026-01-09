@@ -115,6 +115,11 @@ The Consistency Tracker helps youth lacrosse organizations:
 - **Email Invitations**: Automated email with temporary passwords
 - **Bulk Import**: CSV upload for multiple players
 - **Status Tracking**: View player verification status and activity
+- **View As Player**: Admins can view the application from any player's perspective
+  - See exactly what players see
+  - Navigate through all player pages
+  - Read-only mode (cannot modify player data)
+  - Useful for troubleshooting and support
 
 #### Activity Management
 - **Create/Edit Activities**: Define custom activities for teams/clubs
@@ -137,6 +142,10 @@ The Consistency Tracker helps youth lacrosse organizations:
 - **Create Clubs**: Add new clubs to the platform
 - **Club Administrators**: Assign club admins during club creation
 - **Club Settings**: Manage club-wide configuration
+- **View As Club Admin**: App-admins can temporarily view and manage any club as if they were a club administrator
+  - Access all club-specific tabs (Players, Activities, Content, Teams)
+  - All operations are scoped to the selected club
+  - Useful for troubleshooting, support, and training
 
 #### Content Management System
 - **WYSIWYG Editor**: Rich text editor for creating HTML content (no HTML knowledge required)

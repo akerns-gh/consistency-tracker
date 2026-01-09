@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ViewAsPlayerProvider } from './contexts/ViewAsPlayerContext'
+import { ViewAsClubAdminProvider } from './contexts/ViewAsClubAdminContext'
 import Login from './pages/Login'
 import AdminDashboard from './pages/AdminDashboard'
 import PlayerView from './pages/PlayerView'
@@ -19,7 +20,8 @@ function App() {
     <ErrorBoundary>
       <AuthProvider>
         <ViewAsPlayerProvider>
-          <Router>
+          <ViewAsClubAdminProvider>
+            <Router>
             <Routes>
               {/* Public routes */}
               <Route path="/login" element={<Login />} />
@@ -158,6 +160,7 @@ function App() {
               />
             </Routes>
           </Router>
+          </ViewAsClubAdminProvider>
         </ViewAsPlayerProvider>
       </AuthProvider>
     </ErrorBoundary>

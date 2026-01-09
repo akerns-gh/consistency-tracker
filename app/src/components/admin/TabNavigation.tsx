@@ -1,3 +1,5 @@
+import { useAuth } from '../../contexts/AuthContext'
+import { useViewAsClubAdmin } from '../../contexts/ViewAsClubAdminContext'
 
 export type AdminTab = 'players' | 'activities' | 'content' | 'overview' | 'settings' | 'teams'
 
@@ -7,6 +9,17 @@ interface TabNavigationProps {
 }
 
 export default function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
+  const { isAppAdmin } = useAuth()
+  const { isViewingAsClubAdmin } = useViewAsClubAdmin()
+  
+  // For app_admins, hide club-specific tabs unless viewing as club admin
+  const shouldShowTab = (tabId: AdminTab) => {
+    if (!isAppAdmin) return true // Show all tabs for non-app-admins
+    if (isViewingAsClubAdmin) return true // Show all tabs when viewing as club admin
+    // For app_admins not viewing as club admin, only show overview and settings
+    return tabId === 'overview' || tabId === 'settings'
+  }
+
   const tabs: { id: AdminTab; label: string; icon: string }[] = [
     { id: 'overview', label: 'Overview', icon: '📊' },
     { id: 'players', label: 'Players', icon: '👥' },
@@ -14,7 +27,7 @@ export default function TabNavigation({ activeTab, onTabChange }: TabNavigationP
     { id: 'content', label: 'Content', icon: '📄' },
     { id: 'teams', label: 'Teams', icon: '🏆' },
     { id: 'settings', label: 'Settings', icon: '⚙️' },
-  ]
+  ].filter(tab => shouldShowTab(tab.id))
 
   return (
     <div className="bg-white border-b">

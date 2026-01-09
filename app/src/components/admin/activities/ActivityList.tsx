@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getActivities, Activity, updateActivity, deleteActivity } from '../../../services/adminApi'
+import { useViewAsClubAdmin } from '../../../contexts/ViewAsClubAdminContext'
 import Loading from '../../ui/Loading'
 import Card from '../../ui/Card'
 import Button from '../../ui/Button'
@@ -7,6 +8,7 @@ import ActivityForm from './ActivityForm'
 import ActivityCard from './ActivityCard'
 
 export default function ActivityList() {
+  const { selectedClubId, isViewingAsClubAdmin } = useViewAsClubAdmin()
   const [activities, setActivities] = useState<Activity[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -15,12 +17,14 @@ export default function ActivityList() {
 
   useEffect(() => {
     loadActivities()
-  }, [])
+  }, [selectedClubId, isViewingAsClubAdmin])
 
   const loadActivities = async () => {
     try {
       setLoading(true)
-      const data = await getActivities()
+      // Pass clubId if viewing as club admin
+      const clubId = isViewingAsClubAdmin ? selectedClubId : undefined
+      const data = await getActivities(clubId || undefined)
       setActivities(data.activities || [])
       setError(null)
     } catch (err: any) {

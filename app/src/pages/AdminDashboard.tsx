@@ -1,5 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useViewAsClubAdmin } from '../contexts/ViewAsClubAdminContext'
+import { getClubs, Club } from '../services/adminApi'
 import NavBar from '../components/admin/NavBar'
 import TabNavigation, { AdminTab } from '../components/admin/TabNavigation'
 import AdminMenu from '../components/admin/AdminMenu'
@@ -9,12 +12,38 @@ import SummaryCards from '../components/admin/overview/SummaryCards'
 import SettingsForm from '../components/admin/settings/SettingsForm'
 import TeamManagement from '../components/admin/teams/TeamManagement'
 import AppAdminDashboard from './AppAdminDashboard'
+import Button from '../components/ui/Button'
 
 export default function AdminDashboard() {
   const { isAppAdmin } = useAuth()
+  const { selectedClubId, isViewingAsClubAdmin, clearViewAsClubAdmin } = useViewAsClubAdmin()
+  const [viewingClub, setViewingClub] = useState<Club | null>(null)
+  const navigate = useNavigate()
   
-  // If user is app-admin, show app-admin dashboard instead
-  if (isAppAdmin) {
+  // Load club info when viewing as club admin
+  useEffect(() => {
+    if (isViewingAsClubAdmin && selectedClubId) {
+      loadClubInfo()
+    }
+  }, [isViewingAsClubAdmin, selectedClubId])
+
+  const loadClubInfo = async () => {
+    try {
+      const data = await getClubs()
+      const club = data.clubs.find((c: Club) => c.clubId === selectedClubId)
+      setViewingClub(club || null)
+    } catch (err) {
+      console.error('Failed to load club info:', err)
+    }
+  }
+
+  const handleStopViewing = () => {
+    clearViewAsClubAdmin()
+    navigate('/admin')
+  }
+  
+  // If user is app-admin and NOT viewing as club admin, show app-admin dashboard
+  if (isAppAdmin && !isViewingAsClubAdmin) {
     return <AppAdminDashboard />
   }
   const [activeTab, setActiveTab] = useState<AdminTab>('overview')
@@ -74,6 +103,25 @@ export default function AdminDashboard() {
       />
 
       <main className="max-w-7xl mx-auto px-4 py-6">
+        {/* View As Club Admin Banner */}
+        {isViewingAsClubAdmin && viewingClub && (
+          <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-blue-800">
+                <span className="font-semibold">Viewing as club admin:</span>{' '}
+                {viewingClub.clubName}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleStopViewing}
+                className="text-blue-600 hover:text-blue-700 border-blue-300 hover:border-blue-400"
+              >
+                Stop Viewing
+              </Button>
+            </div>
+          </div>
+        )}
         {renderTabContent()}
       </main>
     </div>

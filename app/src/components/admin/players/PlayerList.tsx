@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getPlayers, getClubs, getTeams, Player, Club, Team, togglePlayerActivation, invitePlayer, CsvUploadResults } from '../../../services/adminApi'
 import { useAuth } from '../../../contexts/AuthContext'
 import { useViewAsPlayer } from '../../../contexts/ViewAsPlayerContext'
+import { useViewAsClubAdmin } from '../../../contexts/ViewAsClubAdminContext'
 import Loading from '../../ui/Loading'
 import Card from '../../ui/Card'
 import Button from '../../ui/Button'
@@ -21,6 +22,7 @@ export default function PlayerList() {
   const navigate = useNavigate()
   const { isAppAdmin } = useAuth()
   const { selectedUniqueLink, setSelectedUniqueLink, isViewingAsPlayer, clearViewAsPlayer } = useViewAsPlayer()
+  const { selectedClubId: viewAsClubId, isViewingAsClubAdmin } = useViewAsClubAdmin()
   
   const [players, setPlayers] = useState<Player[]>([])
   const [clubs, setClubs] = useState<Club[]>([])
@@ -29,7 +31,9 @@ export default function PlayerList() {
   const [loadingFilters, setLoadingFilters] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedClubId, setSelectedClubId] = useState<string>('')
+  // Use view-as club ID if available, otherwise use local state
+  const [localSelectedClubId, setLocalSelectedClubId] = useState<string>('')
+  const selectedClubId = isViewingAsClubAdmin && viewAsClubId ? viewAsClubId : localSelectedClubId
   const [selectedTeamId, setSelectedTeamId] = useState<string>('')
   const [showForm, setShowForm] = useState(false)
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null)
@@ -81,6 +85,13 @@ export default function PlayerList() {
       setSelectedTeamId('')
     }
   }, [selectedClubId, isAppAdmin])
+
+  // Update local club selection when view-as club changes
+  useEffect(() => {
+    if (isViewingAsClubAdmin && viewAsClubId) {
+      setLocalSelectedClubId(viewAsClubId)
+    }
+  }, [isViewingAsClubAdmin, viewAsClubId])
 
   const loadTeamsForClub = async (clubId: string) => {
     try {
@@ -355,8 +366,9 @@ export default function PlayerList() {
                   </label>
                   <select
                     value={selectedClubId}
-                    onChange={(e) => setSelectedClubId(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    onChange={(e) => setLocalSelectedClubId(e.target.value)}
+                    disabled={isViewingAsClubAdmin}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
                     <option value="">All Clubs</option>
                     {clubs
@@ -394,13 +406,13 @@ export default function PlayerList() {
               </div>
               
               {/* Clear Filters Button */}
-              {(selectedClubId || selectedTeamId) && (
+              {(selectedClubId || selectedTeamId) && !isViewingAsClubAdmin && (
                 <div>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      setSelectedClubId('')
+                      setLocalSelectedClubId('')
                       setSelectedTeamId('')
                     }}
                   >

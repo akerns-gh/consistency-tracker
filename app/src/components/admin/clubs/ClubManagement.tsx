@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { getClubs, createClub, updateClub, disableClub, enableClub, addClubAdmin, getClubAdmins, updateClubAdmin, deleteClubAdmin, resendClubAdminVerification, Club, ClubAdmin } from '../../../services/adminApi'
+import { useViewAsClubAdmin } from '../../../contexts/ViewAsClubAdminContext'
 import Card from '../../ui/Card'
 import Button from '../../ui/Button'
 import Loading from '../../ui/Loading'
@@ -8,6 +10,8 @@ type SortColumn = 'clubName' | 'clubId' | 'status' | 'createdAt'
 type SortDirection = 'asc' | 'desc'
 
 export default function ClubManagement() {
+  const navigate = useNavigate()
+  const { setSelectedClubId } = useViewAsClubAdmin()
   const [clubs, setClubs] = useState<Club[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -274,6 +278,15 @@ export default function ClubManagement() {
     } catch (err: any) {
       alert(err?.message || 'Failed to enable club')
     }
+  }
+
+  const handleViewAsClubAdmin = (club: Club) => {
+    if (club.isDisabled) {
+      alert('Cannot view as club admin for a disabled club')
+      return
+    }
+    setSelectedClubId(club.clubId)
+    navigate('/admin')
   }
 
   const startEdit = (club: Club) => {
@@ -848,6 +861,16 @@ export default function ClubManagement() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div className="flex justify-end space-x-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleViewAsClubAdmin(club)}
+                                disabled={isDisabled}
+                                className="text-blue-600 hover:text-blue-700 border-blue-300 hover:border-blue-400"
+                                title="View as club admin"
+                              >
+                                View As
+                              </Button>
                               <Button
                                 variant="outline"
                                 size="sm"
